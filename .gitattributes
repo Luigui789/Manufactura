@@ -1,0 +1,16 @@
+# Normaliza los finales de linea a LF en el arbol de trabajo.
+# Sin esto, core.autocrlf=true en Windows deja CRLF en disco y Prettier
+# (endOfLine: "lf") marca como mal formateado todo el repositorio.
+* text=auto eol=lf
+
+# Archivos generados: fuera de los diffs y de las estadisticas del lenguaje.
+pnpm-lock.yaml -diff linguist-generated
+
+# Binarios
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.woff binary
+*.woff2 binary

@@ -1,0 +1,18 @@
+packages:
+  - 'frontend'
+  - 'backend'
+
+# Desde pnpm 10 los scripts de instalacion de las dependencias estan bloqueados
+# por defecto. Esta lista se construyo a partir de lo que pnpm reporto realmente
+# en la primera instalacion, no por anticipacion.
+#
+# Se aprueban solo los dos que el proyecto necesita: Prisma descarga en su
+# postinstall el motor de consultas y genera el cliente, y sin eso el backend no
+# puede conectarse a PostgreSQL.
+#
+# @scarf/scarf tambien quedo bloqueado y NO se aprueba a proposito: es un
+# paquete de telemetria que reporta datos de instalacion, no aporta nada al
+# proyecto y bloquearlo es el comportamiento deseado.
+onlyBuiltDependencies:
+  - '@prisma/engines'
+  - 'prisma'
