@@ -1,0 +1,11 @@
+node_modules
+dist
+build
+coverage
+pnpm-lock.yaml
+
+# Cliente generado por Prisma
+backend/generated
+
+# Migraciones SQL generadas por Prisma: no se editan a mano
+backend/prisma/migrations

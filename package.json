@@ -1,0 +1,23 @@
+{
+  "name": "ecosoap-erp",
+  "version": "0.1.0",
+  "private": true,
+  "description": "ERP web para EcoSoap Nicaragua S.A. - monorepo gestionado con pnpm workspaces",
+  "packageManager": "pnpm@10.30.3",
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "scripts": {
+    "dev": "pnpm -r --parallel run dev",
+    "build": "pnpm -r run build",
+    "lint": "pnpm -r run lint",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "db:up": "docker compose up -d",
+    "db:down": "docker compose down",
+    "db:logs": "docker compose logs -f postgres"
+  },
+  "devDependencies": {
+    "prettier": "3.9.8"
+  }
+}
