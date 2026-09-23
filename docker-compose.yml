@@ -18,7 +18,12 @@ services:
     ports:
       - '${POSTGRES_PORT:-5432}:5432'
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      # PostgreSQL 18 cambio la convencion: el volumen se monta en
+      # /var/lib/postgresql (no en .../data) para que la imagen cree un
+      # subdirectorio por version mayor y permita pg_upgrade --link sin cruzar
+      # el limite del punto de montaje. Con la ruta antigua el contenedor
+      # arranca en bucle y termina en "unhealthy".
+      - postgres_data:/var/lib/postgresql
     healthcheck:
       # Hace observable el estado de la base: "healthy" deja de ser una suposicion.
       test: ['CMD-SHELL', 'pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}']

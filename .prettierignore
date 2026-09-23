@@ -5,7 +5,7 @@ coverage
 pnpm-lock.yaml
 
 # Cliente generado por Prisma
-backend/generated
+backend/src/generated
 
 # Migraciones SQL generadas por Prisma: no se editan a mano
 backend/prisma/migrations
