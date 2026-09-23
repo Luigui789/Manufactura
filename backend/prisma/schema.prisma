@@ -1,0 +1,24 @@
+// Esquema de Prisma de EcoSoap ERP.
+//
+// En esta etapa contiene unicamente la conexion y el generador. No hay modelos
+// de negocio ni migraciones, y eso es deliberado: el modelo de datos real
+// (Product, Supplier, Customer, PurchaseOrder, InventoryMovement, Bom,
+// ProductionOrder, Lot, QualityInspection, SalesOrder...) se disena en la etapa
+// siguiente, y la primera migracion nacera con el.
+//
+// La conectividad NestJS -> Prisma -> PostgreSQL se valida con GET /api/health,
+// no creando entidades de adorno.
+//
+// Nota sobre Prisma 7: la propiedad `url` ya no se admite dentro del bloque
+// datasource. La URL de conexion para los comandos de Migrate vive en
+// prisma.config.ts, y el cliente en tiempo de ejecucion recibe un driver
+// adapter (@prisma/adapter-pg) desde PrismaService.
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
