@@ -1,0 +1,13 @@
+{
+  "files": [],
+  "references": [{ "path": "./tsconfig.app.json" }, { "path": "./tsconfig.node.json" }],
+  "compilerOptions": {
+    // Duplicado a proposito respecto de tsconfig.app.json: este archivo es de
+    // tipo "solution" (solo referencias) y herramientas como la CLI de shadcn
+    // leen los alias desde aqui. Sin esto la inicializacion falla con
+    // "Could not load the workspace config".
+    "paths": {
+      "@/*": ["./src/*"]
+    }
+  }
+}
