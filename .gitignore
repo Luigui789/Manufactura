@@ -1,0 +1,41 @@
+# Dependencias
+node_modules/
+.pnpm-store/
+
+# pnpm es el gestor oficial del proyecto: ningun otro lockfile debe versionarse
+package-lock.json
+yarn.lock
+bun.lockb
+
+# Variables de entorno (nunca versionar secretos)
+.env
+.env.local
+.env.*.local
+!.env.example
+
+# Artefactos de compilacion
+dist/
+build/
+*.tsbuildinfo
+
+# Cliente generado por Prisma
+backend/generated/
+
+# Logs
+*.log
+npm-debug.log*
+pnpm-debug.log*
+yarn-error.log*
+
+# Cobertura y pruebas
+coverage/
+.nyc_output/
+
+# Editores y sistema operativo
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+.idea/
+.DS_Store
+Thumbs.db
+desktop.ini
