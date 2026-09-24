@@ -1,19 +1,4 @@
-// Esquema de Prisma de EcoSoap ERP.
-//
-// En esta etapa contiene unicamente la conexion y el generador. No hay modelos
-// de negocio ni migraciones, y eso es deliberado: el modelo de datos real
-// (Product, Supplier, Customer, PurchaseOrder, InventoryMovement, Bom,
-// ProductionOrder, Lot, QualityInspection, SalesOrder...) se disena en la etapa
-// siguiente, y la primera migracion nacera con el.
-//
-// La conectividad NestJS -> Prisma -> PostgreSQL se valida con GET /api/health,
-// no creando entidades de adorno.
-//
-// Nota sobre Prisma 7: la propiedad `url` ya no se admite dentro del bloque
-// datasource. La URL de conexion para los comandos de Migrate vive en
-// prisma.config.ts, y el cliente en tiempo de ejecucion recibe un driver
-// adapter (@prisma/adapter-pg) desde PrismaService.
-
+// Foundation física. Compras, Producción y Ventas se añaden por migración.
 generator client {
   provider = "prisma-client"
   output   = "../src/generated/prisma"
@@ -21,4 +6,220 @@ generator client {
 
 datasource db {
   provider = "postgresql"
+}
+
+enum RoleCode {
+  ADMIN
+  COMPRAS
+  INVENTARIO
+  PRODUCCION
+  VENTAS
+}
+
+enum ProductType {
+  RAW_MATERIAL
+  INTERMEDIATE
+  FINISHED_GOOD
+  CONSUMABLE
+}
+
+enum UnitOfMeasure {
+  UNIT
+  GRAM
+  KILOGRAM
+  MILLILITER
+  LITER
+}
+
+enum LotStatus {
+  QUARANTINED
+  RELEASED
+  REJECTED
+}
+
+enum InventoryMovementType {
+  ADJUSTMENT_IN
+  ADJUSTMENT_OUT
+}
+
+enum AdjustmentReason {
+  INITIAL_LOAD
+  PHYSICAL_COUNT
+  DAMAGE
+  LOSS
+  EXPIRY
+  CORRECTION
+}
+
+enum ActorType {
+  USER
+  SYSTEM
+  ANONYMOUS
+}
+
+enum AuditAction {
+  CREATE
+  UPDATE
+  DELETE
+  ENABLE
+  DISABLE
+  LOGIN
+  LOGIN_FAILED
+  LOGOUT
+  ADJUST_STOCK
+}
+
+enum AuditEntityType {
+  USER
+  ROLE
+  PRODUCT
+  WAREHOUSE
+  LOT
+  INVENTORY_MOVEMENT
+}
+
+enum DocumentType {
+  LOT
+}
+
+model Role {
+  id    String   @id @default(uuid(7)) @db.Uuid
+  code  RoleCode @unique
+  name  String
+  users User[]
+
+  @@map("roles")
+}
+
+model User {
+  id           String              @id @default(uuid(7)) @db.Uuid
+  email        String              @unique
+  passwordHash String              @map("password_hash")
+  fullName     String              @map("full_name")
+  roleId       String              @map("role_id") @db.Uuid
+  isActive     Boolean             @default(true) @map("is_active")
+  createdAt    DateTime            @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt    DateTime            @updatedAt @map("updated_at") @db.Timestamptz(6)
+  role         Role                @relation(fields: [roleId], references: [id], onDelete: Restrict)
+  movements    InventoryMovement[]
+  auditLogs    AuditLog[]
+
+  @@map("users")
+}
+
+model Product {
+  id                        String              @id @default(uuid(7)) @db.Uuid
+  code                      String              @unique
+  name                      String
+  type                      ProductType
+  unit                      UnitOfMeasure
+  isLotTracked              Boolean             @default(false) @map("is_lot_tracked")
+  requiresQualityInspection Boolean             @default(false) @map("requires_quality_inspection")
+  isActive                  Boolean             @default(true) @map("is_active")
+  createdAt                 DateTime            @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt                 DateTime            @updatedAt @map("updated_at") @db.Timestamptz(6)
+  lots                      Lot[]
+  balances                  StockBalance[]
+  movements                 InventoryMovement[]
+
+  @@index([type])
+  @@index([isActive])
+  @@map("products")
+}
+
+model Warehouse {
+  id        String              @id @default(uuid(7)) @db.Uuid
+  code      String              @unique
+  name      String
+  isActive  Boolean             @default(true) @map("is_active")
+  createdAt DateTime            @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime            @updatedAt @map("updated_at") @db.Timestamptz(6)
+  balances  StockBalance[]
+  movements InventoryMovement[]
+
+  @@map("warehouses")
+}
+
+model Lot {
+  id           String              @id @default(uuid(7)) @db.Uuid
+  code         String              @unique
+  productId    String              @map("product_id") @db.Uuid
+  status       LotStatus
+  originatedAt DateTime            @map("originated_at") @db.Timestamptz(6)
+  expiresAt    DateTime?           @map("expires_at") @db.Date
+  product      Product             @relation(fields: [productId], references: [id], onDelete: Restrict)
+  movements    InventoryMovement[]
+
+  // Referencia compuesta de InventoryMovement: el lote debe ser del producto.
+  @@unique([id, productId])
+  @@index([productId])
+  @@index([status])
+  @@map("lots")
+}
+
+model StockBalance {
+  id          String    @id @default(uuid(7)) @db.Uuid
+  productId   String    @map("product_id") @db.Uuid
+  warehouseId String    @map("warehouse_id") @db.Uuid
+  quantity    Decimal   @default(0) @db.Decimal(18, 4)
+  updatedAt   DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+  product     Product   @relation(fields: [productId], references: [id], onDelete: Restrict)
+  warehouse   Warehouse @relation(fields: [warehouseId], references: [id], onDelete: Restrict)
+
+  @@unique([productId, warehouseId])
+  @@map("stock_balances")
+}
+
+model InventoryMovement {
+  id                String                @id @default(uuid(7)) @db.Uuid
+  productId         String                @map("product_id") @db.Uuid
+  warehouseId       String                @map("warehouse_id") @db.Uuid
+  lotId             String?               @map("lot_id") @db.Uuid
+  type              InventoryMovementType
+  quantity          Decimal               @db.Decimal(18, 4)
+  reason            AdjustmentReason
+  occurredAt        DateTime              @default(now()) @map("occurred_at") @db.Timestamptz(6)
+  performedByUserId String                @map("performed_by_user_id") @db.Uuid
+  requestId         String?               @map("request_id")
+  product           Product               @relation(fields: [productId], references: [id], onDelete: Restrict)
+  warehouse         Warehouse             @relation(fields: [warehouseId], references: [id], onDelete: Restrict)
+  lot               Lot?                  @relation(fields: [lotId, productId], references: [id, productId], onDelete: Restrict)
+  performedByUser   User                  @relation(fields: [performedByUserId], references: [id], onDelete: Restrict)
+
+  @@index([productId, occurredAt])
+  @@index([lotId, warehouseId])
+  @@index([warehouseId, occurredAt])
+  @@index([requestId])
+  @@map("inventory_movements")
+}
+
+model AuditLog {
+  id             String           @id @default(uuid(7)) @db.Uuid
+  actorType      ActorType        @map("actor_type")
+  actorUserId    String?          @map("actor_user_id") @db.Uuid
+  action         AuditAction
+  entityType     AuditEntityType? @map("entity_type")
+  entityId       String?          @map("entity_id") @db.Uuid
+  previousValues Json?            @map("previous_values") @db.JsonB
+  newValues      Json?            @map("new_values") @db.JsonB
+  requestId      String?          @map("request_id")
+  ipAddress      String?          @map("ip_address")
+  createdAt      DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
+  actorUser      User?            @relation(fields: [actorUserId], references: [id], onDelete: Restrict)
+
+  @@index([entityType, entityId, createdAt])
+  @@index([actorUserId, createdAt])
+  @@index([requestId])
+  @@index([createdAt])
+  @@map("audit_logs")
+}
+
+model DocumentSequence {
+  id           String       @id @default(uuid(7)) @db.Uuid
+  documentType DocumentType @map("document_type")
+  year         Int
+  lastNumber   Int          @default(0) @map("last_number")
+
+  @@unique([documentType, year])
+  @@map("document_sequences")
 }
