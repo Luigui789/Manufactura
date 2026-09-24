@@ -93,8 +93,9 @@ pnpm --filter backend prisma:generate
 El cliente se genera en `backend/src/generated/prisma`, que está en `.gitignore`: es código
 derivado del esquema y cada integrante lo regenera en su máquina.
 
-En esta etapa `schema.prisma` no tiene modelos de negocio ni migraciones; eso llega con el diseño
-del modelo de datos.
+`schema.prisma` y la primera migración contienen Foundation. Después de aplicar la migración, el
+seed mínimo se ejecuta con `pnpm --filter backend db:seed`: cinco roles y un almacén, sin usuario
+administrador.
 
 ## 6. Ejecución
 
