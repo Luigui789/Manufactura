@@ -244,12 +244,12 @@ Garantizada en dos niveles:
    La cuenta de aplicación tampoco debe tener permiso de `TRUNCATE`.
 
 `inventory_movements` lleva la misma protección: una corrección se registra con un movimiento
-compensatorio vinculado al original, nunca editando el asiento.
+compensatorio nuevo, nunca editando el asiento. Un vínculo explícito con el original queda para
+el futuro flujo de correcciones.
 
-> **Pendiente de prueba técnica.** Que estos disparadores convivan sin problemas con Prisma
-> Migrate y su base de datos sombra **no está verificado**. Se comprobará al crear la primera
-> migración: generar la migración, aplicarla en una base limpia, ejecutar la siguiente
-> `migrate dev`, revisar la introspección y probar que el rechazo SQL funciona.
+> **Probado en PostgreSQL 16 temporal:** la migración y su SQL personalizado se aplicaron desde
+> cero; una segunda ejecución de `migrate dev` no reportó drift; `UPDATE` y `DELETE` de auditoría
+> y movimientos fueron rechazados. Falta repetir en PostgreSQL 18 del proyecto.
 
 **Límite honesto:** el disparador no protege frente a un administrador de base con privilegios
 para alterarlo o eliminarlo. Ninguna garantía de la aplicación lo hace.

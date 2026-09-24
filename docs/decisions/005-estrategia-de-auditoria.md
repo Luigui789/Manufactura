@@ -41,13 +41,13 @@ historial confundiera la liberación de un lote con la confirmación de una orde
 el correo, incluso cuando la cuenta indicada existe. En ese caso el usuario es la entidad objetivo,
 no el actor.
 
-| Situación                              | `actorType` | `actorUserId` | Entidad        |
-| -------------------------------------- | ----------- | ------------- | -------------- |
-| Operación normal                       | `USER`      | presente      | presente       |
-| `LOGIN_FAILED` con usuario existente   | `ANONYMOUS` | nulo          | `USER` + su id |
-| `LOGIN_FAILED` con usuario desconocido | `ANONYMOUS` | nulo          | nula           |
+| Situación                              | `actorType` | `actorUserId` | Entidad              |
+| -------------------------------------- | ----------- | ------------- | -------------------- |
+| Operación normal                       | `USER`      | presente      | presente             |
+| `LOGIN_FAILED` con usuario existente   | `ANONYMOUS` | nulo          | `USER` + su id       |
+| `LOGIN_FAILED` con usuario desconocido | `ANONYMOUS` | nulo          | nula                 |
 | `LOGIN` exitoso                        | `USER`      | presente      | `USER` + el mismo id |
-| Proceso automático                     | `SYSTEM`    | nulo          | presente       |
+| Proceso automático                     | `SYSTEM`    | nulo          | presente             |
 
 El actor es la identidad autenticada o la naturaleza real del ejecutor. La entidad es el recurso
 afectado. Nunca se deduce el actor del identificador introducido en un intento fallido.
@@ -139,8 +139,8 @@ Consultar la auditoría queda restringido al rol `ADMIN`. Ningún rol puede modi
   requiere migración de todos modos.
 - La tabla crece de forma monótona. Si algún día fuera un problema, se archiva por rango de
   fechas; nunca se borra.
-- El disparador y las restricciones van como SQL dentro de la migración. **Su convivencia con
-  Prisma Migrate y su base de datos sombra no está verificada** y debe probarse técnicamente antes
-  de darse por buena.
+- El disparador y las restricciones viven como SQL de la migración. Su reproducción por Prisma
+  Migrate y la ausencia de drift se comprobaron en PostgreSQL 16 temporal; queda repetirlo en el
+  contenedor PostgreSQL 18 del proyecto.
 - **Límite honesto:** el disparador no protege frente a un administrador de base con privilegios
   para alterarlo. Ninguna garantía de la aplicación lo hace.
