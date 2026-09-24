@@ -68,7 +68,7 @@ exclusivamente para persistencia; no se escribe SQL manual salvo razón técnica
 
 ## 4. Estado actual del backend
 
-Solo existen los módulos que hacen algo real:
+Los módulos HTTP implementados siguen siendo:
 
 | Módulo         | Responsabilidad                                                     |
 | -------------- | ------------------------------------------------------------------- |
@@ -82,11 +82,13 @@ backend/src/
 ├── app.module.ts
 ├── config/              validación de variables de entorno
 ├── prisma/              PrismaModule + PrismaService
-└── health/              HealthModule + HealthController + HealthService + DTO
+├── health/              HealthModule + HealthController + HealthService + DTO
+└── inventory/           protocolo de ajustes Foundation, todavía sin endpoint
 ```
 
-Deliberadamente **no** hay carpetas ni módulos vacíos para los dominios futuros. Un módulo sin
-comportamiento no es arquitectura, es ruido: cada uno nacerá con su funcionalidad.
+Foundation añade `backend/src/inventory/apply-adjustment.ts`: valida lote y producto, bloquea
+`StockBalance`, crea movimiento, actualiza saldo y registra auditoría en una transacción. Aún no
+hay un módulo HTTP de inventario. No se crean módulos vacíos para los otros dominios.
 
 ## 5. Arquitectura futura del backend
 
@@ -197,7 +199,62 @@ Reglas que sostienen la integración:
 - Producir consume materia prima y genera producto terminado en una sola transacción atómica.
 - Toda variación de existencias deja un `InventoryMovement` que permite reconstruir el porqué.
 
-## 9. Referencia ISA-95
+### El inventario como servicio único
+
+Los tres módulos no escriben existencias por su cuenta: invocan un **único servicio de
+inventario** que aplica siempre el mismo protocolo dentro de una sola transacción:
+
+```text
+BEGIN → obtener o crear StockBalance → bloquear la fila (FOR UPDATE)
+      → validar existencia general → validar lote y su estado
+      → crear InventoryMovement → actualizar StockBalance
+      → actualizar el documento → crear AuditLog → COMMIT
+```
+
+Dos detalles no son opcionales. La fila de balance se obtiene con
+`INSERT ... ON CONFLICT DO NOTHING` antes de bloquearla, porque «comprobar y luego insertar» es
+una carrera. Y cuando una operación toca varios productos, sus filas se bloquean en **orden
+ascendente por `product_id` y luego `warehouse_id`**, para que dos operaciones concurrentes no se
+interbloqueen.
+
+Es la contrapartida necesaria de mantener `StockBalance` como dato derivado del ledger, y lo que
+impide que aparezcan las tres lógicas distintas de stock que el proyecto quiere evitar. El detalle
+está en [ADR 004](decisions/004-inventario-ledger-y-balance.md) y en
+[`database.md`](database.md), sección 8.
+
+### Confirmar una venta no reserva inventario
+
+En esta versión **no existen reservas**. Confirmar una orden de venta hace una comprobación
+**informativa** de disponibilidad: no bloquea, no aparta mercancía y no garantiza nada. La
+disponibilidad solo queda determinada al despachar, que vuelve a comprobar, bloquea el balance y
+valida el lote.
+
+Una orden confirmada puede quedarse sin existencia si otra operación la consume antes. Implementar
+reservas sería un requisito nuevo, no un detalle de implementación.
+
+## 9. Las tres capas de trazabilidad
+
+Responder «de dónde salió este cambio y quién lo hizo» exige tres mecanismos distintos que se
+complementan. Ninguno sustituye a los otros:
+
+| Capa                       | Mecanismo                   | Pregunta                              |
+| -------------------------- | --------------------------- | ------------------------------------- |
+| Auditoría del sistema      | `AuditLog`                  | ¿Quién hizo qué y qué cambió?         |
+| Trazabilidad empresarial   | Documentos y sus números    | ¿Qué documento originó la operación?  |
+| Trazabilidad de inventario | `InventoryMovement` y `Lot` | ¿Por qué entró o salió esta cantidad? |
+
+```text
+Usuario  →  OC-2026-000021  →  REC-2026-000014  →  movimiento +40 kg  →  lote LOT-2026-000087
+                                        ↓
+                        AuditLog: actor, RECEIVE, PURCHASE_RECEIPT
+```
+
+`AuditLog` e `InventoryMovement` llevan la columna `requestId`, de modo que **esos dos** se
+correlacionan directamente con una sola condición. Los documentos empresariales no la llevan: se
+alcanzan por sus claves foráneas y por `entityId`. La estrategia está desarrollada en
+[`audit.md`](audit.md) y decidida en [ADR 005](decisions/005-estrategia-de-auditoria.md).
+
+## 10. Referencia ISA-95
 
 El proyecto usa ISA-95 como marco conceptual, no como certificación:
 
@@ -212,8 +269,27 @@ El proyecto usa ISA-95 como marco conceptual, no como certificación:
 El sistema **no es un MES industrial completo**. Implementa algunas funciones asociadas
 conceptualmente al nivel 3 con fines académicos.
 
-## 10. Decisiones registradas
+## 11. Decisiones registradas
 
-| Etapa | Documento                                       |
-| ----- | ----------------------------------------------- |
-| 1     | `docs/specs/2026-09-22-setup-inicial-design.md` |
+Las decisiones difíciles de revertir viven en [`decisions/`](decisions/) como ADR cortos. Un ADR
+no se edita una vez aceptado: si la decisión cambia, se escribe uno nuevo que declare a cuál
+sustituye.
+
+| ADR                                                   | Decisión                                             |
+| ----------------------------------------------------- | ---------------------------------------------------- |
+| [001](decisions/001-package-manager-pnpm.md)          | pnpm como gestor único del monorepo                  |
+| [002](decisions/002-monolito-modular.md)              | Monolito modular en lugar de microservicios          |
+| [003](decisions/003-postgresql-prisma.md)             | PostgreSQL con Prisma como única vía de persistencia |
+| [004](decisions/004-inventario-ledger-y-balance.md)   | Ledger inmutable + balance materializado             |
+| [005](decisions/005-estrategia-de-auditoria.md)       | Tres capas de trazabilidad y `AuditLog` append-only  |
+| [006](decisions/006-estrategia-de-identificadores.md) | UUIDv7 técnico + código humano separado              |
+| [007](decisions/007-trazabilidad-de-lotes.md)         | Lotes en cualquier producto trazable, sin FIFO       |
+
+Diseños por etapa:
+
+| Etapa | Documento                                                                              |
+| ----- | -------------------------------------------------------------------------------------- |
+| 1     | [`specs/2026-09-22-setup-inicial-design.md`](specs/2026-09-22-setup-inicial-design.md) |
+| 2     | [`database.md`](database.md) · [`audit.md`](audit.md) · ADR 004 a 007                  |
+
+El avance real de cada etapa se sigue en [`progress.md`](progress.md).

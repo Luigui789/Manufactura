@@ -110,15 +110,16 @@ pnpm --filter frontend dev        # solo frontend
 pnpm --filter backend prisma:generate    # regenera el cliente
 ```
 
-En esta etapa `schema.prisma` **no tiene modelos de negocio ni migraciones**: el modelo de datos se
-diseña antes de crear la primera. Cuando existan:
+La primera migración implementa solo Foundation. Compras, Producción y Ventas se añaden en
+migraciones posteriores. Para aplicar las migraciones pendientes en desarrollo:
 
 ```bash
 pnpm --filter backend exec prisma migrate dev --name descripcion_del_cambio
 ```
 
-Los cambios de `schema.prisma` se coordinan con el equipo, y una migración ya compartida no se
-edita nunca a mano.
+La migración Foundation contiene SQL adicional para `CHECK` y disparadores append-only. Los
+cambios de `schema.prisma` se coordinan con el equipo, y una migración ya compartida no se edita.
+El seed idempotente se ejecuta con `pnpm --filter backend db:seed`.
 
 ## Calidad
 
@@ -168,8 +169,11 @@ revisión de otro integrante antes de fusionarse.
 
 ## Documentación
 
-- [Arquitectura](docs/architecture.md)
-- [Base de datos](docs/database.md)
-- [API](docs/api.md)
-- [Requisitos](docs/requirements.md)
-- [Puesta en marcha](docs/setup.md)
+- [Arquitectura](docs/architecture.md) — estilo arquitectónico, capas de trazabilidad, estructura futura
+- [Base de datos](docs/database.md) — modelo conceptual, ERD, constraints e índices
+- [Auditoría](docs/audit.md) — qué se audita, qué nunca se guarda, correlación y transacciones
+- [API](docs/api.md) — convenciones y catálogo de endpoints
+- [Requisitos](docs/requirements.md) — catálogo y matriz de trazabilidad
+- [Puesta en marcha](docs/setup.md) — instalación y problemas frecuentes
+- [Avance](docs/progress.md) — estado real de cada etapa
+- [Decisiones (ADR)](docs/decisions/) — decisiones arquitectónicas registradas

@@ -72,18 +72,29 @@ pnpm --filter frontend dev          # solo frontend
    `PATCH` genérico para todo.
 9. **Respuestas consistentes**: `{ data, message }` en éxito, `{ data, meta }` en listas, códigos
    HTTP correctos en error.
+10. **Un lote no liberado no se despacha ni se consume.** `QUARANTINED` y `REJECTED` bloquean
+    ambas operaciones; solo el ajuste de salida permanece permitido.
+11. **Confirmar una venta no reserva inventario.** La comprobación al confirmar es informativa;
+    la disponibilidad solo queda determinada al despachar.
+12. **La auditoría es append-only.** Nunca escribas endpoints ni código que modifique o borre
+    `AuditLog` o `InventoryMovement`. Las correcciones son asientos compensatorios.
 
 ## Estado actual
 
-Etapa 1 (configuración inicial) en curso en `feature/project-setup`. Existen únicamente
-`ConfigModule`, `PrismaModule` y `HealthModule` en el backend, y una pantalla temporal de
-verificación en el frontend.
+**Etapa 1 (configuración inicial): integrada en `develop`** mediante el pull request #1. El
+backend tiene `ConfigModule`, `PrismaModule` y `HealthModule`; el frontend, una pantalla temporal
+de verificación que debe reemplazarse al empezar el layout real.
 
-**No hay modelo de datos todavía.** `schema.prisma` contiene solo `datasource` y `generator`, sin
-modelos ni migraciones. Se diseña en la etapa siguiente.
+**Etapa 2 (modelo de datos): en curso** en `feature/database-foundation`. El diseño Foundation
+está aprobado y su primera migración, seed y pruebas de integridad ya existen. Compras, Producción
+y Ventas siguen siendo modelo conceptual en `docs/database.md`. La Etapa 2 no está terminada:
+falta cotejar los requisitos con la Entrega 1 y revisar el PR.
 
 No crees carpetas ni módulos vacíos para «mostrar estructura». La arquitectura futura está
 descrita en `docs/architecture.md`; cada módulo nace con su funcionalidad real.
+
+El avance real y verificado de cada etapa vive en `docs/progress.md`. Nunca marques una casilla
+sin haber ejecutado la comprobación y visto el resultado.
 
 ## Flujo de trabajo del equipo
 
@@ -109,7 +120,10 @@ Tres integrantes. Ramas: `main` (estable) → `develop` (integración) → `feat
 | Endpoints, contratos, Swagger           | `docs/api.md`                                      |
 | Saber qué requisito cubre algo          | `docs/requirements.md`                             |
 | Levantar el entorno, problemas de setup | `docs/setup.md`                                    |
-| Decisiones de una etapa                 | `docs/specs/`                                      |
+| Auditoría y trazabilidad                | `docs/audit.md`                                    |
+| Por qué se decidió algo                 | `docs/decisions/`                                  |
+| Qué está hecho y verificado             | `docs/progress.md`                                 |
+| Diseño de una etapa                     | `docs/specs/`                                      |
 
 Carga solo lo que la tarea necesita. No leas todo el proyecto en cada tarea.
 
