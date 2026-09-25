@@ -47,6 +47,7 @@ beforeAll(async () => {
     data: {
       code: `TEST-${suffix}`,
       name: 'Producto de prueba',
+      category: 'Aceites recuperados',
       type: 'RAW_MATERIAL',
       unit: 'KILOGRAM',
     },
@@ -56,6 +57,7 @@ beforeAll(async () => {
     data: {
       code: `OTHER-${suffix}`,
       name: 'Otro producto de prueba',
+      category: 'Materias primas',
       type: 'RAW_MATERIAL',
       unit: 'KILOGRAM',
       isLotTracked: true,
@@ -78,6 +80,35 @@ afterAll(async () => {
 });
 
 describe('Foundation: restricciones reales de PostgreSQL', () => {
+  it('persiste categoría y ubicación obligatorias con límites de longitud', async () => {
+    const product = await prisma.product.findUniqueOrThrow({ where: { id: productId } });
+    const warehouse = await prisma.warehouse.findUniqueOrThrow({ where: { id: warehouseId } });
+    expect(product.category).toBe('Aceites recuperados');
+    expect(product.type).toBe('RAW_MATERIAL');
+    expect(warehouse.location).toBe('Planta principal - Managua');
+
+    await expect(
+      prisma.product.create({
+        data: {
+          code: `LONG-${suffix}`,
+          name: 'Categoría demasiado larga',
+          category: 'x'.repeat(101),
+          type: 'RAW_MATERIAL',
+          unit: 'KILOGRAM',
+        },
+      }),
+    ).rejects.toThrow();
+    await expect(
+      prisma.warehouse.create({
+        data: {
+          code: `LONG-${suffix}`,
+          name: 'Ubicación demasiado larga',
+          location: 'x'.repeat(256),
+        },
+      }),
+    ).rejects.toThrow();
+  });
+
   it('rechaza cantidad cero y signos incompatibles', async () => {
     for (const [type, quantity] of [
       ['ADJUSTMENT_IN', 0],
@@ -218,6 +249,7 @@ describe('Foundation: restricciones reales de PostgreSQL', () => {
         data: {
           code: `TEST-${suffix}`,
           name: 'Duplicado',
+          category: 'Aceites recuperados',
           type: 'RAW_MATERIAL',
           unit: 'KILOGRAM',
         },
@@ -300,6 +332,7 @@ describe('Foundation: transacción, ledger y auditoría', () => {
       data: {
         code: `RACE-${suffix}`,
         name: 'Producto de concurrencia',
+        category: 'Materias primas',
         type: 'RAW_MATERIAL',
         unit: 'KILOGRAM',
       },
