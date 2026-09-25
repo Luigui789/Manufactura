@@ -1,8 +1,9 @@
 # Base de datos — EcoSoap ERP
 
-> **Estado:** Foundation implementada y verificada contra PostgreSQL 16 temporal el 2026-09-23 y
-> PostgreSQL 18.6 del proyecto el 2026-09-24. La conformidad académica sigue pendiente de cotejo
-> con Entrega 1.
+> **Estado:** Foundation alineada con el cotejo de la Entrega 1 registrado en
+> [`requirements.md`](requirements.md). La migración inicial corregida se verificó desde cero en
+> PostgreSQL 18.6 el 2026-09-24; la prueba previa en PostgreSQL 16 corresponde a la revisión
+> anterior de Foundation.
 
 ## 1. Alcance
 
@@ -135,6 +136,7 @@ erDiagram
         uuid id PK
         string code UK
         string name
+        string category
         ProductType type
         UnitOfMeasure unit
         bool is_lot_tracked
@@ -145,6 +147,7 @@ erDiagram
         uuid id PK
         string code UK
         string name
+        string location
         bool is_active
     }
     LOTS {
@@ -193,6 +196,14 @@ erDiagram
 (`documentType`, `year`, `lastNumber`, único por `(documentType, year)`).
 
 ### Notas por entidad
+
+**`Product.category`** es una clasificación funcional flexible, obligatoria y de hasta 100
+caracteres (`VARCHAR(100)`). `Product.type` conserva el enum estructural `ProductType`: la Entrega 1
+exige ambos atributos, pero no proporciona un catálogo cerrado de categorías. No se introduce un
+enum ni una entidad de categorías en Foundation.
+
+**`Warehouse.location`** es texto obligatorio de hasta 255 caracteres (`VARCHAR(255)`). Representa
+la ubicación descriptiva requerida por la Entrega 1, sin coordenadas ni dirección estructurada.
 
 **`Product`** gana `requiresQualityInspection`. Decide si sus lotes nacen en cuarentena. Sin esta
 bandera habría que elegir entre obligar a inspeccionar cada recepción de materia prima o no poder
@@ -311,9 +322,10 @@ trazabilidad. La carga inicial de inventario con lotes se hace cuando exista Com
 
 ## 7. Política de calidad y liberación de lotes
 
-> **Requisito propuesto, no oficial.** No consta en el documento académico disponible. Queda
-> registrado como `RF-PRO-010` en [`requirements.md`](requirements.md) marcado como propuesto,
-> pendiente de cotejo con la Entrega 1.
+> La Entrega 1 exige controles de calidad por lote, incluyendo resultado y no conformidades, pero
+> no prescribe esta política de liberación. Los estados exactos, `requiresQualityInspection` y el
+> bloqueo de consumo/despacho se conservan como decisiones `PROPUESTO` en
+> [`requirements.md`](requirements.md) (`P-PRO-002` a `P-PRO-004`), no como requisitos oficiales.
 
 ```text
 Lote creado
@@ -473,14 +485,15 @@ lote. Repartir una entrega entre dos lotes exige dos líneas y produce dos movim
 que ya está en `Product.unit`. Una unidad propia implicaría conversiones que el proyecto declara
 inexistentes, y una conversión implícita y no implementada es peor que ninguna.
 
-**`plannedDate` es fecha de calendario**, no instante: la producción se planifica por día. Cubre
-`RF-PRO-003`, que el modelo anterior omitía.
+**`plannedDate` es fecha de calendario**, no instante: la producción se planifica por día. Es una
+extensión `PROPUESTO` (`P-PRO-005` en [`requirements.md`](requirements.md)); RF-PRO-002 solo
+exige fecha de creación.
 
 **Congelación de la versión de BOM.** `ProductionOrder.bomId` apunta a la versión exacta usada.
 Una `Bom` referenciada por alguna orden **no puede modificarse**: las correcciones crean una
 versión nueva y desactivan la anterior. La regla vive en el backend porque exige consultar otra
-tabla, y tiene prueba propia. Sin ella, editar una fórmula reescribiría la historia de lo que
-realmente se fabricó.
+tabla, y tiene prueba propia. Es la extensión `P-PRO-001`, no una exigencia académica literal.
+Sin ella, editar una fórmula reescribiría la historia de lo que realmente se fabricó.
 
 ### Ventas — migración 4
 
@@ -627,7 +640,9 @@ más engorroso que una tabla pequeña, y porque `nextval` tampoco evita los huec
 Repetible e idempotente, identificando las filas por su código estable:
 
 - Los cinco roles: `ADMIN`, `COMPRAS`, `INVENTARIO`, `PRODUCCION`, `VENTAS`.
-- Un almacén por defecto: `ALM-PRINCIPAL`.
+- Un almacén por defecto: `ALM-PRINCIPAL`, con ubicación inicial
+  `Planta principal - Managua`. Es un valor descriptivo de desarrollo; puede sustituirse cuando se
+  conozca una ubicación empresarial más precisa. Reejecutar el seed no sobrescribe esa ubicación.
 
 **Sin usuario administrador.** Crear uno exige una política de credenciales que corresponde a la
 etapa de autenticación. El alta segura del primer administrador debe definirse antes de activarla.
@@ -646,17 +661,18 @@ no dejar relaciones huérfanas ni tipos habilitados sin origen verificable.
 
 ## 15. Riesgos
 
-| Riesgo                                                       | Mitigación                                                                | Estado                 |
-| ------------------------------------------------------------ | ------------------------------------------------------------------------- | ---------------------- |
-| `StockBalance` desincronizado del ledger                     | Servicio único, disparadores, consulta de reconciliación en pruebas       | Mitigado               |
-| `CHECK` y disparadores frente a Prisma Migrate y base sombra | Migración desde cero y segunda ejecución sin drift en PostgreSQL 16 y 18  | **Probado en 16 y 18** |
-| `ALTER TYPE ... ADD VALUE` en migraciones posteriores        | Se comprobará en la migración 2, la primera que lo hará                   | **Sin probar**         |
-| Interbloqueos con varios productos                           | Orden estable de bloqueo por `product_id`, luego `warehouse_id` (§8)      | Mitigado               |
-| Carrera al crear la primera fila de balance                  | `INSERT ... ON CONFLICT DO NOTHING` seguido de `SELECT ... FOR UPDATE`    | Mitigado               |
-| `Decimal` operado como número de JavaScript                  | Regla explícita y prueba que la verifique                                 | Mitigado               |
-| Snapshots de auditoría con datos sensibles                   | Lista **permitida** de campos por entidad, no lista prohibida             | Mitigado               |
-| Un administrador de base puede alterar el disparador         | Aceptado: ninguna garantía de la aplicación protege frente a superusuario | Aceptado               |
-| Cotejo con el documento académico oficial                    | Pendiente de recibir la Entrega 1                                         | **Abierto**            |
+| Riesgo                                                           | Mitigación                                                                                  | Estado              |
+| ---------------------------------------------------------------- | ------------------------------------------------------------------------------------------- | ------------------- |
+| `StockBalance` desincronizado del ledger                         | Servicio único, disparadores, consulta de reconciliación en pruebas                         | Mitigado            |
+| `CHECK` y disparadores frente a Prisma Migrate y base sombra     | Revisión anterior probada en PostgreSQL 16; migración actual desde cero y sin drift en 18.6 | **Probado en 18.6** |
+| `ALTER TYPE ... ADD VALUE` en migraciones posteriores            | Se comprobará en la migración 2, la primera que lo hará                                     | **Sin probar**      |
+| Interbloqueos con varios productos                               | Orden estable de bloqueo por `product_id`, luego `warehouse_id` (§8)                        | Mitigado            |
+| Carrera al crear la primera fila de balance                      | `INSERT ... ON CONFLICT DO NOTHING` seguido de `SELECT ... FOR UPDATE`                      | Mitigado            |
+| `Decimal` operado como número de JavaScript                      | Regla explícita y prueba que la verifique                                                   | Mitigado            |
+| Snapshots de auditoría con datos sensibles                       | Lista **permitida** de campos por entidad, no lista prohibida                               | Mitigado            |
+| Un administrador de base puede alterar el disparador             | Aceptado: ninguna garantía de la aplicación protege frente a superusuario                   | Aceptado            |
+| Cotejo con el documento académico oficial                        | Matriz OFICIAL/DERIVADO/PROPUESTO en `requirements.md`                                      | **Cerrado**         |
+| `Product.category` y `Warehouse.location` exigidos por Entrega 1 | Columnas obligatorias en migración Foundation; seed y pruebas actualizados                  | **Cerrado**         |
 
 ## 16. Conexión local
 

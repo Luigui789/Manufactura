@@ -1,13 +1,22 @@
 # Auditoría y trazabilidad — EcoSoap ERP
 
-> **Estado:** estrategia corregida tras la auditoría de diseño del 2026-09-23, pendiente de
-> aprobación final. Decisión en [ADR 005](decisions/005-estrategia-de-auditoria.md); modelo en
-> [`database.md`](database.md). La implementación llega con los módulos de negocio.
+> **Estado:** estrategia de Foundation verificada. La trazabilidad y auditoría de operaciones es
+> `OFICIAL` por RNF-007 de la Entrega 1; la clasificación de sus controles concretos está en
+> [`requirements.md`](requirements.md). Decisión en
+> [ADR 005](decisions/005-estrategia-de-auditoria.md); modelo en [`database.md`](database.md).
+> La cobertura de Compras, Producción y Ventas llega con sus módulos de negocio.
 
 ## 1. Tres capas, tres preguntas
 
 Auditar no es tener una tabla. Conviven tres mecanismos que responden preguntas distintas, y
 ninguno sustituye a los otros.
+
+La Entrega requiere conservar usuario responsable, fecha/hora, tipo de operación y entidad
+afectada, y reconstruir el flujo entre módulos. Por ello `AuditLog` append-only y los disparadores
+contra modificación/borrado son `DERIVADO`; `requestId`, eventos como `LOGIN_FAILED`, actores
+`USER`/`SYSTEM`/`ANONYMOUS` y snapshots anterior/nuevo son `PROPUESTO`. La sanitización de
+snapshots es `DERIVADO` de RNF-002 si esos snapshots se conservan. Ninguna de esas mejoras se
+presenta como exigencia académica literal.
 
 | Capa                       | Mecanismo                   | Pregunta                                                      |
 | -------------------------- | --------------------------- | ------------------------------------------------------------- |
@@ -277,9 +286,10 @@ completa.
 | `COMPRAS`, `INVENTARIO`, `PRODUCCION`, `VENTAS` | Sin acceso                    |
 | Cualquiera                                      | **Nunca** modificar ni borrar |
 
-Cubre `RF-AUD-006`. Se evaluará más adelante si cada rol debe consultar el historial de su propio
-módulo; ampliar un permiso después es más sencillo que retirarlo. El control se verifica en el
-backend: ocultar la opción en el frontend no es seguridad.
+Es la política `P-AUD-004`: RNF-002 exige control por roles, pero la Entrega no ordena que solo
+`ADMIN` pueda consultar toda la auditoría. Se evaluará más adelante si cada rol debe consultar el
+historial de su propio módulo; ampliar un permiso después es más sencillo que retirarlo. El control
+se verifica en el backend: ocultar la opción en el frontend no es seguridad.
 
 ## 10. Pruebas exigidas
 

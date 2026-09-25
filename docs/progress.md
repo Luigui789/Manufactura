@@ -83,7 +83,7 @@ por una instalación nativa; y TypeScript 6 deprecó `baseUrl`.
 
 ## Etapa 2 — Database foundation
 
-**Foundation implementada y verificada; cotejo académico pendiente** en la rama
+**Foundation implementada y verificada; cotejo académico completado** en la rama
 `feature/database-foundation`.
 
 - [x] Modelo conceptual completo
@@ -98,23 +98,23 @@ por una instalación nativa; y TypeScript 6 deprecó `baseUrl`.
 - [x] Tests de integridad de Foundation ejecutados
 - [x] Documentación actualizada para Foundation
 - [x] Repetir las pruebas de migración en PostgreSQL 18 del proyecto
-- [ ] Cotejar `requirements.md` con la Entrega 1 oficial
+- [x] Cotejar `requirements.md` con la Entrega 1 oficial
 - [ ] PR revisado
 - [ ] Integrado en `develop`
 
 ### Estado de los artefactos
 
-| Artefacto                                             | Archivo        | Decisión                                  |
-| ----------------------------------------------------- | -------------- | ----------------------------------------- |
-| `docs/decisions/004-inventario-ledger-y-balance.md`   | `Redactado`    | `Aceptado`                                |
-| `docs/decisions/005-estrategia-de-auditoria.md`       | `Redactado`    | `Aceptado`                                |
-| `docs/decisions/006-estrategia-de-identificadores.md` | `Redactado`    | `Aceptado`                                |
-| `docs/decisions/007-trazabilidad-de-lotes.md`         | `Redactado`    | `Aceptado`                                |
-| `docs/database.md` con ERD y modelo completo          | `Actualizado`  | `Aprobado`                                |
-| `docs/audit.md`                                       | `Actualizado`  | `Aprobado`                                |
-| `schema.prisma` Foundation                            | `Implementado` | `Verificado` en PostgreSQL 16 y 18        |
-| Primera migración + SQL personalizado                 | `Implementado` | `Verificado` en PostgreSQL 16 y 18        |
-| Seed de roles y almacén                               | `Implementado` | `Verificado` dos veces en ambas versiones |
+| Artefacto                                             | Archivo        | Decisión                                               |
+| ----------------------------------------------------- | -------------- | ------------------------------------------------------ |
+| `docs/decisions/004-inventario-ledger-y-balance.md`   | `Redactado`    | `Aceptado`                                             |
+| `docs/decisions/005-estrategia-de-auditoria.md`       | `Redactado`    | `Aceptado`                                             |
+| `docs/decisions/006-estrategia-de-identificadores.md` | `Redactado`    | `Aceptado`                                             |
+| `docs/decisions/007-trazabilidad-de-lotes.md`         | `Redactado`    | `Aceptado`                                             |
+| `docs/database.md` con ERD y modelo completo          | `Actualizado`  | `Aprobado`                                             |
+| `docs/audit.md`                                       | `Actualizado`  | `Aprobado`                                             |
+| `schema.prisma` Foundation                            | `Implementado` | Versión actual verificada en PostgreSQL 18.6           |
+| Primera migración + SQL personalizado                 | `Implementado` | Versión actual verificada en PostgreSQL 18.6           |
+| Seed de roles y almacén                               | `Implementado` | Versión actual verificada dos veces en PostgreSQL 18.6 |
 
 Son dos ejes distintos y no se contradicen. La columna **Decisión** refleja el estado del ADR
 según [`decisions/README.md`](decisions/README.md), que es la fuente de verdad sobre decisiones
@@ -148,9 +148,10 @@ pendientes a la vez. Queda resuelto.
 
 ### Evidencia ejecutada de Foundation
 
-El 2026-09-23 se verificó en una instancia temporal **PostgreSQL 16** con base UTF-8 vacía y
-dedicada. El 2026-09-24 se repitió en **PostgreSQL 18.6** del `docker-compose.yml`, usando otra base
-de prueba vacía terminada en `_test`, sin modificar la base de trabajo `ecosoap_erp`.
+El 2026-09-23 se verificó una revisión anterior de Foundation en **PostgreSQL 16** temporal. Tras
+el cotejo académico, la migración inicial se corrigió antes de integrarse en `develop`. La versión
+actual se verificó el 2026-09-24 en **PostgreSQL 18.6** del `docker-compose.yml`, usando una nueva
+base vacía terminada en `_test`, sin modificar la base de trabajo `ecosoap_erp`.
 
 | Comprobación                                          | Resultado observado                                                                                                     |
 | ----------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
@@ -163,32 +164,43 @@ de prueba vacía terminada en `_test`, sin modificar la base de trabajo `ecosoap
 | Suite e2e completa                                    | 2 archivos, 11 pruebas pasan, incluido health check                                                                     |
 | Calidad                                               | ESLint backend/frontend, Prettier, builds backend/frontend pasan                                                        |
 
-En PostgreSQL 18.6 se observaron estos resultados:
+En PostgreSQL 18.6, **después** de añadir `Product.category` y `Warehouse.location`, se observaron
+estos resultados:
 
-| Comprobación                                                         | Resultado observado                                                                                                            |
-| -------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
-| `docker compose ps` y `SHOW server_version`                          | Contenedor `healthy`; PostgreSQL 18.6 en puerto 5433                                                                           |
-| Primer `prisma migrate dev` en base dedicada vacía                   | Migración `20260924041058_database_foundation` aplicada; esquema sincronizado                                                  |
-| Segundo `prisma migrate dev`                                         | `Already in sync`; sin cambios pendientes ni drift reportado                                                                   |
-| `prisma generate`                                                    | Cliente 7.10.0 generado                                                                                                        |
-| Seed ejecutado dos veces y luego vía `pnpm --filter backend db:seed` | 5 roles, 1 almacén y 1 migración aplicada, comprobados con SQL                                                                 |
-| Suite e2e completa                                                   | 2 archivos y 11/11 pruebas pasan; incluye `CHECK`, FK lote-producto, append-only, transacciones, concurrencia y reconciliación |
+| Comprobación                                        | Resultado observado                                                                                                                              |
+| --------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `docker compose ps` y `SHOW server_version`         | Contenedor `healthy`; PostgreSQL 18.6 en puerto 5433                                                                                             |
+| `prisma validate` y `prisma generate`               | Esquema válido; cliente 7.10.0 generado                                                                                                          |
+| Primer `prisma migrate dev` en base dedicada vacía  | Migración inicial corregida `20260924041058_database_foundation` aplicada; esquema sincronizado                                                  |
+| Segundo `prisma migrate dev`                        | `Already in sync`; sin cambios pendientes ni drift reportado                                                                                     |
+| `pnpm --filter backend db:seed` ejecutado dos veces | 5 roles, 1 almacén con `location = Planta principal - Managua`, 0 usuarios, comprobados con SQL                                                  |
+| Suite e2e completa                                  | 2 archivos y 12/12 pruebas pasan; incluye límites de `category`/`location`, `CHECK`, FK, append-only y reconciliación                            |
+| Carrera de creación del primer saldo                | Falló inicialmente con `P2002` en `upsert`; corregido con `createMany(skipDuplicates)` más `FOR UPDATE`; pasó en suite y 3 repeticiones aisladas |
+| UUID de saldos                                      | SQL confirmó versión 7 tras la corrección de concurrencia                                                                                        |
+| Calidad final                                       | `pnpm lint`, `pnpm format:check` y `pnpm build` pasan en backend y frontend                                                                      |
 
 Para reproducirlo, crear una base PostgreSQL 18 vacía con nombre terminado en `_test`, apuntar
-`DATABASE_URL` a ella y ejecutar desde `backend/` `prisma migrate dev` dos veces, `prisma generate`,
-`node dist/prisma/seed.js` dos veces y `vitest run --config ./vitest.config.e2e.ts`. Desde la raíz,
-`pnpm --filter backend db:seed` comprueba además la ruta oficial de build y seed. La suite exige
-el sufijo `_test` para proteger la base de trabajo.
+`DATABASE_URL` a ella y ejecutar desde `backend/` `prisma migrate dev` dos veces y
+`prisma generate`. Desde la raíz, ejecutar `pnpm --filter backend db:seed` dos veces y
+`pnpm --filter backend test:e2e`. La suite exige el sufijo `_test` para proteger la base de
+trabajo. Quien haya aplicado la versión previa de esta migración en una base local debe respaldar
+los datos que necesite antes de recrear esa base; no se resetea ninguna base automáticamente.
 
 **Pendiente de prueba técnica:** ampliación de enums en migraciones posteriores.
 
 ### Cuestiones abiertas
 
-1. **Documento académico de la Entrega 1.** No aportado. El catálogo de requisitos y los RNF
-   siguen sin poder cotejarse, de modo que **no puede certificarse conformidad oficial**.
-2. **Requisitos propuestos por el equipo.** `RF-PRO-010`, `RF-PRO-011`, `RF-INV-007` y
-   `RF-AUD-007` nacen del diseño, no del documento oficial. Ver
-   [`requirements.md`](requirements.md).
+1. **Cotejo académico.** Completado contra la Entrega 1 oficial. La matriz de
+   requisitos `OFICIAL`/`DERIVADO`/`PROPUESTO`, las correcciones de IDs y el estado real de cada
+   flujo están en [`requirements.md`](requirements.md). No se marcó como verificado ningún flujo
+   empresarial por tener únicamente entidades Foundation.
+2. **Brechas de Foundation cerradas.** `Product.category` se añadió como texto obligatorio de hasta
+   100 caracteres, separado de `ProductType`; `Warehouse.location` se añadió como texto obligatorio
+   de hasta 255 caracteres. Se actualizaron migración, seed y pruebas, y se verificó en PostgreSQL
+   18.6 desde base vacía. Los CRUD empresariales siguen pendientes.
+3. **Requisitos propuestos por el equipo.** La política de lotes, `requestId`, snapshots de
+   auditoría, JWT, versionado de BOM y otras extensiones quedan explícitamente como
+   `PROPUESTO`; véase [`requirements.md`](requirements.md).
 
 ---
 

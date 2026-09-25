@@ -85,10 +85,11 @@ pnpm --filter frontend dev          # solo frontend
 backend tiene `ConfigModule`, `PrismaModule` y `HealthModule`; el frontend, una pantalla temporal
 de verificación que debe reemplazarse al empezar el layout real.
 
-**Etapa 2 (modelo de datos): en curso** en `feature/database-foundation`. El diseño Foundation
-está aprobado y su primera migración, seed y pruebas de integridad ya existen. Compras, Producción
-y Ventas siguen siendo modelo conceptual en `docs/database.md`. La Etapa 2 no está terminada:
-falta cotejar los requisitos con la Entrega 1 y revisar el PR.
+**Etapa 2 (modelo de datos): Foundation implementada y verificada** en
+`feature/database-foundation`. El cotejo con la Entrega 1 y sus dos correcciones de atributos están
+registrados en `docs/requirements.md` y `docs/progress.md`. Compras, Producción y Ventas siguen
+siendo modelo conceptual en `docs/database.md`. Falta revisión del PR por otro integrante e
+integración en `develop`.
 
 No crees carpetas ni módulos vacíos para «mostrar estructura». La arquitectura futura está
 descrita en `docs/architecture.md`; cada módulo nace con su funcionalidad real.

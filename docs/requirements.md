@@ -1,142 +1,131 @@
-# Requisitos funcionales — EcoSoap ERP
+# Requisitos y trazabilidad de alcance — EcoSoap ERP
 
-## Sobre este catálogo
+## Fuente de verdad y criterio de clasificación
 
-El prompt maestro fija la **nomenclatura** de los requisitos (`RF-COM-*`, `RF-INV-*`, `RF-PRO-*`,
-`RF-VEN-*`) y describe los flujos de negocio, pero no su redacción definitiva. Lo que sigue es el
-catálogo derivado de esos flujos, para que exista trazabilidad desde el primer día:
+El cotejo académico se realizó contra la [Entrega 1 oficial — _Entrega1_ERP_EcoSoap v2_](https://docs.google.com/document/d/16vj0X6WtFVxBORmMUt8JIwS22EO9F8d6tCvqZx7cKa8/edit?usp=drivesdk), secciones 2, 4 y 5.
 
-```text
-Documento → Requisito → Código → API → Prueba
-```
+| Origen      | Criterio                                                                                                       |
+| ----------- | -------------------------------------------------------------------------------------------------------------- |
+| `OFICIAL`   | El requisito o alcance aparece expresamente en la Entrega 1.                                                   |
+| `DERIVADO`  | Regla técnica necesaria para implementar correctamente un requisito oficial; la columna Evidencia indica cuál. |
+| `PROPUESTO` | Mejora o decisión del equipo que no consta expresamente en la Entrega 1.                                       |
 
-> **Pendiente de cotejo.** Antes de la entrega, este catálogo debe contrastarse con el documento
-> oficial de la asignatura. Si algún código o redacción difiere, se actualiza aquí, no al revés.
+`Origen` no equivale al campo **Estado** de la ficha académica. La Entrega marca sus diez RNF como “Propuesto”; no obstante, son `OFICIAL` para esta matriz porque están escritos explícitamente en la Entrega 1. Los IDs que el equipo había creado para desglosar una ficha oficial no adquieren carácter oficial por llevar el prefijo `RF-`.
 
-Cada funcionalidad que se implemente debe declarar qué requisito satisface, tanto en el pull
-request como en la documentación de su endpoint.
+## Estados de implementación
 
-## Estados
+| Estado        | Significado                                                                |
+| ------------- | -------------------------------------------------------------------------- |
+| `Pending`     | Aún no se implementó el requisito o flujo.                                 |
+| `In Progress` | Existe una parte de código o fundación técnica, pero no el flujo completo. |
+| `Implemented` | El código del alcance está completo y compila.                             |
+| `Verified`    | Hay evidencia de prueba, API o interfaz del flujo completo.                |
+| `Integrated`  | Fue fusionado en `develop` mediante un PR revisado.                        |
 
-| Estado        | Significado                                                                                         |
-| ------------- | --------------------------------------------------------------------------------------------------- |
-| `Pending`     | No iniciado                                                                                         |
-| `In Progress` | Hay código escrito, pero el requisito no está completo                                              |
-| `Implemented` | El código está completo y compila                                                                   |
-| `Verified`    | Existe **evidencia**: prueba automatizada, respuesta de API validada o flujo de interfaz comprobado |
+Una tabla, una migración o una prueba de Foundation **no** verifican por sí solas un flujo empresarial completo.
 
-`Implemented` y `Verified` son cosas distintas y no se usa `Done` para ninguna de las dos.
-Implementar es escribir el código; verificar es haber ejecutado la comprobación y visto el
-resultado.
+## Matriz de requisitos funcionales oficiales
 
-## Transversales del sistema
+| ID         | Requisito                                                                                                                                                                                 | Origen    | Estado        | Implementación                                                                                             | Evidencia                                                                    |
+| ---------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------- | ------------- | ---------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------- |
+| RF-COM-001 | Gestionar proveedores: registrar, consultar, actualizar y deshabilitar; con identificador, razón social/nombre, teléfono, correo, dirección y estado.                                     | `OFICIAL` | `Pending`     | Sin módulo Compras.                                                                                        | Entrega 1 §4.1.                                                              |
+| RF-COM-002 | Gestionar órdenes de compra de un proveedor con productos/materiales, cantidades, precios unitarios, fecha de emisión y estado.                                                           | `OFICIAL` | `Pending`     | Sin módulo Compras.                                                                                        | Entrega 1 §4.1.                                                              |
+| RF-COM-003 | Registrar la recepción total o parcial de una orden y generar los movimientos de entrada de inventario.                                                                                   | `OFICIAL` | `Pending`     | Foundation aporta el ledger, pero no existe recepción ni módulo Compras.                                   | Entrega 1 §4.1; pruebas de Foundation solo cubren ajustes.                   |
+| RF-INV-001 | Gestionar productos y materias primas con código, nombre, categoría, unidad, tipo y estado.                                                                                               | `OFICIAL` | `Pending`     | Foundation modela los seis atributos, con `category` flexible separada del enum `type`; faltan CRUD y API. | Entrega 1 §4.2; migración y pruebas Foundation.                              |
+| RF-INV-002 | Mantener existencias desde entradas y salidas de compras, producción, ventas y ajustes autorizados; cada movimiento registra producto, cantidad, tipo, fecha, usuario y operación origen. | `OFICIAL` | `In Progress` | `InventoryMovement`, `StockBalance` y ajustes Foundation; faltan los flujos de dominio y API.              | Entrega 1 §4.2; `foundation.e2e-spec.ts` no cubre Compras/Producción/Ventas. |
+| RF-INV-003 | Identificar por código único los lotes de producción y consultar su producto, orden, materias primas consumidas y controles de calidad.                                                   | `OFICIAL` | `In Progress` | `Lot` y su integridad con movimiento existen; faltan Producción, consultas y calidad.                      | Entrega 1 §4.2; Foundation valida solo la base técnica.                      |
+| RF-PRO-001 | Definir una BOM por producto manufacturado, con componentes, cantidades y unidades.                                                                                                       | `OFICIAL` | `Pending`     | Sin módulo Producción.                                                                                     | Entrega 1 §4.3.                                                              |
+| RF-PRO-002 | Crear, consultar y actualizar órdenes de producción con producto, cantidad, fecha de creación, estado y BOM asociada.                                                                     | `OFICIAL` | `Pending`     | Sin módulo Producción.                                                                                     | Entrega 1 §4.3.                                                              |
+| RF-PRO-003 | Antes de ejecutar, comprobar disponibilidad; al finalizar, consumir materiales, generar lote e incrementar el terminado mediante movimientos de inventario.                               | `OFICIAL` | `Pending`     | Foundation soporta movimientos/lotes, no la ejecución de producción.                                       | Entrega 1 §4.3.                                                              |
+| RF-PRO-004 | Registrar controles básicos de calidad por lote: resultado, observaciones, fecha, responsable y no conformidades.                                                                         | `OFICIAL` | `Pending`     | Sin módulo de calidad ni API.                                                                              | Entrega 1 §4.3.                                                              |
+| RF-VEN-001 | Gestionar clientes: registrar, consultar, actualizar y deshabilitar, con nombre, contacto, dirección y estado.                                                                            | `OFICIAL` | `Pending`     | Sin módulo Ventas.                                                                                         | Entrega 1 §4.4.                                                              |
+| RF-VEN-002 | Gestionar órdenes de venta con cliente, productos, cantidades, precios, fecha y estado; comprobar disponibilidad antes de confirmar.                                                      | `OFICIAL` | `Pending`     | Sin módulo Ventas.                                                                                         | Entrega 1 §4.4.                                                              |
+| RF-VEN-003 | Registrar el despacho de una orden confirmada y generar la salida automática del inventario de terminado.                                                                                 | `OFICIAL` | `Pending`     | Foundation aporta el ledger, pero no existe despacho ni módulo Ventas.                                     | Entrega 1 §4.4.                                                              |
 
-| Requisito  | Descripción                                       | Estado     | Backend              | Frontend          | Prueba               |
-| ---------- | ------------------------------------------------- | ---------- | -------------------- | ----------------- | -------------------- |
-| RF-SYS-001 | Entorno reproducible mediante Docker y pnpm       | `Verified` | `docker-compose.yml` | —                 | Arranque ejecutado   |
-| RF-SYS-002 | Documentación de la API mediante Swagger/OpenAPI  | `Verified` | `main.ts`            | —                 | `GET /api/docs` 200  |
-| RF-SYS-003 | Verificación de conectividad con la base de datos | `Verified` | `HealthModule`       | Pantalla temporal | `health.e2e-spec.ts` |
+### Correcciones de identificador respecto al catálogo anterior
 
-## Autenticación y autorización
+- La antigua descripción de `RF-COM-003` (“confirmar una orden”) no es el RF-COM-003 oficial. El ID oficial corresponde a **recepción de compras**.
+- `RF-INV-002` no es solo una consulta de saldo: es el control integrado de existencias y movimientos. `RF-INV-003` es gestión y trazabilidad de lotes, no el ledger genérico.
+- `RF-PRO-002`, `RF-PRO-003` y `RF-PRO-004` oficiales son, respectivamente, órdenes de producción, ejecución integrada y calidad por lote. El cálculo de materiales y las precondiciones son desgloses derivados.
+- `RF-VEN-003` oficial es el despacho. La consulta informativa y la no-reserva no son el requisito oficial con ese ID.
 
-| Requisito  | Descripción                                                      | Estado    | Backend | Frontend | Prueba |
-| ---------- | ---------------------------------------------------------------- | --------- | ------- | -------- | ------ |
-| RF-AUT-001 | Autenticar usuarios con credenciales, emitiendo JWT              | `Pending` | —       | —        | —      |
-| RF-AUT-002 | Almacenar contraseñas con hashing seguro, nunca en texto plano   | `Pending` | —       | —        | —      |
-| RF-AUT-003 | Restringir el acceso por rol (RBAC), verificándolo en el backend | `Pending` | —       | —        | —      |
+## Requisitos no funcionales oficiales
 
-## Compras
+| ID      | Requisito                                                                                                                                                                          | Origen    | Estado        | Implementación                                                                      | Evidencia                          |
+| ------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------- | ------------- | ----------------------------------------------------------------------------------- | ---------------------------------- |
+| RNF-001 | Interfaz clara, consistente y fácil de aprender en menús, formularios, tablas, botones y confirmaciones.                                                                           | `OFICIAL` | `Pending`     | Solo existe pantalla temporal.                                                      | Entrega 1 §4.6.                    |
+| RNF-002 | Credenciales individuales, control por rol y permisos; contraseñas nunca en texto plano.                                                                                           | `OFICIAL` | `In Progress` | `Role`/`User` existen; faltan autenticación, hashing y autorización.                | Entrega 1 §4.6.                    |
+| RNF-003 | Operaciones habituales en menos de 3 s en condiciones normales; paginación, filtros y consultas optimizadas para grandes volúmenes.                                                | `OFICIAL` | `Pending`     | No hay medición de rendimiento del sistema completo.                                | Entrega 1 §4.6.                    |
+| RNF-004 | Integridad transaccional: una operación de existencias no deja movimientos parciales si falla.                                                                                     | `OFICIAL` | `In Progress` | Protocolo transaccional de ajustes Foundation; faltan compras, producción y ventas. | Entrega 1 §4.6; Foundation e2e.    |
+| RNF-005 | Arquitectura modular para Compras, Inventario, Producción y Ventas, bajo acoplamiento y reglas compartidas centralizadas mediante API definida.                                    | `OFICIAL` | `In Progress` | Monolito modular y base de API; módulos de dominio pendientes.                      | Entrega 1 §4.6; `architecture.md`. |
+| RNF-006 | Disponibilidad mínima de 95 % durante la evaluación y horario operativo del proyecto.                                                                                              | `OFICIAL` | `Pending`     | Health check no demuestra disponibilidad medida.                                    | Entrega 1 §4.6.                    |
+| RNF-007 | Trazar operaciones de inventario, producción, compras y ventas con usuario, fecha/hora, tipo y entidad; reconstruir el flujo, incluidos insumos, lote y movimientos de producción. | `OFICIAL` | `In Progress` | `AuditLog`/ledger Foundation; falta cobertura de todos los dominios.                | Entrega 1 §4.6; Foundation e2e.    |
+| RNF-008 | Compatibilidad con Chrome, Firefox y Edge recientes; diseño adaptable para escritorio, portátil y tableta.                                                                         | `OFICIAL` | `Pending`     | Sin validación multiexplorador ni interfaz ERP.                                     | Entrega 1 §4.6.                    |
+| RNF-009 | Respaldos de base de datos al menos semanales y recuperables.                                                                                                                      | `OFICIAL` | `Pending`     | No hay mecanismo de respaldo/restauración.                                          | Entrega 1 §4.6.                    |
+| RNF-010 | Soportar al menos 20 usuarios concurrentes sin degradar significativamente RNF-003; arquitectura ampliable.                                                                        | `OFICIAL` | `In Progress` | Se probó concurrencia de Foundation, no 20 usuarios ni el SLO de 3 s.               | Entrega 1 §4.6; Foundation e2e.    |
 
-| Requisito  | Descripción                                                           | Estado    | Backend | Frontend | Prueba |
-| ---------- | --------------------------------------------------------------------- | --------- | ------- | -------- | ------ |
-| RF-COM-001 | Registrar y administrar proveedores                                   | `Pending` | —       | —        | —      |
-| RF-COM-002 | Crear órdenes de compra con detalle, cantidades y precios             | `Pending` | —       | —        | —      |
-| RF-COM-003 | Confirmar una orden de compra (`DRAFT` → `CONFIRMED`)                 | `Pending` | —       | —        | —      |
-| RF-COM-004 | Registrar recepciones, totales o parciales, de una orden confirmada   | `Pending` | —       | —        | —      |
-| RF-COM-005 | La recepción aumenta el inventario con movimientos `PURCHASE_RECEIPT` | `Pending` | —       | —        | —      |
-| RF-COM-006 | Crear una orden de compra **no** modifica el inventario               | `Pending` | —       | —        | —      |
+## Reglas derivadas
 
-## Inventario
+| ID        | Requisito                                                             | Origen     | Estado        | Implementación                                      | Evidencia                                                         |
+| --------- | --------------------------------------------------------------------- | ---------- | ------------- | --------------------------------------------------- | ----------------------------------------------------------------- |
+| D-COM-001 | Ciclo `DRAFT → CONFIRMED` antes de recibir una compra.                | `DERIVADO` | `Pending`     | Diseño futuro de Compras.                           | Desglosa RF-COM-003; el estado exacto no está en la Entrega.      |
+| D-COM-002 | Crear una orden no altera existencias.                                | `DERIVADO` | `Pending`     | Diseño futuro de Compras.                           | RF-COM-003 sitúa la entrada al registrar la recepción.            |
+| D-INV-001 | Consulta de saldo por producto y almacén.                             | `DERIVADO` | `Pending`     | `StockBalance` Foundation, sin API.                 | RF-INV-002 exige mantener existencias actualizadas.               |
+| D-INV-002 | Ledger tipificado e inmutable e historial consultable de movimientos. | `DERIVADO` | `In Progress` | `InventoryMovement` Foundation.                     | Campos mínimos de RF-INV-002 y RNF-004.                           |
+| D-INV-003 | Ajuste manual autorizado con motivo tipificado obligatorio.           | `DERIVADO` | `In Progress` | `AdjustmentReason` y `apply-adjustment`.            | RF-INV-002 menciona ajustes autorizados.                          |
+| D-INV-004 | Impedir saldo negativo.                                               | `DERIVADO` | `In Progress` | Validación y bloqueo en Foundation.                 | Mantiene existencias reales y consistentes de RF-INV-002/RNF-004. |
+| D-PRO-001 | Calcular materiales requeridos desde la BOM y cantidad de la orden.   | `DERIVADO` | `Pending`     | Diseño futuro de Producción.                        | RF-PRO-001 y RF-PRO-003.                                          |
+| D-PRO-002 | Ejecutar el consumo y la entrada de terminado atómicamente.           | `DERIVADO` | `Pending`     | Protocolo Foundation reutilizable.                  | RF-PRO-003 y RNF-004.                                             |
+| D-PRO-003 | Reconstruir la cadena lote → materias primas consumidas.              | `DERIVADO` | `Pending`     | Relaciones futuras de Producción.                   | RF-INV-003 y RNF-007.                                             |
+| D-PRO-004 | Rechazar ejecución sin insumos sin dejar cambios de inventario.       | `DERIVADO` | `Pending`     | Diseño futuro de Producción.                        | RF-PRO-003 y RNF-004.                                             |
+| D-VEN-001 | Comprobar disponibilidad al confirmar una venta.                      | `DERIVADO` | `Pending`     | Diseño futuro de Ventas.                            | Desglosa RF-VEN-002.                                              |
+| D-VEN-002 | El despacho genera el movimiento de salida de terminado.              | `DERIVADO` | `Pending`     | Diseño futuro de Ventas.                            | Desglosa RF-VEN-003.                                              |
+| D-VEN-003 | Crear una orden no altera existencias; el cambio ocurre al despachar. | `DERIVADO` | `Pending`     | Diseño futuro de Ventas.                            | Comentario de RF-VEN-003.                                         |
+| D-AUD-001 | `AuditLog` append-only para que la traza no pueda ser alterada.       | `DERIVADO` | `In Progress` | Disparadores Foundation.                            | RNF-007.                                                          |
+| D-AUD-002 | Rechazar `UPDATE` y `DELETE` sobre auditoría mediante base de datos.  | `DERIVADO` | `Verified`    | Disparadores Foundation.                            | Pruebas append-only de Foundation.                                |
+| D-AUD-003 | Lista permitida para sanitizar secretos si se guardan snapshots.      | `DERIVADO` | `In Progress` | Diseño de auditoría; cobertura de flujos pendiente. | RNF-002 y RNF-007.                                                |
+| D-AUT-001 | Hash seguro de contraseñas y autorización validada en backend.        | `DERIVADO` | `Pending`     | Sin módulo Auth.                                    | RNF-002.                                                          |
+| D-SYS-001 | Health check para diagnosticar la disponibilidad.                     | `DERIVADO` | `Verified`    | `HealthModule`.                                     | Apoya RNF-006; no acredita 95 % de disponibilidad.                |
 
-| Requisito  | Descripción                                                             | Estado        | Backend                     | Frontend | Prueba                   |
-| ---------- | ----------------------------------------------------------------------- | ------------- | --------------------------- | -------- | ------------------------ |
-| RF-INV-001 | Registrar productos distinguiendo materia prima, intermedio y terminado | `Pending`     | —                           | —        | —                        |
-| RF-INV-002 | Consultar existencias actuales por producto y almacén                   | `Pending`     | —                           | —        | —                        |
-| RF-INV-003 | Registrar todo cambio de existencias como movimiento tipificado         | `In Progress` | Ajustes Foundation          | —        | `foundation.e2e-spec.ts` |
-| RF-INV-004 | Consultar el historial de movimientos con origen, fecha y responsable   | `Pending`     | —                           | —        | —                        |
-| RF-INV-005 | Impedir que las existencias queden en negativo                          | `In Progress` | Ajustes Foundation          | —        | `foundation.e2e-spec.ts` |
-| RF-INV-006 | Permitir ajustes manuales con motivo tipificado obligatorio (`reason`)  | `In Progress` | Ajustes Foundation, sin API | —        | `foundation.e2e-spec.ts` |
+## Requisitos y decisiones propuestas por el equipo
 
-## Producción
+| ID        | Requisito                                                                                        | Origen      | Estado        | Implementación                             | Evidencia                                                             |
+| --------- | ------------------------------------------------------------------------------------------------ | ----------- | ------------- | ------------------------------------------ | --------------------------------------------------------------------- |
+| P-SYS-001 | Entorno reproducible con Docker y pnpm.                                                          | `PROPUESTO` | `Verified`    | Workspace y Compose.                       | Decisión de ingeniería; no aparece en Entrega 1.                      |
+| P-SYS-002 | Documentar la API mediante Swagger/OpenAPI.                                                      | `PROPUESTO` | `Verified`    | Swagger en backend.                        | Decisión de ingeniería; no aparece en Entrega 1.                      |
+| P-AUT-001 | Emitir JWT para la autenticación.                                                                | `PROPUESTO` | `Pending`     | Sin Auth.                                  | RNF-002 exige autenticación, no JWT.                                  |
+| P-INV-001 | Permitir trazabilidad opcional por producto (`isLotTracked`) y bloquear su cambio con histórico. | `PROPUESTO` | `In Progress` | Foundation y ADR 007.                      | La Entrega exige lotes de producción, no esta configuración general.  |
+| P-PRO-001 | Versionar una BOM ya usada en vez de modificarla.                                                | `PROPUESTO` | `Pending`     | Diseño futuro.                             | La Entrega no exige versionado.                                       |
+| P-PRO-002 | Estados exactos de lote `QUARANTINED`, `RELEASED` y `REJECTED`.                                  | `PROPUESTO` | `In Progress` | Enum Foundation.                           | La Entrega pide resultado/no conformidad, no esos estados ni nombres. |
+| P-PRO-003 | Bloquear consumo y despacho de lote en cuarentena o rechazado.                                   | `PROPUESTO` | `Pending`     | Política de calidad futura.                | Protección válida, no obligación expresa de Entrega 1.                |
+| P-PRO-004 | Configurar por producto `requiresQualityInspection`.                                             | `PROPUESTO` | `In Progress` | Campo Foundation.                          | La Entrega pide control por lote, no una bandera por producto.        |
+| P-PRO-005 | Planificar una orden con `plannedDate` separado de su fecha de creación.                         | `PROPUESTO` | `Pending`     | Campo previsto en migración de Producción. | RF-PRO-002 exige fecha de creación, no fecha planificada.             |
+| P-VEN-001 | Comprobación de venta informativa y sin reserva.                                                 | `PROPUESTO` | `Pending`     | Diseño futuro de Ventas.                   | RF-VEN-002 exige comprobar disponibilidad, no define reservas.        |
+| P-AUD-001 | Correlacionar eventos con `requestId`.                                                           | `PROPUESTO` | `In Progress` | Columna Foundation.                        | RNF-007 no exige correlación de petición.                             |
+| P-AUD-002 | Snapshots `previous`/`new` de cambios.                                                           | `PROPUESTO` | `In Progress` | Modelo Foundation.                         | RNF-007 no exige snapshots.                                           |
+| P-AUD-003 | Eventos y actores específicos `LOGIN_FAILED`, `USER`/`SYSTEM`/`ANONYMOUS`.                       | `PROPUESTO` | `In Progress` | Enums y restricciones Foundation.          | RNF-007 exige responsable, no este modelo de eventos.                 |
+| P-AUD-004 | Restringir la consulta global de auditoría únicamente a `ADMIN`.                                 | `PROPUESTO` | `Pending`     | Diseño de autorización futura.             | RNF-002 exige control por roles, no este permiso concreto.            |
+| P-DOC-001 | No reciclar números de documentos publicados o cancelados.                                       | `PROPUESTO` | `Pending`     | `DocumentSequence` Foundation.             | La Entrega menciona números de órdenes, no esta política.             |
 
-| Requisito  | Descripción                                                                       | Estado    | Backend | Frontend | Prueba |
-| ---------- | --------------------------------------------------------------------------------- | --------- | ------- | -------- | ------ |
-| RF-PRO-001 | Definir la lista de materiales (BOM) de un producto manufacturado                 | `Pending` | —       | —        | —      |
-| RF-PRO-002 | Calcular los materiales necesarios según la cantidad a producir                   | `Pending` | —       | —        | —      |
-| RF-PRO-003 | Crear órdenes de producción con producto, cantidad y fecha planificada            | `Pending` | —       | —        | —      |
-| RF-PRO-004 | Verificar disponibilidad de materia prima antes de iniciar una orden              | `Pending` | —       | —        | —      |
-| RF-PRO-005 | Completar una orden consumiendo materia prima y generando terminado, atómicamente | `Pending` | —       | —        | —      |
-| RF-PRO-006 | Generar un lote identificable por cada producción completada                      | `Pending` | —       | —        | —      |
-| RF-PRO-007 | Reconstruir la trazabilidad de un lote hasta los lotes de materia prima usados    | `Pending` | —       | —        | —      |
-| RF-PRO-008 | Registrar inspecciones de control de calidad asociadas a un lote                  | `Pending` | —       | —        | —      |
-| RF-PRO-009 | Rechazar la producción con materia prima insuficiente, sin alterar el inventario  | `Pending` | —       | —        | —      |
+## Lotes, calidad y modelo Foundation
 
-## Ventas
+La Entrega exige explícitamente trazabilidad del **lote de producción**, la relación con orden de producción, materias primas consumidas y producto obtenido (`RF-INV-003`); también exige controles de calidad por lote, con resultado, observaciones, fecha, responsable y no conformidades (`RF-PRO-004`). Esto respalda la trazabilidad de materias primas y producto terminado a través del lote, pero no exige que la materia prima tenga por sí sola una entidad de lote ni impone una política de liberación.
 
-| Requisito  | Descripción                                                             | Estado    | Backend | Frontend | Prueba |
-| ---------- | ----------------------------------------------------------------------- | --------- | ------- | -------- | ------ |
-| RF-VEN-001 | Registrar y administrar clientes                                        | `Pending` | —       | —        | —      |
-| RF-VEN-002 | Crear órdenes de venta con detalle, cantidades y precios                | `Pending` | —       | —        | —      |
-| RF-VEN-003 | Comprobar existencia de forma **informativa** al confirmar (no reserva) | `Pending` | —       | —        | —      |
-| RF-VEN-004 | Registrar despachos, totales o parciales, de una orden confirmada       | `Pending` | —       | —        | —      |
-| RF-VEN-005 | El despacho disminuye el inventario con movimientos `SALE_DISPATCH`     | `Pending` | —       | —        | —      |
-| RF-VEN-006 | Crear una orden de venta **no** modifica el inventario                  | `Pending` | —       | —        | —      |
+`Role`, `User`, `Lot`, `InventoryMovement`, `StockBalance`, `AuditLog` y `DocumentSequence` son compatibles como fundación o infraestructura. `StockBalance` responde de forma `DERIVADO` al control de existencias; `AuditLog` respalda RNF-007; y `DocumentSequence` da soporte a los números humanos (la política de no reciclarlos sigue siendo `PROPUESTO`). Las entidades de dominio posteriores —proveedores, clientes, órdenes, BOM, rutas, controles de calidad y las relaciones completas de producción/ventas— no requieren estar en Foundation.
 
-## Auditoría
+### Correcciones de Foundation cerradas antes del PR
 
-| Requisito  | Descripción                                                               | Estado        | Backend               | Frontend | Prueba                   |
-| ---------- | ------------------------------------------------------------------------- | ------------- | --------------------- | -------- | ------------------------ |
-| RF-AUD-001 | Registrar qué ocurrió, quién, cuándo y sobre qué entidad                  | `In Progress` | Ajustes Foundation    | —        | `foundation.e2e-spec.ts` |
-| RF-AUD-002 | Cubrir movimientos de inventario, compras, producción, ventas y ajustes   | `Pending`     | —                     | —        | —                        |
-| RF-AUD-003 | La auditoría es append-only: no puede modificarse ni borrarse             | `In Progress` | Disparador Foundation | —        | `foundation.e2e-spec.ts` |
-| RF-AUD-004 | Nunca registrar contraseñas, tokens ni secretos, tampoco en los snapshots | `Pending`     | —                     | —        | —                        |
-| RF-AUD-005 | Correlacionar con `requestId` todo lo ocurrido en una misma operación     | `In Progress` | Ajustes Foundation    | —        | `foundation.e2e-spec.ts` |
-| RF-AUD-006 | Restringir la consulta de auditoría al rol `ADMIN`                        | `Pending`     | —                     | —        | —                        |
+La Entrega distingue explícitamente **categoría** y **tipo de producto** (`RF-INV-001`), pero
+no define un catálogo cerrado. `Product.category` es texto obligatorio de hasta 100 caracteres;
+`Product.type` conserva `ProductType` como enum estructural. No se añadió entidad ni enum de
+categorías.
 
-## Requisitos propuestos por el equipo
+La Entrega también pide ID, nombre y ubicación para cada almacén. `Warehouse.location` es texto
+obligatorio de hasta 255 caracteres; no se introdujeron coordenadas ni una dirección estructurada.
+El seed asigna `Planta principal - Managua` como valor inicial de desarrollo y permite actualizarlo
+después sin que una nueva ejecución del seed lo sobrescriba. `schema.prisma`, la migración inicial,
+el seed y las pruebas se corrigieron en esta rama; la migración se verificó nuevamente desde una
+base vacía en PostgreSQL 18.6. Esto cierra las dos brechas del modelo, mientras que el flujo de
+gestión de productos RF-INV-001 permanece `Pending` hasta implementar CRUD y API.
 
-> **No oficiales.** No constan en el documento académico disponible. Se registran aquí para que el
-> diseño no los introduzca de forma implícita, y quedan pendientes de cotejo con la Entrega 1. Si
-> el documento oficial no los recoge, la decisión es del equipo: mantenerlos como alcance propio o
-> retirarlos.
-
-| Requisito  | Descripción                                                                            | Estado    | Origen                                                    |
-| ---------- | -------------------------------------------------------------------------------------- | --------- | --------------------------------------------------------- |
-| RF-PRO-010 | Un lote en cuarentena o rechazado no puede despacharse **ni consumirse en producción** | `Pending` | [ADR 007](decisions/007-trazabilidad-de-lotes.md)         |
-| RF-PRO-011 | Una BOM usada por alguna orden no puede modificarse; las correcciones crean versión    | `Pending` | Auditoría de diseño 2026-09-23                            |
-| RF-INV-007 | Prohibir el cambio de `isLotTracked` con movimientos o existencia previos              | `Pending` | [ADR 007](decisions/007-trazabilidad-de-lotes.md)         |
-| RF-AUD-007 | Los números de documento publicados o cancelados nunca se reciclan                     | `Pending` | [ADR 006](decisions/006-estrategia-de-identificadores.md) |
-
-La razón de `RF-PRO-010` merece explicitarse: bloquear solo el despacho protegería al cliente pero
-no al proceso. Fabricar con materia prima rechazada contamina un lote de producto terminado que
-después habría que retirar, de modo que el daño se multiplica aguas abajo.
-
-## Requisitos no funcionales
-
-**No disponibles.** No se ha aportado un catálogo formal de RNF ni el documento académico de la
-Entrega 1. Por tanto **no puede certificarse la conformidad** con requisitos oficiales, ni
-funcionales ni no funcionales.
-
-Cuando se aporte el documento, este catálogo debe cotejarse entero y los RNF verificables
-incorporarse aquí. Hasta entonces, todo lo que figura en este archivo es una derivación del
-prompt maestro hecha por el equipo, no una transcripción de requisitos oficiales.
-
-## Reglas de negocio que atraviesan varios requisitos
-
-1. El inventario nunca cambia sin dejar un movimiento que explique por qué.
-2. Compras, Producción y Ventas usan el **mismo** servicio de inventario; no hay tres lógicas.
-3. Las operaciones que tocan varias entidades son transaccionales: si algo falla, rollback, y no
-   queda un registro de auditoría afirmando que la operación tuvo éxito.
-4. La validación definitiva siempre ocurre en el backend, aunque el frontend también la haga.
-5. Los estados de negocio son enums, no texto libre.
-6. Los datos maestros referenciados por transacciones históricas se desactivan, no se borran.
+En particular, `QUARANTINED`/`RELEASED`/`REJECTED`, el bloqueo de consumo o despacho y `requiresQualityInspection` se conservan como decisiones técnicas seguras, pero se mantienen marcadas como `PROPUESTO`; no son requisitos oficiales.

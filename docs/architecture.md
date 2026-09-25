@@ -182,6 +182,11 @@ interfaz.
 
 El valor del sistema está en que los cuatro módulos comparten el mismo inventario:
 
+La trazabilidad académica de cada flujo y decisión está en [`requirements.md`](requirements.md).
+Las reglas de no modificar inventario al crear órdenes son desgloses `DERIVADO`; la comprobación
+informativa de venta sin reserva y las políticas de calidad de lote son `PROPUESTO`, no requisitos
+oficiales literales.
+
 ```text
 Compras     crea orden → confirma → recibe mercancía ──┐
                                                        │
