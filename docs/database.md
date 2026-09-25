@@ -1,8 +1,8 @@
 # Base de datos — EcoSoap ERP
 
-> **Estado:** Foundation implementada y verificada contra PostgreSQL 16 temporal el 2026-09-23.
-> La conformidad académica sigue pendiente de cotejo con Entrega 1. El contenedor previsto de
-> PostgreSQL 18 no estuvo disponible en esta sesión.
+> **Estado:** Foundation implementada y verificada contra PostgreSQL 16 temporal el 2026-09-23 y
+> PostgreSQL 18.6 del proyecto el 2026-09-24. La conformidad académica sigue pendiente de cotejo
+> con Entrega 1.
 
 ## 1. Alcance
 
@@ -565,9 +565,9 @@ prueba propia:
 `inventory_movements` y `audit_logs` rechazan `UPDATE` y `DELETE`. Además, la cuenta de aplicación
 no debe tener permiso de `TRUNCATE` sobre ellas.
 
-> **Probado en PostgreSQL 16 temporal:** la migración se aplicó desde cero; una segunda ejecución
-> de `migrate dev` no reportó drift, y las pruebas SQL rechazaron cambios al ledger y a auditoría.
-> Falta repetir en el contenedor PostgreSQL 18 del proyecto.
+> **Probado en PostgreSQL 16 temporal y 18.6 del proyecto:** la migración se aplicó desde cero;
+> una segunda ejecución de `migrate dev` no reportó drift, y las pruebas rechazaron cambios al
+> ledger y a auditoría. Véase la evidencia en [`progress.md`](progress.md).
 
 ### Borrado
 
@@ -646,17 +646,17 @@ no dejar relaciones huérfanas ni tipos habilitados sin origen verificable.
 
 ## 15. Riesgos
 
-| Riesgo                                                       | Mitigación                                                                         | Estado            |
-| ------------------------------------------------------------ | ---------------------------------------------------------------------------------- | ----------------- |
-| `StockBalance` desincronizado del ledger                     | Servicio único, disparadores, consulta de reconciliación en pruebas                | Mitigado          |
-| `CHECK` y disparadores frente a Prisma Migrate y base sombra | Migración desde cero y segunda ejecución sin drift en PostgreSQL 16; repetir en 18 | **Probado en 16** |
-| `ALTER TYPE ... ADD VALUE` en migraciones posteriores        | Se comprobará en la migración 2, la primera que lo hará                            | **Sin probar**    |
-| Interbloqueos con varios productos                           | Orden estable de bloqueo por `product_id`, luego `warehouse_id` (§8)               | Mitigado          |
-| Carrera al crear la primera fila de balance                  | `INSERT ... ON CONFLICT DO NOTHING` seguido de `SELECT ... FOR UPDATE`             | Mitigado          |
-| `Decimal` operado como número de JavaScript                  | Regla explícita y prueba que la verifique                                          | Mitigado          |
-| Snapshots de auditoría con datos sensibles                   | Lista **permitida** de campos por entidad, no lista prohibida                      | Mitigado          |
-| Un administrador de base puede alterar el disparador         | Aceptado: ninguna garantía de la aplicación protege frente a superusuario          | Aceptado          |
-| Cotejo con el documento académico oficial                    | Pendiente de recibir la Entrega 1                                                  | **Abierto**       |
+| Riesgo                                                       | Mitigación                                                                | Estado                 |
+| ------------------------------------------------------------ | ------------------------------------------------------------------------- | ---------------------- |
+| `StockBalance` desincronizado del ledger                     | Servicio único, disparadores, consulta de reconciliación en pruebas       | Mitigado               |
+| `CHECK` y disparadores frente a Prisma Migrate y base sombra | Migración desde cero y segunda ejecución sin drift en PostgreSQL 16 y 18  | **Probado en 16 y 18** |
+| `ALTER TYPE ... ADD VALUE` en migraciones posteriores        | Se comprobará en la migración 2, la primera que lo hará                   | **Sin probar**         |
+| Interbloqueos con varios productos                           | Orden estable de bloqueo por `product_id`, luego `warehouse_id` (§8)      | Mitigado               |
+| Carrera al crear la primera fila de balance                  | `INSERT ... ON CONFLICT DO NOTHING` seguido de `SELECT ... FOR UPDATE`    | Mitigado               |
+| `Decimal` operado como número de JavaScript                  | Regla explícita y prueba que la verifique                                 | Mitigado               |
+| Snapshots de auditoría con datos sensibles                   | Lista **permitida** de campos por entidad, no lista prohibida             | Mitigado               |
+| Un administrador de base puede alterar el disparador         | Aceptado: ninguna garantía de la aplicación protege frente a superusuario | Aceptado               |
+| Cotejo con el documento académico oficial                    | Pendiente de recibir la Entrega 1                                         | **Abierto**            |
 
 ## 16. Conexión local
 

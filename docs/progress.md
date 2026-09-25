@@ -5,7 +5,7 @@ Este documento refleja el estado **real** del proyecto.
 Una casilla marcada significa que la comprobación se ejecutó y se vio el resultado. No se marca
 nada por parecer correcto, por estar escrito ni por estar a punto de terminarse.
 
-Última actualización: 2026-09-23.
+Última actualización: 2026-09-24.
 
 ## Estados del trabajo
 
@@ -83,7 +83,8 @@ por una instalación nativa; y TypeScript 6 deprecó `baseUrl`.
 
 ## Etapa 2 — Database foundation
 
-**Diseño aprobado; implementación en curso** en la rama `feature/database-foundation`.
+**Foundation implementada y verificada; cotejo académico pendiente** en la rama
+`feature/database-foundation`.
 
 - [x] Modelo conceptual completo
 - [x] Estrategia de identificadores
@@ -96,24 +97,24 @@ por una instalación nativa; y TypeScript 6 deprecó `baseUrl`.
 - [x] Índices y constraints de Foundation creados y comprobados
 - [x] Tests de integridad de Foundation ejecutados
 - [x] Documentación actualizada para Foundation
-- [ ] Repetir las pruebas de migración en PostgreSQL 18 del proyecto
+- [x] Repetir las pruebas de migración en PostgreSQL 18 del proyecto
 - [ ] Cotejar `requirements.md` con la Entrega 1 oficial
 - [ ] PR revisado
 - [ ] Integrado en `develop`
 
 ### Estado de los artefactos
 
-| Artefacto                                             | Archivo        | Decisión                      |
-| ----------------------------------------------------- | -------------- | ----------------------------- |
-| `docs/decisions/004-inventario-ledger-y-balance.md`   | `Redactado`    | `Aceptado`                    |
-| `docs/decisions/005-estrategia-de-auditoria.md`       | `Redactado`    | `Aceptado`                    |
-| `docs/decisions/006-estrategia-de-identificadores.md` | `Redactado`    | `Aceptado`                    |
-| `docs/decisions/007-trazabilidad-de-lotes.md`         | `Redactado`    | `Aceptado`                    |
-| `docs/database.md` con ERD y modelo completo          | `Actualizado`  | `Aprobado`                    |
-| `docs/audit.md`                                       | `Actualizado`  | `Aprobado`                    |
-| `schema.prisma` Foundation                            | `Implementado` | `Verificado` en PostgreSQL 16 |
-| Primera migración + SQL personalizado                 | `Implementado` | `Verificado` en PostgreSQL 16 |
-| Seed de roles y almacén                               | `Implementado` | `Verificado` dos veces        |
+| Artefacto                                             | Archivo        | Decisión                                  |
+| ----------------------------------------------------- | -------------- | ----------------------------------------- |
+| `docs/decisions/004-inventario-ledger-y-balance.md`   | `Redactado`    | `Aceptado`                                |
+| `docs/decisions/005-estrategia-de-auditoria.md`       | `Redactado`    | `Aceptado`                                |
+| `docs/decisions/006-estrategia-de-identificadores.md` | `Redactado`    | `Aceptado`                                |
+| `docs/decisions/007-trazabilidad-de-lotes.md`         | `Redactado`    | `Aceptado`                                |
+| `docs/database.md` con ERD y modelo completo          | `Actualizado`  | `Aprobado`                                |
+| `docs/audit.md`                                       | `Actualizado`  | `Aprobado`                                |
+| `schema.prisma` Foundation                            | `Implementado` | `Verificado` en PostgreSQL 16 y 18        |
+| Primera migración + SQL personalizado                 | `Implementado` | `Verificado` en PostgreSQL 16 y 18        |
+| Seed de roles y almacén                               | `Implementado` | `Verificado` dos veces en ambas versiones |
 
 Son dos ejes distintos y no se contradicen. La columna **Decisión** refleja el estado del ADR
 según [`decisions/README.md`](decisions/README.md), que es la fuente de verdad sobre decisiones
@@ -147,9 +148,9 @@ pendientes a la vez. Queda resuelto.
 
 ### Evidencia ejecutada de Foundation
 
-Se creó una instancia temporal **PostgreSQL 16** y una base UTF-8 vacía y dedicada. Docker Desktop
-no estuvo disponible en esta sesión; por eso aún falta repetir la verificación en PostgreSQL 18,
-que es la versión del `docker-compose.yml`.
+El 2026-09-23 se verificó en una instancia temporal **PostgreSQL 16** con base UTF-8 vacía y
+dedicada. El 2026-09-24 se repitió en **PostgreSQL 18.6** del `docker-compose.yml`, usando otra base
+de prueba vacía terminada en `_test`, sin modificar la base de trabajo `ecosoap_erp`.
 
 | Comprobación                                          | Resultado observado                                                                                                     |
 | ----------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
@@ -162,8 +163,24 @@ que es la versión del `docker-compose.yml`.
 | Suite e2e completa                                    | 2 archivos, 11 pruebas pasan, incluido health check                                                                     |
 | Calidad                                               | ESLint backend/frontend, Prettier, builds backend/frontend pasan                                                        |
 
-**Pendiente de prueba técnica:** ampliación de enums en migraciones posteriores y repetición de
-los checks de Foundation en PostgreSQL 18. La prueba en PostgreSQL 16 no certifica esa versión.
+En PostgreSQL 18.6 se observaron estos resultados:
+
+| Comprobación                                                         | Resultado observado                                                                                                            |
+| -------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| `docker compose ps` y `SHOW server_version`                          | Contenedor `healthy`; PostgreSQL 18.6 en puerto 5433                                                                           |
+| Primer `prisma migrate dev` en base dedicada vacía                   | Migración `20260924041058_database_foundation` aplicada; esquema sincronizado                                                  |
+| Segundo `prisma migrate dev`                                         | `Already in sync`; sin cambios pendientes ni drift reportado                                                                   |
+| `prisma generate`                                                    | Cliente 7.10.0 generado                                                                                                        |
+| Seed ejecutado dos veces y luego vía `pnpm --filter backend db:seed` | 5 roles, 1 almacén y 1 migración aplicada, comprobados con SQL                                                                 |
+| Suite e2e completa                                                   | 2 archivos y 11/11 pruebas pasan; incluye `CHECK`, FK lote-producto, append-only, transacciones, concurrencia y reconciliación |
+
+Para reproducirlo, crear una base PostgreSQL 18 vacía con nombre terminado en `_test`, apuntar
+`DATABASE_URL` a ella y ejecutar desde `backend/` `prisma migrate dev` dos veces, `prisma generate`,
+`node dist/prisma/seed.js` dos veces y `vitest run --config ./vitest.config.e2e.ts`. Desde la raíz,
+`pnpm --filter backend db:seed` comprueba además la ruta oficial de build y seed. La suite exige
+el sufijo `_test` para proteger la base de trabajo.
+
+**Pendiente de prueba técnica:** ampliación de enums en migraciones posteriores.
 
 ### Cuestiones abiertas
 
@@ -172,8 +189,6 @@ los checks de Foundation en PostgreSQL 18. La prueba en PostgreSQL 16 no certifi
 2. **Requisitos propuestos por el equipo.** `RF-PRO-010`, `RF-PRO-011`, `RF-INV-007` y
    `RF-AUD-007` nacen del diseño, no del documento oficial. Ver
    [`requirements.md`](requirements.md).
-3. **PostgreSQL 18.** Docker Desktop no respondió en esta sesión; la prueba equivalente queda
-   pendiente antes del PR definitivo.
 
 ---
 

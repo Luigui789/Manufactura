@@ -120,6 +120,5 @@ Prisma daba problemas, dejando solo el servicio y las pruebas. **Esa salida qued
 rebajaría una garantía declarada crítica precisamente en el punto donde más importa.
 
 Las garantías de base de datos se mantienen. La primera migración se aplicó desde cero en
-PostgreSQL 16 temporal, una segunda ejecución de `migrate dev` no reportó drift y los rechazos
-SQL se comprobaron. Falta repetir esta evidencia en PostgreSQL 18 del proyecto. Si alguna
-garantía resultara imposible allí, la discusión se reabriría mediante un ADR nuevo.
+PostgreSQL 16 temporal y 18.6 del proyecto; una segunda ejecución de `migrate dev` no reportó
+drift y los rechazos SQL se comprobaron en ambas versiones.

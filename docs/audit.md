@@ -247,9 +247,9 @@ Garantizada en dos niveles:
 compensatorio nuevo, nunca editando el asiento. Un vínculo explícito con el original queda para
 el futuro flujo de correcciones.
 
-> **Probado en PostgreSQL 16 temporal:** la migración y su SQL personalizado se aplicaron desde
-> cero; una segunda ejecución de `migrate dev` no reportó drift; `UPDATE` y `DELETE` de auditoría
-> y movimientos fueron rechazados. Falta repetir en PostgreSQL 18 del proyecto.
+> **Probado en PostgreSQL 16 temporal y 18.6 del proyecto:** la migración y su SQL personalizado se
+> aplicaron desde cero; una segunda ejecución de `migrate dev` no reportó drift; `UPDATE` y
+> `DELETE` de auditoría y movimientos fueron rechazados.
 
 **Límite honesto:** el disparador no protege frente a un administrador de base con privilegios
 para alterarlo o eliminarlo. Ninguna garantía de la aplicación lo hace.

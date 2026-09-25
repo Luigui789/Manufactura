@@ -140,7 +140,7 @@ Consultar la auditoría queda restringido al rol `ADMIN`. Ningún rol puede modi
 - La tabla crece de forma monótona. Si algún día fuera un problema, se archiva por rango de
   fechas; nunca se borra.
 - El disparador y las restricciones viven como SQL de la migración. Su reproducción por Prisma
-  Migrate y la ausencia de drift se comprobaron en PostgreSQL 16 temporal; queda repetirlo en el
-  contenedor PostgreSQL 18 del proyecto.
+  Migrate y la ausencia de drift se comprobaron en PostgreSQL 16 temporal y en PostgreSQL 18.6 del
+  proyecto.
 - **Límite honesto:** el disparador no protege frente a un administrador de base con privilegios
   para alterarlo. Ninguna garantía de la aplicación lo hace.
