@@ -87,6 +87,33 @@ describe('Foundation: restricciones reales de PostgreSQL', () => {
     expect(product.type).toBe('RAW_MATERIAL');
     expect(warehouse.location).toBe('Planta principal - Managua');
 
+    const columns = await prisma.$queryRaw<
+      Array<{
+        table_name: string;
+        column_name: string;
+        character_maximum_length: number;
+        is_nullable: string;
+      }>
+    >`SELECT table_name, column_name, character_maximum_length, is_nullable
+      FROM information_schema.columns
+      WHERE table_schema = 'public'
+        AND (table_name, column_name) IN (('products', 'category'), ('warehouses', 'location'))
+      ORDER BY table_name`;
+    expect(columns).toEqual([
+      {
+        table_name: 'products',
+        column_name: 'category',
+        character_maximum_length: 100,
+        is_nullable: 'NO',
+      },
+      {
+        table_name: 'warehouses',
+        column_name: 'location',
+        character_maximum_length: 255,
+        is_nullable: 'NO',
+      },
+    ]);
+
     await expect(
       prisma.product.create({
         data: {
