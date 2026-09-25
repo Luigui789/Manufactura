@@ -13,6 +13,9 @@ loadEnv({ path: path.resolve(import.meta.dirname, '..', '.env') });
 
 export default defineConfig({
   schema: path.join('prisma', 'schema.prisma'),
+  migrations: {
+    seed: 'pnpm db:seed',
+  },
 
   // Desde Prisma 7 la URL de conexion de los comandos de Migrate se declara
   // aqui en lugar de dentro del bloque datasource del esquema.
