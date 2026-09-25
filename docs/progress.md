@@ -24,7 +24,8 @@ es «verificado». Se distinguen cinco estados y no se saltan:
 
 ## Etapa 1 — Configuración inicial
 
-**Integrada en `develop`** mediante el pull request #1.
+**Integrada en `develop`** mediante el pull request #1, sin aprobación formal registrada de otro
+integrante: véase [Desviaciones de proceso](#desviaciones-de-proceso).
 
 - [x] pnpm workspace
 - [x] NestJS
@@ -83,8 +84,16 @@ por una instalación nativa; y TypeScript 6 deprecó `baseUrl`.
 
 ## Etapa 2 — Database foundation
 
-**Foundation implementada y verificada; cotejo académico completado** en la rama
-`feature/database-foundation`.
+**Integrada en `develop`** mediante el pull request #2, fusionado el 2026-09-24 (commit de merge
+`dbda607`), sin aprobación formal registrada de otro integrante: véase
+[Desviaciones de proceso](#desviaciones-de-proceso).
+
+| Estado              | Evidencia                                                                                          |
+| ------------------- | -------------------------------------------------------------------------------------------------- |
+| Diseñada y aprobada | ADR 004 a 007 aceptados; `database.md` y `audit.md` aprobados tras la auditoría de diseño          |
+| Implementada        | `schema.prisma`, migración `20260924041058_database_foundation`, seed y protocolo de ajustes       |
+| Verificada          | PostgreSQL 18.6 desde base vacía, suite e2e 12/12 y calidad limpia; detalle en las tablas de abajo |
+| Integrada           | Pull request #2 fusionado en `develop`; merge `dbda607`                                            |
 
 - [x] Modelo conceptual completo
 - [x] Estrategia de identificadores
@@ -99,27 +108,27 @@ por una instalación nativa; y TypeScript 6 deprecó `baseUrl`.
 - [x] Documentación actualizada para Foundation
 - [x] Repetir las pruebas de migración en PostgreSQL 18 del proyecto
 - [x] Cotejar `requirements.md` con la Entrega 1 oficial
-- [ ] PR revisado
-- [ ] Integrado en `develop`
+- [ ] PR revisado — sin aprobación formal registrada; no se completa de forma retroactiva
+- [x] Integrado en `develop` (pull request #2, merge `dbda607`)
 
 ### Estado de los artefactos
 
-| Artefacto                                             | Archivo        | Decisión                                               |
-| ----------------------------------------------------- | -------------- | ------------------------------------------------------ |
-| `docs/decisions/004-inventario-ledger-y-balance.md`   | `Redactado`    | `Aceptado`                                             |
-| `docs/decisions/005-estrategia-de-auditoria.md`       | `Redactado`    | `Aceptado`                                             |
-| `docs/decisions/006-estrategia-de-identificadores.md` | `Redactado`    | `Aceptado`                                             |
-| `docs/decisions/007-trazabilidad-de-lotes.md`         | `Redactado`    | `Aceptado`                                             |
-| `docs/database.md` con ERD y modelo completo          | `Actualizado`  | `Aprobado`                                             |
-| `docs/audit.md`                                       | `Actualizado`  | `Aprobado`                                             |
-| `schema.prisma` Foundation                            | `Implementado` | Versión actual verificada en PostgreSQL 18.6           |
-| Primera migración + SQL personalizado                 | `Implementado` | Versión actual verificada en PostgreSQL 18.6           |
-| Seed de roles y almacén                               | `Implementado` | Versión actual verificada dos veces en PostgreSQL 18.6 |
+| Artefacto                                             | Archivo     | Decisión                                               |
+| ----------------------------------------------------- | ----------- | ------------------------------------------------------ |
+| `docs/decisions/004-inventario-ledger-y-balance.md`   | `Integrado` | `Aceptado`                                             |
+| `docs/decisions/005-estrategia-de-auditoria.md`       | `Integrado` | `Aceptado`                                             |
+| `docs/decisions/006-estrategia-de-identificadores.md` | `Integrado` | `Aceptado`                                             |
+| `docs/decisions/007-trazabilidad-de-lotes.md`         | `Integrado` | `Aceptado`                                             |
+| `docs/database.md` con ERD y modelo completo          | `Integrado` | `Aprobado`                                             |
+| `docs/audit.md`                                       | `Integrado` | `Aprobado`                                             |
+| `schema.prisma` Foundation                            | `Integrado` | Versión actual verificada en PostgreSQL 18.6           |
+| Primera migración + SQL personalizado                 | `Integrado` | Versión actual verificada en PostgreSQL 18.6           |
+| Seed de roles y almacén                               | `Integrado` | Versión actual verificada dos veces en PostgreSQL 18.6 |
 
 Son dos ejes distintos y no se contradicen. La columna **Decisión** refleja el estado del ADR
 según [`decisions/README.md`](decisions/README.md), que es la fuente de verdad sobre decisiones
-aceptadas. La columna **Archivo** refleja que existen en la rama de trabajo pero aún no están
-integrados en `develop`.
+aceptadas. La columna **Archivo** refleja su estado en el repositorio: todos están integrados en
+`develop` desde el pull request #2.
 
 La auditoría señaló correctamente que la versión anterior presentaba los ADR como aceptados y
 pendientes a la vez. Queda resuelto.
@@ -204,19 +213,44 @@ los datos que necesite antes de recrear esa base; no se resetea ninguna base aut
 
 ---
 
+## Desviaciones de proceso
+
+Los dos primeros pull requests se integraron sin la revisión que exige el flujo del equipo. Esa
+revisión no se reconstruye ni se completa de forma retroactiva: queda registrada como desviación.
+
+| PR  | Rama                          | Integración                                      | Pruebas                              | Revisión                                            |
+| --- | ----------------------------- | ------------------------------------------------ | ------------------------------------ | --------------------------------------------------- |
+| #1  | `feature/project-setup`       | Fusionado en `develop` (merge `4060763`)         | Verificadas; evidencia de la Etapa 1 | Sin aprobación formal registrada de otro integrante |
+| #2  | `feature/database-foundation` | Fusionado en `develop` el 2026-09-24 (`dbda607`) | Verificadas; evidencia de la Etapa 2 | Sin aprobación formal registrada de otro integrante |
+
+Desde el pull request de `feature/auth`, el flujo se cumple sin excepciones:
+
+```text
+feature/* → PR hacia develop → revisión de otro integrante → aprobación → merge
+```
+
+Se recomienda activar la protección de `develop` con al menos una aprobación obligatoria. Es una
+configuración del repositorio y se hará aparte, no dentro de la implementación de autenticación.
+
+---
+
 ## Etapas siguientes
 
-| Etapa | Contenido                                         | Estado    |
-| ----- | ------------------------------------------------- | --------- |
-| 3     | Autenticación JWT y RBAC                          | Pendiente |
-| 4     | Datos maestros: productos, almacenes, proveedores | Pendiente |
-| 5     | Compras y recepción                               | Pendiente |
-| 6     | Inventario y movimientos                          | Pendiente |
-| 7     | BOM y producción                                  | Pendiente |
-| 8     | Lotes, trazabilidad y calidad                     | Pendiente |
-| 9     | Clientes, ventas y despacho                       | Pendiente |
-| 10    | Dashboard y reportes básicos                      | Pendiente |
-| 11    | Simulación ISA-95                                 | Pendiente |
+| Etapa | Contenido                                         | Estado                      |
+| ----- | ------------------------------------------------- | --------------------------- |
+| 3     | Autenticación JWT y RBAC                          | En diseño en `feature/auth` |
+| 4     | Datos maestros: productos, almacenes, proveedores | Pendiente                   |
+| 5     | Compras y recepción                               | Pendiente                   |
+| 6     | Inventario y movimientos                          | Pendiente                   |
+| 7     | BOM y producción                                  | Pendiente                   |
+| 8     | Lotes, trazabilidad y calidad                     | Pendiente                   |
+| 9     | Clientes, ventas y despacho                       | Pendiente                   |
+| 10    | Dashboard y reportes básicos                      | Pendiente                   |
+| 11    | Simulación ISA-95                                 | Pendiente                   |
 
 `develop` se integra en `main` cuando haya un bloque funcional completo —configuración, modelo de
 datos, autenticación y datos maestros—, no al terminar cada etapa.
+
+La bóveda de Obsidian no estuvo disponible durante el diseño de la Etapa 3 (el servidor no
+respondió) y no fue fuente de ese diseño. Las fuentes fueron la Entrega 1 oficial, `docs/`, los
+ADR, el código, las migraciones, las pruebas y el historial de Git.

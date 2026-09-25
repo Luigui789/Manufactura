@@ -39,7 +39,7 @@ COMPRA → RECEPCIÓN → INVENTARIO → ORDEN DE PRODUCCIÓN → CONSUMO DE MP
 MongoDB, Next.js, Redis, event sourcing, CQRS complejo, serverless.
 
 Principio rector: la solución más simple que conserve una arquitectura profesional. El código debe
-poder ser entendido, mantenido y defendido por estudiantes.
+poder ser entendido, mantenido y defendido.
 
 ## Gestor de paquetes
 
@@ -85,11 +85,16 @@ pnpm --filter frontend dev          # solo frontend
 backend tiene `ConfigModule`, `PrismaModule` y `HealthModule`; el frontend, una pantalla temporal
 de verificación que debe reemplazarse al empezar el layout real.
 
-**Etapa 2 (modelo de datos): Foundation implementada y verificada** en
-`feature/database-foundation`. El cotejo con la Entrega 1 y sus dos correcciones de atributos están
-registrados en `docs/requirements.md` y `docs/progress.md`. Compras, Producción y Ventas siguen
-siendo modelo conceptual en `docs/database.md`. Falta revisión del PR por otro integrante e
-integración en `develop`.
+**Etapa 2 (modelo de datos): Foundation integrada en `develop`** mediante el pull request #2. El
+cotejo con la Entrega 1 y sus dos correcciones de atributos están registrados en
+`docs/requirements.md` y `docs/progress.md`. Compras, Producción y Ventas siguen siendo modelo
+conceptual en `docs/database.md`.
+
+Los pull requests #1 y #2 se integraron sin aprobación formal registrada de otro integrante; consta
+como desviación de proceso en `docs/progress.md`. Desde `feature/auth`, todo PR necesita la
+aprobación de otro integrante antes del merge.
+
+**Etapa 3 (autenticación y RBAC): en diseño** en `feature/auth`.
 
 No crees carpetas ni módulos vacíos para «mostrar estructura». La arquitectura futura está
 descrita en `docs/architecture.md`; cada módulo nace con su funcionalidad real.
