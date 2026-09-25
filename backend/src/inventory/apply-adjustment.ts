@@ -51,17 +51,11 @@ export async function applyAdjustment(prisma: PrismaClient, input: AdjustmentInp
       }
     }
 
-    // El upsert establece la fila de serialización incluso para el primer
-    // movimiento. La unicidad producto/almacén resuelve la creación concurrente.
-    await tx.stockBalance.upsert({
-      where: {
-        productId_warehouseId: {
-          productId: input.productId,
-          warehouseId: input.warehouseId,
-        },
-      },
-      create: { productId: input.productId, warehouseId: input.warehouseId, quantity: 0 },
-      update: {},
+    // ON CONFLICT DO NOTHING permite que dos transacciones creen el primer
+    // saldo a la vez; la segunda espera y luego bloquea la fila existente.
+    await tx.stockBalance.createMany({
+      data: [{ productId: input.productId, warehouseId: input.warehouseId, quantity: 0 }],
+      skipDuplicates: true,
     });
     await tx.$queryRaw`SELECT id FROM stock_balances
       WHERE product_id = ${input.productId}::uuid
