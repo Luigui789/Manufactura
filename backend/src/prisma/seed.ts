@@ -38,7 +38,12 @@ async function seed(): Promise<void> {
 
     await tx.warehouse.upsert({
       where: { code: 'ALM-PRINCIPAL' },
-      create: { code: 'ALM-PRINCIPAL', name: 'Almacén principal' },
+      create: {
+        code: 'ALM-PRINCIPAL',
+        name: 'Almacén principal',
+        location: 'Planta principal - Managua',
+      },
+      // No reemplazar una ubicación más específica configurada después del seed.
       update: { name: 'Almacén principal' },
     });
   });
