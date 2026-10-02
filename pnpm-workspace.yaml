@@ -13,6 +13,12 @@ packages:
 # @scarf/scarf tambien quedo bloqueado y NO se aprueba a proposito: es un
 # paquete de telemetria que reporta datos de instalacion, no aporta nada al
 # proyecto y bloquearlo es el comportamiento deseado.
+#
+# argon2 tampoco se aprueba: su script solo compila el modulo nativo cuando no
+# encuentra un binario precompilado, y el paquete ya trae el de win32-x64 y
+# linux-x64. Se comprobo el 2026-10-01 en Windows con Node 22.16 y pnpm 10.30.3:
+# con el script bloqueado, el binario carga y hash/verify funcionan. El aviso
+# "Ignored build scripts: argon2" es esperado; no hace falta pnpm approve-builds.
 onlyBuiltDependencies:
   - '@prisma/engines'
   - 'prisma'

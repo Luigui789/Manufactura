@@ -67,6 +67,9 @@ enum AuditAction {
   LOGIN_FAILED
   LOGOUT
   ADJUST_STOCK
+  CHANGE_ROLE
+  CHANGE_PASSWORD
+  RESET_PASSWORD
 }
 
 enum AuditEntityType {
@@ -92,17 +95,22 @@ model Role {
 }
 
 model User {
-  id           String              @id @default(uuid(7)) @db.Uuid
-  email        String              @unique
-  passwordHash String              @map("password_hash")
-  fullName     String              @map("full_name")
-  roleId       String              @map("role_id") @db.Uuid
-  isActive     Boolean             @default(true) @map("is_active")
-  createdAt    DateTime            @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt    DateTime            @updatedAt @map("updated_at") @db.Timestamptz(6)
-  role         Role                @relation(fields: [roleId], references: [id], onDelete: Restrict)
-  movements    InventoryMovement[]
-  auditLogs    AuditLog[]
+  id                 String              @id @default(uuid(7)) @db.Uuid
+  // La migración auth_rbac añade CHECK (email = lower(btrim(email))).
+  email              String              @unique
+  passwordHash       String              @map("password_hash")
+  fullName           String              @map("full_name")
+  roleId             String              @map("role_id") @db.Uuid
+  isActive           Boolean             @default(true) @map("is_active")
+  // Valor seguro por omisión: una cuenta que nadie marque explícitamente queda restringida.
+  mustChangePassword Boolean             @default(true) @map("must_change_password")
+  // Versión de sesión que viaja en el JWT como `ver`; CHECK (token_version >= 0).
+  tokenVersion       Int                 @default(0) @map("token_version")
+  createdAt          DateTime            @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt          DateTime            @updatedAt @map("updated_at") @db.Timestamptz(6)
+  role               Role                @relation(fields: [roleId], references: [id], onDelete: Restrict)
+  movements          InventoryMovement[]
+  auditLogs          AuditLog[]
 
   @@map("users")
 }

@@ -7,6 +7,7 @@ import {
   IsUrl,
   Max,
   Min,
+  MinLength,
   validateSync,
 } from 'class-validator';
 
@@ -43,6 +44,16 @@ class EnvironmentVariables {
     { message: 'FRONTEND_URL debe ser una URL valida, por ejemplo http://localhost:5173' },
   )
   FRONTEND_URL: string;
+
+  // El valor de .env.example (change-me) no supera este mínimo a propósito: nadie
+  // puede arrancar con el secreto público del repositorio.
+  @IsString()
+  @MinLength(32, {
+    message:
+      'JWT_SECRET debe tener al menos 32 caracteres. Genera uno con: ' +
+      `node -e "console.log(require('node:crypto').randomBytes(48).toString('base64url'))"`,
+  })
+  JWT_SECRET: string;
 }
 
 export function validateEnv(raw: Record<string, unknown>): EnvironmentVariables {

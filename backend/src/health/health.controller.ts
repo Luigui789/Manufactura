@@ -1,10 +1,12 @@
 import { Controller, Get, ServiceUnavailableException } from '@nestjs/common';
 import { ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 
+import { Public } from '../auth/access-policy.js';
 import { HealthResponseDto } from './dto/health-response.dto.js';
 import { HealthService } from './health.service.js';
 
 @ApiTags('Health')
+@Public()
 @Controller('health')
 export class HealthController {
   constructor(private readonly healthService: HealthService) {}

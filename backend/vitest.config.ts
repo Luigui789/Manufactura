@@ -6,9 +6,8 @@ export default defineConfig({
     root: './',
     include: ['**/*.spec.ts'],
     exclude: ['**/node_modules/**', '**/dist/**', '**/*.e2e-spec.ts'],
-    // Todavia no hay pruebas unitarias: las reglas de negocio llegan en las
-    // etapas siguientes y es entonces cuando toca probarlas (§40). Sin esto,
-    // `pnpm --filter backend test` fallaria simplemente por no encontrar nada.
+    // Las pruebas unitarias viven junto al codigo (*.spec.ts); las que necesitan
+    // PostgreSQL son e2e (*.e2e-spec.ts) y tienen su propia configuracion.
     passWithNoTests: true,
   },
 });

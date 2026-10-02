@@ -24,15 +24,18 @@ discrepasen, este índice es el que manda sobre el estado de la decisión.
 
 ## Índice
 
-| ADR                                         | Estado   | Decisión                                              |
-| ------------------------------------------- | -------- | ----------------------------------------------------- |
-| [001](001-package-manager-pnpm.md)          | Aceptado | pnpm como gestor único del monorepo                   |
-| [002](002-monolito-modular.md)              | Aceptado | Monolito modular en lugar de microservicios           |
-| [003](003-postgresql-prisma.md)             | Aceptado | PostgreSQL con Prisma como única vía de persistencia  |
-| [004](004-inventario-ledger-y-balance.md)   | Aceptado | Ledger inmutable + balance materializado              |
-| [005](005-estrategia-de-auditoria.md)       | Aceptado | Tres capas de trazabilidad y `AuditLog` append-only   |
-| [006](006-estrategia-de-identificadores.md) | Aceptado | UUIDv7 técnico + código humano separado               |
-| [007](007-trazabilidad-de-lotes.md)         | Aceptado | Lotes con origen obligatorio y liberación por calidad |
+| ADR                                         | Estado   | Decisión                                                 |
+| ------------------------------------------- | -------- | -------------------------------------------------------- |
+| [001](001-package-manager-pnpm.md)          | Aceptado | pnpm como gestor único del monorepo                      |
+| [002](002-monolito-modular.md)              | Aceptado | Monolito modular en lugar de microservicios              |
+| [003](003-postgresql-prisma.md)             | Aceptado | PostgreSQL con Prisma como única vía de persistencia     |
+| [004](004-inventario-ledger-y-balance.md)   | Aceptado | Ledger inmutable + balance materializado                 |
+| [005](005-estrategia-de-auditoria.md)       | Aceptado | Tres capas de trazabilidad y `AuditLog` append-only      |
+| [006](006-estrategia-de-identificadores.md) | Aceptado | UUIDv7 técnico + código humano separado                  |
+| [007](007-trazabilidad-de-lotes.md)         | Aceptado | Lotes con origen obligatorio y liberación por calidad    |
+| [008](008-sesion-jwt-en-cookie.md)          | Aceptado | Sesión JWT en cookie `HttpOnly` con versión de sesión    |
+| [009](009-contrasenas-argon2id.md)          | Aceptado | Argon2id, política por longitud y contraseñas temporales |
+| [010](010-autorizacion-por-politicas.md)    | Aceptado | Autorización por políticas, denegada por defecto         |
 
 ## Historial
 
