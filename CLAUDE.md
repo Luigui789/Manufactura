@@ -98,8 +98,9 @@ como desviación histórica de proceso en `docs/progress.md`. La política vigen
 2026-10-01 permite a Luigui789 fusionar sus propios PR tras verificar diff y checks; los otros
 dos integrantes necesitan al menos una aprobación de otro miembro antes del merge.
 
-**Etapa 3 (autenticación y RBAC): diseño aprobado e implementación verificada localmente** en
-`feature/auth`, pendiente de integración en `develop` mediante PR según la política vigente.
+**Etapa 3 (autenticación y RBAC): integrada en `develop`** mediante el pull request #3
+(merge `24bd515`), tras revisar diff y checks. GitHub Actions pasó lint, formato, builds y las
+115 pruebas en Linux con PostgreSQL 18; detalle y evidencia en `docs/progress.md`.
 El diseño está en `docs/specs/2026-09-24-autenticacion-rbac-design.md` y en los ADR 008 a 010.
 
 No crees carpetas ni módulos vacíos para «mostrar estructura». La arquitectura futura está

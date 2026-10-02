@@ -68,7 +68,7 @@ exclusivamente para persistencia; no se escribe SQL manual salvo razón técnica
 
 ## 4. Estado actual del backend
 
-Los módulos implementados en `feature/auth` son:
+Los módulos integrados en `develop` mediante el PR #3 son:
 
 | Módulo         | Responsabilidad                                                         |
 | -------------- | ----------------------------------------------------------------------- |

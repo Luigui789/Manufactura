@@ -146,9 +146,9 @@ el bootstrap no exige cambio inicial. El procedimiento por shell está en `docs/
 Elimina la variable de contraseña después de usarla. Los demás usuarios se crean desde `/users`
 por un ADMIN autenticado, con contraseña temporal y cambio obligatorio.
 
-En `feature/auth` están implementados login, sesión en cookie `HttpOnly`, cambio de contraseña,
-menú por rol y administración de usuarios. La etapa está verificada y pendiente de integración
-por PR hacia `develop`; véase `docs/progress.md`.
+En `develop` están integrados login, sesión en cookie `HttpOnly`, cambio de contraseña,
+menú por rol y administración de usuarios mediante el [PR #3](https://github.com/Luigui789/Manufactura/pull/3).
+La etapa pasó las 115 pruebas y los checks de calidad en GitHub Actions; véase `docs/progress.md`.
 
 ## Calidad
 

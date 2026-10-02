@@ -215,8 +215,9 @@ los datos que necesite antes de recrear esa base; no se resetea ninguna base aut
 
 ## Etapa 3 — Autenticación y RBAC
 
-**Diseño aprobado el 2026-10-01; implementación verificada localmente** en `feature/auth`,
-pendiente de integración por PR hacia `develop` según la política vigente del equipo. Diseño:
+**Integrada en `develop`** mediante el [pull request #3](https://github.com/Luigui789/Manufactura/pull/3),
+fusionado el 2026-10-01 (America/Managua), merge `24bd515`, tras revisar diff y checks según
+la política vigente del equipo. Diseño aprobado el 2026-10-01:
 [`specs/2026-09-24-autenticacion-rbac-design.md`](specs/2026-09-24-autenticacion-rbac-design.md);
 decisiones: ADR 008, 009 y 010, aceptados.
 
@@ -243,8 +244,8 @@ decisiones: ADR 008, 009 y 010, aceptados.
 - [x] Tests frontend mínimos
 - [x] Swagger
 - [x] Documentación
-- [ ] Review (diff y checks para Luigui789; aprobación de otro miembro para los demás)
-- [ ] Integrated into develop
+- [x] Review (diff inspeccionado y `Quality and tests` aprobado; PR propio de Luigui789)
+- [x] Integrated into develop (PR #3, merge `24bd515`)
 
 ### Evidencia ejecutada de la Etapa 3
 
@@ -270,6 +271,25 @@ Comprobaciones del 2026-10-01 en Windows 11, Node 22.16.0, pnpm 10.30.3 y Postgr
 La implementación local de Etapa 3 se verificó el 2026-10-01. En ese cierre previo al versionado,
 el HEAD era `1b29dfd`; backend, frontend y documentación todavía estaban sin commit ni push.
 Esta referencia identifica el punto de partida de la evidencia, no el estado actual de Git.
+
+### Cierre de integración
+
+La rama `feature/auth` se publicó con commits separados para backend, frontend, CI y
+documentación. Se inspeccionó el diff y se comprobó que no incluía `.env`, secretos, fixtures
+locales, logs, bases temporales ni artefactos generados. Los checks locales post-commit
+(`pnpm lint`, `pnpm format:check`, `pnpm build`) pasaron con el árbol limpio.
+
+El check remoto `Quality and tests` pasó en el commit `6f41775`, antes del merge:
+[ejecución de GitHub Actions](https://github.com/Luigui789/Manufactura/actions/runs/36965936324).
+Ubuntu 24.04, Node 22.16.0, pnpm 10.30.3 y PostgreSQL 18 efímero ejecutaron instalación con
+lockfile congelado, generación de Prisma, migraciones, seed, lint, formato, builds y las tres
+suites: 35 unitarias backend, 51 e2e y 29 frontend (115 en total).
+
+El PR #3 fue fusionado por Luigui789 a las `2026-10-02T04:50:42Z`
+(2026-10-01 22:50:42 en America/Managua), con merge
+`24bd515b5e8400cb5dbe1b81501d924c78da02e1`. La revisión de diff y checks satisface la política
+vigente para sus PR propios; no se afirma una aprobación externa inexistente. Se actualizó
+`develop` local mediante fast-forward. La Etapa 4 permanece pendiente.
 
 | Comprobación final de Etapa 3 | Resultado observado                                                                                                                                                                                                   |
 | ----------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -341,17 +361,17 @@ solo documenta la política y no cambia permisos ni reglas remotas.
 
 ## Etapas siguientes
 
-| Etapa | Contenido                                         | Estado                              |
-| ----- | ------------------------------------------------- | ----------------------------------- |
-| 3     | Autenticación JWT y RBAC                          | Verificada localmente; pendiente PR |
-| 4     | Datos maestros: productos, almacenes, proveedores | Pendiente                           |
-| 5     | Compras y recepción                               | Pendiente                           |
-| 6     | Inventario y movimientos                          | Pendiente                           |
-| 7     | BOM y producción                                  | Pendiente                           |
-| 8     | Lotes, trazabilidad y calidad                     | Pendiente                           |
-| 9     | Clientes, ventas y despacho                       | Pendiente                           |
-| 10    | Dashboard y reportes básicos                      | Pendiente                           |
-| 11    | Simulación ISA-95                                 | Pendiente                           |
+| Etapa | Contenido                                         | Estado                         |
+| ----- | ------------------------------------------------- | ------------------------------ |
+| 3     | Autenticación JWT y RBAC                          | Integrada en `develop` (PR #3) |
+| 4     | Datos maestros: productos, almacenes, proveedores | Pendiente                      |
+| 5     | Compras y recepción                               | Pendiente                      |
+| 6     | Inventario y movimientos                          | Pendiente                      |
+| 7     | BOM y producción                                  | Pendiente                      |
+| 8     | Lotes, trazabilidad y calidad                     | Pendiente                      |
+| 9     | Clientes, ventas y despacho                       | Pendiente                      |
+| 10    | Dashboard y reportes básicos                      | Pendiente                      |
+| 11    | Simulación ISA-95                                 | Pendiente                      |
 
 `develop` se integra en `main` cuando haya un bloque funcional completo —configuración, modelo de
 datos, autenticación y datos maestros—, no al terminar cada etapa.
