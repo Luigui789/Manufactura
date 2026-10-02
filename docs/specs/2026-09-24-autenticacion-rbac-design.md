@@ -367,7 +367,8 @@ estrategia.**
 configuraciones que publica OWASP. No se usan los valores por defecto de la librería (64 MiB, 3
 iteraciones, paralelismo 4) porque multiplican la memoria de cada verificación en la ruta que un
 atacante puede saturar. El resultado es una cadena PHC que describe sus propios parámetros:
-`$argon2id$v=19$m=19456,t=2,p=1$<sal>$<hash>`.
+`$argon2id$v=19$m=19456,p=1,t=2$<sal>$<hash>` (la librería escribe los parámetros en ese
+orden, comprobado el 2026-10-01).
 
 ### `PasswordHasherService`
 
@@ -1083,7 +1084,7 @@ dentro de `useEffect`» de `progress.md`.
 
 | Unidad                        | Casos                                                                                                                                                                                         |
 | ----------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `PasswordHasherService`       | Prefijo `$argon2id$v=19$m=19456,t=2,p=1$`; verificación correcta e incorrecta; «é» compuesta = descompuesta; hash mal formado → `false`; ficticio → `false`                                   |
+| `PasswordHasherService`       | Prefijo `$argon2id$v=19$m=19456,p=1,t=2$`; verificación correcta e incorrecta; «é» compuesta = descompuesta; hash mal formado → `false`; ficticio → `false`                                   |
 | `normalizeEmail`              | Recorta y pasa a minúsculas                                                                                                                                                                   |
 | Snapshots de auditoría        | Solo campos permitidos; diferencia mínima; `passwordHash` y `tokenVersion` en la entrada nunca salen                                                                                          |
 | `CrossOriginProtectionGuard`  | Métodos seguros; `same-origin` y `none`; `same-site` y `cross-site` con y sin origen de confianza; sin `Sec-Fetch-Site`: `Origin` igual a `Host`, de confianza, ajeno y `null`; sin cabeceras |

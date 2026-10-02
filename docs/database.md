@@ -693,7 +693,7 @@ no dejar relaciones huérfanas ni tipos habilitados sin origen verificable.
 | ---------------------------------------------------------------- | ------------------------------------------------------------------------------------------- | ------------------- |
 | `StockBalance` desincronizado del ledger                         | Servicio único, disparadores, consulta de reconciliación en pruebas                         | Mitigado            |
 | `CHECK` y disparadores frente a Prisma Migrate y base sombra     | Revisión anterior probada en PostgreSQL 16; migración actual desde cero y sin drift en 18.6 | **Probado en 18.6** |
-| `ALTER TYPE ... ADD VALUE` en migraciones posteriores            | Se comprobará en `auth_rbac`, la primera que lo hace                                        | **Sin probar**      |
+| `ALTER TYPE ... ADD VALUE` en migraciones posteriores            | Probado en `auth_rbac`: tres valores en una migración, base limpia y actualización          | **Probado en 18.6** |
 | Interbloqueos con varios productos                               | Orden estable de bloqueo por `product_id`, luego `warehouse_id` (§8)                        | Mitigado            |
 | Carrera al crear la primera fila de balance                      | `INSERT ... ON CONFLICT DO NOTHING` seguido de `SELECT ... FOR UPDATE`                      | Mitigado            |
 | `Decimal` operado como número de JavaScript                      | Regla explícita y prueba que la verifique                                                   | Mitigado            |

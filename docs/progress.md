@@ -222,8 +222,8 @@ decisiones: ADR 008, 009 y 010, aceptados.
 - [x] Diseño de autenticación (aprobado; ADR 008 y 010)
 - [x] Estrategia de passwords (aprobada; ADR 009)
 - [x] Estrategia JWT (aprobada; ADR 008)
-- [ ] Argon2id comprobado en Windows con Node 22 y pnpm 10
-- [ ] Migración `auth_rbac`: base limpia, actualización Foundation → Auth y sin drift
+- [x] Argon2id comprobado en Windows con Node 22 y pnpm 10
+- [x] Migración `auth_rbac`: base limpia, actualización Foundation → Auth y sin drift
 - [ ] Primer administrador (`admin:create`, solo bootstrap)
 - [ ] Login backend
 - [ ] JWT guard
@@ -244,6 +244,23 @@ decisiones: ADR 008, 009 y 010, aceptados.
 - [ ] Documentación
 - [ ] Review (aprobación formal de otro integrante en GitHub)
 - [ ] Integrated into develop
+
+### Evidencia ejecutada de la Etapa 3
+
+Comprobaciones del 2026-10-01 en Windows 11, Node 22.16.0, pnpm 10.30.3 y PostgreSQL 18.6 del
+`docker-compose.yml`, siempre en bases nuevas terminadas en `_test`; la base de trabajo
+`ecosoap_erp` no se tocó.
+
+| Comprobación                                  | Resultado observado                                                                                                      |
+| --------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
+| `argon2` 0.45.1 con su script bloqueado       | Carga el binario `win32-x64`; `hash` y `verify` correctos; prefijo `$argon2id$v=19$m=19456,p=1,t=2`; unos 46 ms por hash |
+| NFC frente a NFD sin normalizar               | `verify` devuelve `false`: la normalización NFC del servicio es necesaria                                                |
+| Dependencias del backend                      | Versiones aprobadas instaladas; `@nestjs/core` sigue en 12.0.4; `pnpm --filter backend build` limpio                     |
+| SQL generado de `auth_rbac`                   | Coincide con el diseño; se añadieron los dos `CHECK` antes de aplicarla                                                  |
+| Actualización Foundation → Auth               | Base con Foundation, seed y suite Foundation (11/11); tras `migrate deploy`, recuentos de 7 tablas idénticos             |
+| Valores y restricciones tras la actualización | `must_change_password = true`, `token_version = 0`; `CHECK` de versión y de correo rechazan datos inválidos              |
+| Base limpia                                   | Primer `migrate dev` aplica ambas; el segundo: `Already in sync`; `prisma validate` correcto                             |
+| Suite e2e en base limpia                      | Health y Foundation 12/12; `auth-migration.e2e-spec.ts` (M1–M3) 3/3                                                      |
 
 ---
 
