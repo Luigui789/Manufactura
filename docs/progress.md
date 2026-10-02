@@ -213,6 +213,40 @@ los datos que necesite antes de recrear esa base; no se resetea ninguna base aut
 
 ---
 
+## Etapa 3 — Autenticación y RBAC
+
+**Diseño aprobado el 2026-10-01; implementación en curso** en `feature/auth`. Diseño:
+[`specs/2026-09-24-autenticacion-rbac-design.md`](specs/2026-09-24-autenticacion-rbac-design.md);
+decisiones: ADR 008, 009 y 010, aceptados.
+
+- [x] Diseño de autenticación (aprobado; ADR 008 y 010)
+- [x] Estrategia de passwords (aprobada; ADR 009)
+- [x] Estrategia JWT (aprobada; ADR 008)
+- [ ] Argon2id comprobado en Windows con Node 22 y pnpm 10
+- [ ] Migración `auth_rbac`: base limpia, actualización Foundation → Auth y sin drift
+- [ ] Primer administrador (`admin:create`, solo bootstrap)
+- [ ] Login backend
+- [ ] JWT guard
+- [ ] Protección de origen
+- [ ] RBAC con políticas `Public`, `Authenticated` y `Roles`
+- [ ] Bloqueo por `mustChangePassword`
+- [ ] Gestión básica de usuarios
+- [ ] Protección del último ADMIN
+- [ ] Auditoría auth
+- [ ] Login frontend
+- [ ] Protected routes
+- [ ] TanStack Query
+- [ ] Tests auth
+- [ ] Tests RBAC
+- [ ] Tests auditoría
+- [ ] Tests frontend mínimos
+- [ ] Swagger
+- [ ] Documentación
+- [ ] Review (aprobación formal de otro integrante en GitHub)
+- [ ] Integrated into develop
+
+---
+
 ## Desviaciones de proceso
 
 Los dos primeros pull requests se integraron sin la revisión que exige el flujo del equipo. Esa
@@ -236,17 +270,17 @@ configuración del repositorio y se hará aparte, no dentro de la implementació
 
 ## Etapas siguientes
 
-| Etapa | Contenido                                         | Estado                      |
-| ----- | ------------------------------------------------- | --------------------------- |
-| 3     | Autenticación JWT y RBAC                          | En diseño en `feature/auth` |
-| 4     | Datos maestros: productos, almacenes, proveedores | Pendiente                   |
-| 5     | Compras y recepción                               | Pendiente                   |
-| 6     | Inventario y movimientos                          | Pendiente                   |
-| 7     | BOM y producción                                  | Pendiente                   |
-| 8     | Lotes, trazabilidad y calidad                     | Pendiente                   |
-| 9     | Clientes, ventas y despacho                       | Pendiente                   |
-| 10    | Dashboard y reportes básicos                      | Pendiente                   |
-| 11    | Simulación ISA-95                                 | Pendiente                   |
+| Etapa | Contenido                                         | Estado                              |
+| ----- | ------------------------------------------------- | ----------------------------------- |
+| 3     | Autenticación JWT y RBAC                          | En implementación en `feature/auth` |
+| 4     | Datos maestros: productos, almacenes, proveedores | Pendiente                           |
+| 5     | Compras y recepción                               | Pendiente                           |
+| 6     | Inventario y movimientos                          | Pendiente                           |
+| 7     | BOM y producción                                  | Pendiente                           |
+| 8     | Lotes, trazabilidad y calidad                     | Pendiente                           |
+| 9     | Clientes, ventas y despacho                       | Pendiente                           |
+| 10    | Dashboard y reportes básicos                      | Pendiente                           |
+| 11    | Simulación ISA-95                                 | Pendiente                           |
 
 `develop` se integra en `main` cuando haya un bloque funcional completo —configuración, modelo de
 datos, autenticación y datos maestros—, no al terminar cada etapa.

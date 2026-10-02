@@ -4,7 +4,10 @@
 > `OFICIAL` por RNF-007 de la Entrega 1; la clasificación de sus controles concretos está en
 > [`requirements.md`](requirements.md). Decisión en
 > [ADR 005](decisions/005-estrategia-de-auditoria.md); modelo en [`database.md`](database.md).
-> La cobertura de Compras, Producción y Ventas llega con sus módulos de negocio.
+> La cobertura de Compras, Producción y Ventas llega con sus módulos de negocio. Los eventos de
+> autenticación y administración de usuarios se diseñaron en la Etapa 3
+> ([diseño aprobado](specs/2026-09-24-autenticacion-rbac-design.md), §11); su implementación se
+> registra en [`progress.md`](progress.md).
 
 ## 1. Tres capas, tres preguntas
 
@@ -69,9 +72,39 @@ proveedores y clientes.
 `DELETE` figura en el vocabulario aunque el sistema practique borrado lógico, para los casos
 excepcionales de borrado físico descritos en [`database.md`](database.md).
 
-### Seguridad
+### Seguridad y cuentas
 
-`LOGIN`, `LOGIN_FAILED` y `LOGOUT`.
+`LOGIN`, `LOGIN_FAILED` y `LOGOUT`, más tres acciones que añade la migración `auth_rbac`:
+
+| Operación                                 | Acción            | Entidad |
+| ----------------------------------------- | ----------------- | ------- |
+| Cambiar el rol de un usuario              | `CHANGE_ROLE`     | `USER`  |
+| Cambiar la contraseña propia              | `CHANGE_PASSWORD` | `USER`  |
+| Restablecer la contraseña de otro usuario | `RESET_PASSWORD`  | `USER`  |
+
+Cambiar privilegios y credenciales son los hechos que una revisión de seguridad filtra primero; con
+`UPDATE` habría que inspeccionar el JSON de cada fila. Siguen el patrón verbo_objeto de
+`ADJUST_STOCK`.
+
+| Evento                            | Actor             | Entidad         | Snapshots                                                       |
+| --------------------------------- | ----------------- | --------------- | --------------------------------------------------------------- |
+| Login correcto                    | `USER` (el mismo) | `USER`/usuario  | —                                                               |
+| Login fallido, cuenta existente   | `ANONYMOUS`       | `USER`/objetivo | —                                                               |
+| Login fallido, correo desconocido | `ANONYMOUS`       | nula            | —                                                               |
+| Logout                            | `USER` (el mismo) | `USER`/usuario  | —                                                               |
+| Alta por ADMIN                    | `USER` (admin)    | `USER`/nuevo    | `newValues` con la lista permitida y `mustChangePassword: true` |
+| Alta del primer ADMIN por comando | `SYSTEM`          | `USER`/nuevo    | Igual, con `mustChangePassword: false`                          |
+| Activar / desactivar              | `USER` (admin)    | `USER`/objetivo | `isActive` anterior y nuevo                                     |
+| `CHANGE_ROLE`                     | `USER` (admin)    | `USER`/objetivo | `role` anterior y nuevo, como código (`"VENTAS"`)               |
+| `CHANGE_PASSWORD`                 | `USER` (el mismo) | `USER`/usuario  | Solo `mustChangePassword`, si cambió                            |
+| `RESET_PASSWORD`                  | `USER` (admin)    | `USER`/objetivo | Solo `mustChangePassword`, si cambió                            |
+
+`LOGIN_FAILED` **no guarda el correo escrito**: podría contener una contraseña pegada por error o
+un dato personal mal tecleado. Si la cuenta existe, basta su id como entidad. La respuesta externa
+es idéntica para contraseña incorrecta, cuenta inactiva y correo desconocido.
+
+No se auditan los `429` del límite de intentos —registrarlos reabriría la inundación de filas que el
+límite evita—, los `401` y `403` de los guards ni los `400` de validación.
 
 ### Transiciones empresariales
 
@@ -203,10 +236,12 @@ cualquier campo nuevo que alguien añada a una entidad queda auditado por defect
 llame de una forma no prevista para que un secreto acabe en la tabla. Con lista permitida, lo que
 no se declara explícitamente no se audita.
 
-Ejemplo para `User`: la lista permitida es `email`, `fullName`, `roleId`, `isActive`.
-`passwordHash` **no está en la lista**, de modo que es imposible que aparezca, incluso cuando es
-justamente el campo que cambió. En ese caso se registra la acción indicando que la contraseña fue
-modificada, sin su valor.
+Para `User` la lista permitida es `email`, `fullName`, `role`, `isActive` y `mustChangePassword`.
+`role` se registra como **código** (`"VENTAS"`), no como el UUID del rol: los UUID los genera el
+seed en cada base, son distintos en cada entorno e ilegibles. `passwordHash`, la contraseña temporal
+y `tokenVersion` **no están en la lista**, de modo que es imposible que aparezcan, incluso cuando
+son justamente lo que cambió. En ese caso la propia acción (`CHANGE_PASSWORD`, `RESET_PASSWORD`)
+indica que la contraseña fue modificada, sin su valor.
 
 ### Nunca se almacena
 
@@ -242,6 +277,16 @@ en ella.
 
 **Excepción deliberada:** `LOGIN_FAILED` se escribe fuera de la transacción del intento, porque
 debe persistir precisamente cuando la operación fracasa.
+
+Las operaciones de cuentas siguen la misma regla. Crear usuario, activar, desactivar, cambiar rol,
+cambiar contraseña, restablecer contraseña y el logout con su incremento de `token_version` escriben
+el cambio y su `AuditLog` en una sola transacción: si la auditoría falla, se revierte todo. El login
+correcto no cambia estado; inserta su `LOGIN` antes de emitir la cookie y, si esa inserción falla,
+no hay sesión.
+
+`requestId` e `ipAddress` se toman del contexto de la petición HTTP, guardado en
+`AsyncLocalStorage`; el `requestId` lo genera siempre el servidor y viaja en la cabecera
+`X-Request-Id`. Las filas que escribe el comando `admin:create` los dejan nulos.
 
 ## 7. Inmutabilidad
 

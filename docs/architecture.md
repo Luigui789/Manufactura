@@ -280,21 +280,25 @@ Las decisiones difíciles de revertir viven en [`decisions/`](decisions/) como A
 no se edita una vez aceptado: si la decisión cambia, se escribe uno nuevo que declare a cuál
 sustituye.
 
-| ADR                                                   | Decisión                                             |
-| ----------------------------------------------------- | ---------------------------------------------------- |
-| [001](decisions/001-package-manager-pnpm.md)          | pnpm como gestor único del monorepo                  |
-| [002](decisions/002-monolito-modular.md)              | Monolito modular en lugar de microservicios          |
-| [003](decisions/003-postgresql-prisma.md)             | PostgreSQL con Prisma como única vía de persistencia |
-| [004](decisions/004-inventario-ledger-y-balance.md)   | Ledger inmutable + balance materializado             |
-| [005](decisions/005-estrategia-de-auditoria.md)       | Tres capas de trazabilidad y `AuditLog` append-only  |
-| [006](decisions/006-estrategia-de-identificadores.md) | UUIDv7 técnico + código humano separado              |
-| [007](decisions/007-trazabilidad-de-lotes.md)         | Lotes en cualquier producto trazable, sin FIFO       |
+| ADR                                                   | Decisión                                                 |
+| ----------------------------------------------------- | -------------------------------------------------------- |
+| [001](decisions/001-package-manager-pnpm.md)          | pnpm como gestor único del monorepo                      |
+| [002](decisions/002-monolito-modular.md)              | Monolito modular en lugar de microservicios              |
+| [003](decisions/003-postgresql-prisma.md)             | PostgreSQL con Prisma como única vía de persistencia     |
+| [004](decisions/004-inventario-ledger-y-balance.md)   | Ledger inmutable + balance materializado                 |
+| [005](decisions/005-estrategia-de-auditoria.md)       | Tres capas de trazabilidad y `AuditLog` append-only      |
+| [006](decisions/006-estrategia-de-identificadores.md) | UUIDv7 técnico + código humano separado                  |
+| [007](decisions/007-trazabilidad-de-lotes.md)         | Lotes en cualquier producto trazable, sin FIFO           |
+| [008](decisions/008-sesion-jwt-en-cookie.md)          | Sesión JWT en cookie `HttpOnly` con versión de sesión    |
+| [009](decisions/009-contrasenas-argon2id.md)          | Argon2id, política por longitud y contraseñas temporales |
+| [010](decisions/010-autorizacion-por-politicas.md)    | Autorización por políticas, denegada por defecto         |
 
 Diseños por etapa:
 
-| Etapa | Documento                                                                              |
-| ----- | -------------------------------------------------------------------------------------- |
-| 1     | [`specs/2026-09-22-setup-inicial-design.md`](specs/2026-09-22-setup-inicial-design.md) |
-| 2     | [`database.md`](database.md) · [`audit.md`](audit.md) · ADR 004 a 007                  |
+| Etapa | Documento                                                                                                        |
+| ----- | ---------------------------------------------------------------------------------------------------------------- |
+| 1     | [`specs/2026-09-22-setup-inicial-design.md`](specs/2026-09-22-setup-inicial-design.md)                           |
+| 2     | [`database.md`](database.md) · [`audit.md`](audit.md) · ADR 004 a 007                                            |
+| 3     | [`specs/2026-09-24-autenticacion-rbac-design.md`](specs/2026-09-24-autenticacion-rbac-design.md) · ADR 008 a 010 |
 
 El avance real de cada etapa se sigue en [`progress.md`](progress.md).

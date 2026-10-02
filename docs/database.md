@@ -17,6 +17,8 @@ Decisiones que lo sostienen:
 - [ADR 005 — Estrategia de auditoría](decisions/005-estrategia-de-auditoria.md)
 - [ADR 006 — Estrategia de identificadores](decisions/006-estrategia-de-identificadores.md)
 - [ADR 007 — Trazabilidad de lotes](decisions/007-trazabilidad-de-lotes.md)
+- [ADR 008 — Sesión JWT en cookie con versión de sesión](decisions/008-sesion-jwt-en-cookie.md)
+- [ADR 009 — Argon2id y contraseñas temporales](decisions/009-contrasenas-argon2id.md)
 
 ## 2. Convenciones
 
@@ -82,6 +84,7 @@ AdjustmentReason      INITIAL_LOAD · PHYSICAL_COUNT · DAMAGE · LOSS · EXPIRY
 ActorType             USER · SYSTEM · ANONYMOUS
 AuditAction           CREATE · UPDATE · DELETE · ENABLE · DISABLE
                       LOGIN · LOGIN_FAILED · LOGOUT · ADJUST_STOCK
+                      CHANGE_ROLE · CHANGE_PASSWORD · RESET_PASSWORD   (migración auth_rbac)
 AuditEntityType       USER · ROLE · PRODUCT · WAREHOUSE · LOT · INVENTORY_MOVEMENT
 DocumentType          LOT
 ```
@@ -131,6 +134,8 @@ erDiagram
         string full_name
         uuid role_id FK
         bool is_active
+        bool must_change_password
+        int token_version
     }
     PRODUCTS {
         uuid id PK
@@ -197,6 +202,20 @@ erDiagram
 
 ### Notas por entidad
 
+**`User.mustChangePassword`** (migración `auth_rbac`) vale `true` por omisión: una cuenta creada por
+un camino que no lo fije explícitamente queda obligada a cambiar la contraseña, que es el lado
+seguro. El alta y el restablecimiento por ADMIN lo ponen en `true`; el cambio propio y el comando
+`admin:create`, en `false`. Mientras es `true`, el backend solo permite `me`, `change-password` y
+`logout` ([ADR 009](decisions/009-contrasenas-argon2id.md)).
+
+**`User.tokenVersion`** (migración `auth_rbac`) es la versión de sesión que viaja en el JWT como
+`ver`. Sube en logout, desactivación, cambio y restablecimiento de contraseña y cambio de rol; un
+token con otra versión se rechaza ([ADR 008](decisions/008-sesion-jwt-en-cookie.md)). No se audita.
+
+**`User.email`** se guarda normalizado, sin espacios exteriores y en minúsculas. Un `CHECK` de la
+migración `auth_rbac` lo exige, de modo que el índice único existente garantiza la unicidad sin
+distinguir mayúsculas.
+
 **`Product.category`** es una clasificación funcional flexible, obligatoria y de hasta 100
 caracteres (`VARCHAR(100)`). `Product.type` conserva el enum estructural `ProductType`: la Entrega 1
 exige ambos atributos, pero no proporciona un catálogo cerrado de categorías. No se introduce un
@@ -243,7 +262,7 @@ CHECK (
 
 **La fundación no puede registrar recepciones, consumos ni despachos.** No es una limitación: es
 la garantía de que ningún movimiento pueda existir sin un origen empresarial verificable. La
-migración 2 sustituye la restricción por:
+migración de Compras sustituye la restricción por:
 
 ```sql
 CHECK (
@@ -307,12 +326,12 @@ hay atajo, y el backend rechaza el cambio directo.
 
 ### Origen único del lote
 
-| Tipo de lote           | Origen                | Se añade en |
-| ---------------------- | --------------------- | ----------- |
-| Materia prima          | `PurchaseReceiptItem` | Migración 2 |
-| Intermedio y terminado | `ProductionOrder`     | Migración 3 |
+| Tipo de lote           | Origen                | Se añade en             |
+| ---------------------- | --------------------- | ----------------------- |
+| Materia prima          | `PurchaseReceiptItem` | Migración de Compras    |
+| Intermedio y terminado | `ProductionOrder`     | Migración de Producción |
 
-Desde la migración 2, un `CHECK` de arco exclusivo exige que todo lote tenga exactamente un
+Desde la migración de Compras, un `CHECK` de arco exclusivo exige que todo lote tenga exactamente un
 origen. **No deben existir lotes trazables operativos sin origen empresarial identificable.**
 
 Consecuencia que conviene tener presente: **durante la fundación no debe crearse ningún lote
@@ -454,7 +473,7 @@ erDiagram
     WAREHOUSES ||--o{ STOCK_BALANCES : "almacena"
 ```
 
-### Compras — migración 2
+### Compras — migración `purchases`
 
 | Entidad               | Papel       | Campos relevantes                                                                            |
 | --------------------- | ----------- | -------------------------------------------------------------------------------------------- |
@@ -472,7 +491,7 @@ que `StockBalance` y quedaría registrado en un ADR.
 Una línea de recepción representa una combinación concreta de producto, almacén y, cuando aplica,
 lote. Repartir una entrega entre dos lotes exige dos líneas y produce dos movimientos.
 
-### Producción — migración 3
+### Producción — migración `production`
 
 | Entidad             | Papel       | Campos relevantes                                                                                                                                                        |
 | ------------------- | ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
@@ -495,7 +514,7 @@ versión nueva y desactivan la anterior. La regla vive en el backend porque exig
 tabla, y tiene prueba propia. Es la extensión `P-PRO-001`, no una exigencia académica literal.
 Sin ella, editar una fórmula reescribiría la historia de lo que realmente se fabricó.
 
-### Ventas — migración 4
+### Ventas — migración `sales`
 
 | Entidad          | Papel       | Campos relevantes                                                                  |
 | ---------------- | ----------- | ---------------------------------------------------------------------------------- |
@@ -556,7 +575,9 @@ Prisma no modela `CHECK`; se añaden como SQL dentro de la migración correspond
 | `audit_logs`           | solo `LOGIN_FAILED` puede omitir la entidad                                                    |
 | `audit_logs`           | `actor_type = USER` exige `actor_user_id`; `SYSTEM` y `ANONYMOUS` lo prohíben                  |
 | `audit_logs`           | `LOGIN_FAILED` siempre anónimo; `LOGIN` identifica al usuario autenticado como actor y entidad |
-| `lots`                 | desde la migración 2: exactamente un origen empresarial                                        |
+| `users`                | `email = lower(btrim(email))` (migración `auth_rbac`)                                          |
+| `users`                | `token_version >= 0` (migración `auth_rbac`)                                                   |
+| `lots`                 | desde la migración de Compras: exactamente un origen empresarial                               |
 | `purchase_order_items` | `quantity_ordered > 0`                                                                         |
 | `sales_order_items`    | `quantity_ordered > 0`                                                                         |
 | `bom_items`            | `quantity > 0`                                                                                 |
@@ -644,17 +665,24 @@ Repetible e idempotente, identificando las filas por su código estable:
   `Planta principal - Managua`. Es un valor descriptivo de desarrollo; puede sustituirse cuando se
   conozca una ubicación empresarial más precisa. Reejecutar el seed no sobrescribe esa ubicación.
 
-**Sin usuario administrador.** Crear uno exige una política de credenciales que corresponde a la
-etapa de autenticación. El alta segura del primer administrador debe definirse antes de activarla.
+**Sin usuario administrador.** El seed nunca crea credenciales. El primer administrador se crea con
+el comando explícito `pnpm --filter backend admin:create`, que solo sirve como bootstrap: falla si
+ya existe un ADMIN activo o el correo, nunca modifica un usuario existente y audita el alta como
+`SYSTEM` ([ADR 009](decisions/009-contrasenas-argon2id.md)).
 
 ## 14. Plan de migraciones
 
 | #   | Nombre                | Contenido                                                                                                                                                                            |
 | --- | --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | 1   | `database_foundation` | `Role`, `User`, `Product`, `Warehouse`, `Lot`, `StockBalance`, `InventoryMovement`, `AuditLog`, `DocumentSequence`, enums de fundación, `CHECK` de ajustes, disparadores append-only |
-| 2   | `purchases`           | Entidades de Compras; origen del lote de materia prima; amplía enum y `CHECK` de origen                                                                                              |
-| 3   | `production`          | `Bom`, `BomItem`, `ProductionOrder`, `QualityInspection`; origen del lote de salida                                                                                                  |
-| 4   | `sales`               | `Customer`, `SalesOrder`, `SalesOrderItem`, `Dispatch`, `DispatchItem`                                                                                                               |
+| 2   | `auth_rbac`           | `users.token_version`, `users.must_change_password`, `CHECK` de correo normalizado, acciones `CHANGE_ROLE`, `CHANGE_PASSWORD` y `RESET_PASSWORD`                                     |
+| 3   | `purchases`           | Entidades de Compras; origen del lote de materia prima; amplía enum y `CHECK` de origen                                                                                              |
+| 4   | `production`          | `Bom`, `BomItem`, `ProductionOrder`, `QualityInspection`; origen del lote de salida                                                                                                  |
+| 5   | `sales`               | `Customer`, `SalesOrder`, `SalesOrderItem`, `Dispatch`, `DispatchItem`                                                                                                               |
+
+`auth_rbac` se introdujo entre Foundation y Compras con la etapa de autenticación. El ADR 007, ya
+aceptado, llama «migración 2» a la de Compras porque se redactó antes; ese texto designa la
+migración `purchases`, no un número de orden.
 
 Cada migración debe ser **autoconsistente**: sus restricciones deben ser válidas por sí solas y
 no dejar relaciones huérfanas ni tipos habilitados sin origen verificable.
@@ -665,7 +693,7 @@ no dejar relaciones huérfanas ni tipos habilitados sin origen verificable.
 | ---------------------------------------------------------------- | ------------------------------------------------------------------------------------------- | ------------------- |
 | `StockBalance` desincronizado del ledger                         | Servicio único, disparadores, consulta de reconciliación en pruebas                         | Mitigado            |
 | `CHECK` y disparadores frente a Prisma Migrate y base sombra     | Revisión anterior probada en PostgreSQL 16; migración actual desde cero y sin drift en 18.6 | **Probado en 18.6** |
-| `ALTER TYPE ... ADD VALUE` en migraciones posteriores            | Se comprobará en la migración 2, la primera que lo hará                                     | **Sin probar**      |
+| `ALTER TYPE ... ADD VALUE` en migraciones posteriores            | Se comprobará en `auth_rbac`, la primera que lo hace                                        | **Sin probar**      |
 | Interbloqueos con varios productos                               | Orden estable de bloqueo por `product_id`, luego `warehouse_id` (§8)                        | Mitigado            |
 | Carrera al crear la primera fila de balance                      | `INSERT ... ON CONFLICT DO NOTHING` seguido de `SELECT ... FOR UPDATE`                      | Mitigado            |
 | `Decimal` operado como número de JavaScript                      | Regla explícita y prueba que la verifique                                                   | Mitigado            |

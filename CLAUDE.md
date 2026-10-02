@@ -27,13 +27,13 @@ COMPRA → RECEPCIÓN → INVENTARIO → ORDEN DE PRODUCCIÓN → CONSUMO DE MP
 
 ## Stack cerrado
 
-| Capa            | Tecnologías                                                                      |
-| --------------- | -------------------------------------------------------------------------------- |
-| Monorepo        | pnpm workspaces                                                                  |
-| Frontend        | React, TypeScript, Vite, Tailwind CSS, shadcn/ui, TanStack Query/Table, RHF, Zod |
-| Backend         | NestJS, TypeScript, REST, Swagger/OpenAPI, JWT, RBAC, class-validator            |
-| Persistencia    | PostgreSQL, Prisma ORM, Prisma Migrations                                        |
-| Infraestructura | Docker Compose, Git, GitHub                                                      |
+| Capa            | Tecnologías                                                                                    |
+| --------------- | ---------------------------------------------------------------------------------------------- |
+| Monorepo        | pnpm workspaces                                                                                |
+| Frontend        | React, TypeScript, Vite, Tailwind CSS, shadcn/ui, TanStack Query/Table, RHF, Zod, React Router |
+| Backend         | NestJS, TypeScript, REST, Swagger/OpenAPI, JWT, RBAC, class-validator                          |
+| Persistencia    | PostgreSQL, Prisma ORM, Prisma Migrations                                                      |
+| Infraestructura | Docker Compose, Git, GitHub                                                                    |
 
 **Vetado** sin justificación aprobada: microservicios, Kubernetes, Kafka, RabbitMQ, GraphQL,
 MongoDB, Next.js, Redis, event sourcing, CQRS complejo, serverless.
@@ -78,6 +78,9 @@ pnpm --filter frontend dev          # solo frontend
     la disponibilidad solo queda determinada al despachar.
 12. **La auditoría es append-only.** Nunca escribas endpoints ni código que modifique o borre
     `AuditLog` o `InventoryMovement`. Las correcciones son asientos compensatorios.
+13. **Toda ruta declara exactamente una política de acceso**: `@Public()`, `@Authenticated()` o
+    `@Roles(...)`. Una ruta sin política se deniega. El rol se lee siempre de la base, nunca del
+    token ni del cliente (ADR 010).
 
 ## Estado actual
 
@@ -94,7 +97,8 @@ Los pull requests #1 y #2 se integraron sin aprobación formal registrada de otr
 como desviación de proceso en `docs/progress.md`. Desde `feature/auth`, todo PR necesita la
 aprobación de otro integrante antes del merge.
 
-**Etapa 3 (autenticación y RBAC): en diseño** en `feature/auth`.
+**Etapa 3 (autenticación y RBAC): diseño aprobado, implementación en curso** en `feature/auth`.
+El diseño está en `docs/specs/2026-09-24-autenticacion-rbac-design.md` y en los ADR 008 a 010.
 
 No crees carpetas ni módulos vacíos para «mostrar estructura». La arquitectura futura está
 descrita en `docs/architecture.md`; cada módulo nace con su funcionalidad real.
