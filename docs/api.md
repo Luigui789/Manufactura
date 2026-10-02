@@ -123,8 +123,9 @@ Production · Lots · Quality · Customers · Sales
 
 ## 7. Autenticación y autorización
 
-Implementado y verificado en `feature/auth`, pendiente de integración por PR. Las once rutas de Auth y
-Users se suman al health check público. No existen `/api/roles` ni `/api/audit` en esta etapa.
+Implementado, verificado e integrado en `develop` mediante el PR #3 (merge `24bd515`). Las once
+rutas de Auth y Users se suman al health check público. No existen `/api/roles` ni `/api/audit`
+en esta etapa.
 
 | Método y ruta                        | Acceso                                            | Cuerpo                                         | Resultado                                                    |
 | ------------------------------------ | ------------------------------------------------- | ---------------------------------------------- | ------------------------------------------------------------ |
