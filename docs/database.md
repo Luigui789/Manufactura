@@ -658,6 +658,21 @@ más engorroso que una tabla pequeña, y porque `nextval` tampoco evita los huec
 
 ## 13. Semilla inicial
 
+### Bloqueos de administración y auditoría
+
+`UsersService` aplica el protocolo del último ADMIN en READ COMMITTED: bloquea la fila objetivo,
+valida estado y autoprotección y, solo cuando interviene el rol ADMIN, bloquea la fila de ese rol.
+Antes de retirar un ADMIN activo cuenta los activos bajo el candado. Cambio y auditoría confirman
+en la misma transacción; un fallo de auditoría revierte la operación.
+
+Los dos bloqueos son `FOR NO KEY UPDATE`. El spec §9 originalmente decía `FOR UPDATE`, pero U9
+detectó un interbloqueo al desactivarse dos administradores mutuamente: el `INSERT audit_logs`
+necesita `FOR KEY SHARE` para comprobar la FK de su actor, incompatible con `FOR UPDATE`.
+`FOR NO KEY UPDATE` permite esa comprobación y mantiene la exclusión entre escrituras; estas
+operaciones no cambian claves. Se preservan orden objetivo → rol, candado condicional y nivel de
+aislamiento. Véase spec §22 y evidencia en `progress.md`. Es una corrección del SQL de servicio,
+sin editar migraciones compartidas ni el protocolo de inventario.
+
 Repetible e idempotente, identificando las filas por su código estable:
 
 - Los cinco roles: `ADMIN`, `COMPRAS`, `INVENTARIO`, `PRODUCCION`, `VENTAS`.

@@ -692,6 +692,11 @@ desactiva a B» y «B desactiva a A» a la vez dejarían el sistema sin ninguno.
 
 ### Protocolo común
 
+**Corrección de implementación:** el protocolo aprobado de abajo usaba `FOR UPDATE`. La prueba
+U9 detectó un ciclo al comprobar la FK del actor de auditoría; se implementó `FOR NO KEY UPDATE`
+en objetivo y rol. La desviación y su justificación están en §22. Se conserva el bloque original
+como evidencia del diseño aprobado.
+
 La regla protegida es `activeAdminCount >= 1`. El candado sobre la fila del rol `ADMIN` se toma
 **solo** cuando la operación puede modificar el conjunto de ADMIN activos, y todas esas operaciones
 siguen exactamente el mismo protocolo:
@@ -732,7 +737,7 @@ el candado; el conteo quedaría desactualizado y dos operaciones podrían confir
 Estas transacciones no deben elevar su aislamiento sin revisar el protocolo; el código lo dirá en un
 comentario.
 
-**Sin interbloqueos.** Toda operación bloquea como mucho una fila de usuario existente —su
+**Hipótesis original sobre interbloqueos (corregida en §22).** Toda operación bloquea como mucho una fila de usuario existente —su
 objetivo— y, si corresponde, después la fila del rol. Nadie que tenga el candado del rol espera
 después por una fila de usuario existente, así que no se forman ciclos. El conteo no bloquea filas.
 
@@ -1290,8 +1295,10 @@ varias piezas. Las dependencias entran en commits `build:` propios, cada uno con
 Es la lista del prompt de la etapa, copiada en `progress.md`, más cuatro casillas que añade la
 revisión: flujo de `mustChangePassword` funcional, protección de origen probada, actualización
 Foundation → Auth probada y pruebas mínimas del frontend en verde. Cada casilla se marca solo con
-la prueba o la evidencia que le corresponde en §15; `Integrado` exige además el PR aprobado por
-otro integrante y fusionado en `develop`.
+la prueba o la evidencia que le corresponde en §15. La política de integración se actualizó por
+autorización del responsable el 2026-10-01: `Integrado` exige un PR fusionado en `develop` con diff
+y checks verificados; Luigui789 puede fusionar su propio PR, mientras que los otros dos
+integrantes requieren aprobación de otro miembro. Véase la política vigente en `progress.md`.
 
 ---
 
@@ -1333,3 +1340,22 @@ y D13 con pruebas de frontend. Los cinco puntos que añadió la revisión 2 qued
 
 Durante la implementación no se reabre el diseño general salvo que aparezca una incompatibilidad o
 una decisión que cambie la arquitectura; en ese caso se detiene el trabajo y se reporta.
+
+---
+
+## 22. Desviación técnica de implementación — bloqueo compatible con auditoría
+
+El 2026-10-01, U9 (`users.e2e-spec.ts`) detectó un interbloqueo con dos administradores
+desactivándose mutuamente. A bloqueaba a B con `FOR UPDATE`; B bloqueaba a A y esperaba el rol.
+Al insertar su auditoría, A debía comprobar la FK hacia su actor A con `FOR KEY SHARE`, pero B
+tenía esa fila bloqueada. El análisis original de §9 omitía este bloqueo implícito de la FK.
+
+`UsersService` usa ahora `FOR NO KEY UPDATE` en la fila objetivo y la del rol ADMIN. Sigue
+serializando escrituras administrativas y estabilizando rol/estado del objetivo, pero permite
+`FOR KEY SHARE`: ninguna operación cambia claves. Se conserva el orden objetivo → rol, el
+candado condicional de ADMIN, READ COMMITTED y la auditoría dentro de la transacción. No se
+añadieron reintentos, bloqueos consultivos ni cambios de esquema.
+
+La invariante sigue siendo al menos un ADMIN activo. U9 comprueba tanto desactivaciones como
+cambios de rol cruzados. La evidencia ejecutada está en `progress.md`. Esta corrección documenta
+la incompatibilidad encontrada en la prueba; no sustituye los ADR 008–010 ni cambia el alcance.

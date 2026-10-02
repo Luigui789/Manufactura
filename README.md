@@ -32,14 +32,14 @@ Detalle completo en [`docs/architecture.md`](docs/architecture.md).
 
 ## Tecnologías
 
-| Capa            | Tecnologías                                      |
-| --------------- | ------------------------------------------------ |
-| Monorepo        | pnpm workspaces                                  |
-| Frontend        | React, TypeScript, Vite, Tailwind CSS, shadcn/ui |
-| Backend         | NestJS, TypeScript, REST, Swagger/OpenAPI        |
-| Persistencia    | PostgreSQL, Prisma ORM                           |
-| Infraestructura | Docker Compose                                   |
-| Calidad         | ESLint, Prettier, Vitest                         |
+| Capa            | Tecnologías                                                                               |
+| --------------- | ----------------------------------------------------------------------------------------- |
+| Monorepo        | pnpm workspaces                                                                           |
+| Frontend        | React, TypeScript, Vite, Tailwind CSS, shadcn/ui, TanStack Query, React Router, RHF y Zod |
+| Backend         | NestJS, REST, Swagger/OpenAPI, JWT en cookie, Argon2id y RBAC                             |
+| Persistencia    | PostgreSQL, Prisma ORM                                                                    |
+| Infraestructura | Docker Compose                                                                            |
+| Calidad         | ESLint, Prettier, Vitest                                                                  |
 
 ## Requisitos
 
@@ -76,6 +76,15 @@ variables con prefijo `VITE_` llegan al navegador, de modo que `DATABASE_URL` y 
 la base de datos nunca se exponen en el cliente.
 
 `.env` está en `.gitignore` y no debe versionarse: **el repositorio es público**.
+
+Genera `JWT_SECRET` aleatorio de al menos 32 caracteres y reemplaza el marcador `change-me`
+(que falla la validación a propósito):
+
+```bash
+node -e "console.log(require('node:crypto').randomBytes(48).toString('base64url'))"
+```
+
+No lo compartas ni lo prefijes con `VITE_`. Los pasos completos están en `docs/setup.md`.
 
 ## Docker
 
@@ -121,6 +130,26 @@ La migración Foundation contiene SQL adicional para `CHECK` y disparadores appe
 cambios de `schema.prisma` se coordinan con el equipo, y una migración ya compartida no se edita.
 El seed idempotente se ejecuta con `pnpm --filter backend db:seed`.
 
+Para un checkout nuevo, aplica las migraciones existentes antes del seed:
+
+```bash
+pnpm --filter backend exec prisma migrate deploy
+pnpm --filter backend db:seed
+```
+
+### Primer administrador e ingreso
+
+El seed no crea usuarios. `pnpm --filter backend admin:create` crea solo el primer ADMIN, leyendo
+`ADMIN_EMAIL`, `ADMIN_FULL_NAME` y `ADMIN_PASSWORD` del entorno del proceso. Falla si hay un ADMIN
+activo o el correo existe y nunca modifica cuentas. La contraseña debe tener 15–128 caracteres;
+el bootstrap no exige cambio inicial. El procedimiento por shell está en `docs/setup.md`.
+Elimina la variable de contraseña después de usarla. Los demás usuarios se crean desde `/users`
+por un ADMIN autenticado, con contraseña temporal y cambio obligatorio.
+
+En `feature/auth` están implementados login, sesión en cookie `HttpOnly`, cambio de contraseña,
+menú por rol y administración de usuarios. La etapa está verificada y pendiente de integración
+por PR hacia `develop`; véase `docs/progress.md`.
+
 ## Calidad
 
 ```bash
@@ -131,7 +160,20 @@ pnpm build           # compila ambos proyectos
 
 pnpm --filter backend test       # pruebas unitarias
 pnpm --filter backend test:e2e   # pruebas e2e (requieren PostgreSQL arriba)
+pnpm --filter frontend test      # Vitest + React Testing Library (F1–F6)
 ```
+
+Las e2e requieren una `DATABASE_URL` de una base dedicada con nombre terminado en `_test`, con
+migraciones y seed aplicados. Nunca se ejecutan sobre `ecosoap_erp`; ejemplos en `docs/setup.md`.
+
+## Integración continua
+
+GitHub Actions ejecuta `.github/workflows/ci.yml` en PR hacia `develop`/`main` y en pushes a esas
+ramas. El check `Quality and tests` instala el lockfile sin cambios, genera Prisma, aplica
+migraciones y seed a PostgreSQL 18 y ejecuta lint, formato, builds y las tres suites de pruebas.
+Usa la base efímera `ecosoap_ci_test` y un `JWT_SECRET` aleatorio por ejecución; no necesita
+secretos del repositorio ni accede a la base de trabajo. La CI comprueba calidad; no despliega ni
+fusiona PR automáticamente.
 
 ## Estructura
 
@@ -163,9 +205,11 @@ main        versiones estables
         └── feature/*      trabajo en curso
 ```
 
-Todo desarrollo parte de `develop`. Nadie modifica `main` directamente. Las ramas nombran unidades
-de trabajo, no personas (`feature/inventory`, `fix/negative-stock`). Todo pull request requiere la
-revisión de otro integrante antes de fusionarse.
+Todo desarrollo parte de `develop`; nadie trabaja directamente sobre `develop` ni `main`.
+Las ramas nombran unidades de trabajo, no personas (`feature/inventory`, `fix/negative-stock`).
+Los cambios se integran por PR hacia `develop`. Luigui789, líder del proyecto, puede fusionar sus
+propios PR tras verificar diff y checks. Los otros dos integrantes necesitan al menos una
+aprobación de otro miembro antes del merge. `main` se reserva para bloques estables.
 
 ## Documentación
 

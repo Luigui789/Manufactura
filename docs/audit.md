@@ -5,9 +5,9 @@
 > [`requirements.md`](requirements.md). Decisión en
 > [ADR 005](decisions/005-estrategia-de-auditoria.md); modelo en [`database.md`](database.md).
 > La cobertura de Compras, Producción y Ventas llega con sus módulos de negocio. Los eventos de
-> autenticación y administración de usuarios se diseñaron en la Etapa 3
-> ([diseño aprobado](specs/2026-09-24-autenticacion-rbac-design.md), §11); su implementación se
-> registra en [`progress.md`](progress.md).
+> autenticación y administración de usuarios están implementados y verificados localmente en
+> `feature/auth` ([diseño aprobado](specs/2026-09-24-autenticacion-rbac-design.md), §11), con
+> integración por PR pendiente. Su evidencia se registra en [`progress.md`](progress.md).
 
 ## 1. Tres capas, tres preguntas
 

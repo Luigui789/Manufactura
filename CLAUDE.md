@@ -85,8 +85,8 @@ pnpm --filter frontend dev          # solo frontend
 ## Estado actual
 
 **Etapa 1 (configuración inicial): integrada en `develop`** mediante el pull request #1. El
-backend tiene `ConfigModule`, `PrismaModule` y `HealthModule`; el frontend, una pantalla temporal
-de verificación que debe reemplazarse al empezar el layout real.
+backend incorporó `ConfigModule`, `PrismaModule` y `HealthModule`. La pantalla temporal del
+frontend se reemplazó por login y layout en la Etapa 3.
 
 **Etapa 2 (modelo de datos): Foundation integrada en `develop`** mediante el pull request #2. El
 cotejo con la Entrega 1 y sus dos correcciones de atributos están registrados en
@@ -94,10 +94,12 @@ cotejo con la Entrega 1 y sus dos correcciones de atributos están registrados e
 conceptual en `docs/database.md`.
 
 Los pull requests #1 y #2 se integraron sin aprobación formal registrada de otro integrante; consta
-como desviación de proceso en `docs/progress.md`. Desde `feature/auth`, todo PR necesita la
-aprobación de otro integrante antes del merge.
+como desviación histórica de proceso en `docs/progress.md`. La política vigente desde
+2026-10-01 permite a Luigui789 fusionar sus propios PR tras verificar diff y checks; los otros
+dos integrantes necesitan al menos una aprobación de otro miembro antes del merge.
 
-**Etapa 3 (autenticación y RBAC): diseño aprobado, implementación en curso** en `feature/auth`.
+**Etapa 3 (autenticación y RBAC): diseño aprobado e implementación verificada localmente** en
+`feature/auth`, pendiente de integración en `develop` mediante PR según la política vigente.
 El diseño está en `docs/specs/2026-09-24-autenticacion-rbac-design.md` y en los ADR 008 a 010.
 
 No crees carpetas ni módulos vacíos para «mostrar estructura». La arquitectura futura está
@@ -110,10 +112,12 @@ sin haber ejecutado la comprobación y visto el resultado.
 
 Tres integrantes. Ramas: `main` (estable) → `develop` (integración) → `feature/*` (trabajo).
 
-- Nadie modifica `main` directamente.
+- Nadie trabaja directamente sobre `develop` ni `main`.
 - Las ramas nombran unidades de trabajo, no personas: `feature/inventory`, `fix/negative-stock`.
-- Todo PR va de `feature/*` a `develop` y **requiere revisión de otro integrante**; nadie fusiona
-  su propio PR salvo cambios triviales de documentación.
+- Todo cambio se integra por PR de `feature/*` hacia `develop`.
+- Luigui789, líder del proyecto, puede fusionar sus propios PR después de verificar diff y checks.
+- Los otros dos integrantes requieren al menos una aprobación de otro miembro antes del merge.
+- `main` se reserva para bloques estables.
 - `pull` de `develop` antes de empezar; actualizar la rama con `develop` antes de abrir el PR.
 - Los cambios de `schema.prisma` se coordinan con el equipo.
 - Las migraciones de Prisma **no se editan a mano** una vez compartidas.

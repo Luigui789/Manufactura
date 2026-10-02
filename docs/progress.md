@@ -5,7 +5,7 @@ Este documento refleja el estado **real** del proyecto.
 Una casilla marcada significa que la comprobación se ejecutó y se vio el resultado. No se marca
 nada por parecer correcto, por estar escrito ni por estar a punto de terminarse.
 
-Última actualización: 2026-09-24.
+Última actualización: 2026-10-01.
 
 ## Estados del trabajo
 
@@ -75,8 +75,8 @@ por una instalación nativa; y TypeScript 6 deprecó `baseUrl`.
 
 ### Deuda pendiente
 
-- La pantalla temporal de verificación hace `fetch` dentro de un `useEffect`. Debe migrar a
-  TanStack Query cuando este se instale.
+- Cerrada en Etapa 3: la pantalla temporal de verificación y su `fetch` dentro de `useEffect`
+  se eliminaron; los datos del servidor se consultan con TanStack Query.
 - `CLAUDE.md` describía la Etapa 1 como en curso en `feature/project-setup`. Corregido el
   2026-09-23.
 
@@ -215,7 +215,8 @@ los datos que necesite antes de recrear esa base; no se resetea ninguna base aut
 
 ## Etapa 3 — Autenticación y RBAC
 
-**Diseño aprobado el 2026-10-01; implementación en curso** en `feature/auth`. Diseño:
+**Diseño aprobado el 2026-10-01; implementación verificada localmente** en `feature/auth`,
+pendiente de integración por PR hacia `develop` según la política vigente del equipo. Diseño:
 [`specs/2026-09-24-autenticacion-rbac-design.md`](specs/2026-09-24-autenticacion-rbac-design.md);
 decisiones: ADR 008, 009 y 010, aceptados.
 
@@ -224,25 +225,25 @@ decisiones: ADR 008, 009 y 010, aceptados.
 - [x] Estrategia JWT (aprobada; ADR 008)
 - [x] Argon2id comprobado en Windows con Node 22 y pnpm 10
 - [x] Migración `auth_rbac`: base limpia, actualización Foundation → Auth y sin drift
-- [ ] Primer administrador (`admin:create`, solo bootstrap)
-- [ ] Login backend
-- [ ] JWT guard
-- [ ] Protección de origen
-- [ ] RBAC con políticas `Public`, `Authenticated` y `Roles`
-- [ ] Bloqueo por `mustChangePassword`
-- [ ] Gestión básica de usuarios
-- [ ] Protección del último ADMIN
-- [ ] Auditoría auth
-- [ ] Login frontend
-- [ ] Protected routes
-- [ ] TanStack Query
-- [ ] Tests auth
-- [ ] Tests RBAC
-- [ ] Tests auditoría
-- [ ] Tests frontend mínimos
-- [ ] Swagger
-- [ ] Documentación
-- [ ] Review (aprobación formal de otro integrante en GitHub)
+- [x] Primer administrador (`admin:create`, solo bootstrap)
+- [x] Login backend
+- [x] JWT guard
+- [x] Protección de origen
+- [x] RBAC con políticas `Public`, `Authenticated` y `Roles`
+- [x] Bloqueo por `mustChangePassword`
+- [x] Gestión básica de usuarios
+- [x] Protección del último ADMIN
+- [x] Auditoría auth
+- [x] Login frontend
+- [x] Protected routes
+- [x] TanStack Query
+- [x] Tests auth
+- [x] Tests RBAC
+- [x] Tests auditoría
+- [x] Tests frontend mínimos
+- [x] Swagger
+- [x] Documentación
+- [ ] Review (diff y checks para Luigui789; aprobación de otro miembro para los demás)
 - [ ] Integrated into develop
 
 ### Evidencia ejecutada de la Etapa 3
@@ -264,9 +265,49 @@ Comprobaciones del 2026-10-01 en Windows 11, Node 22.16.0, pnpm 10.30.3 y Postgr
 
 ---
 
+### Cierre de implementación y comprobaciones finales
+
+La implementación local de Etapa 3 se verificó el 2026-10-01. En ese cierre previo al versionado,
+el HEAD era `1b29dfd`; backend, frontend y documentación todavía estaban sin commit ni push.
+Esta referencia identifica el punto de partida de la evidencia, no el estado actual de Git.
+
+| Comprobación final de Etapa 3 | Resultado observado                                                                                                                                                                                                   |
+| ----------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Backend unitario              | 4 archivos, 35/35 pruebas; guards, política/hash, snapshots y entrada del CLI                                                                                                                                         |
+| Backend e2e                   | 7 archivos, 51/51 en `ecosoap_auth_clean_test`; sesión/cookie, origen, RBAC, auditoría atómica, revocación, usuarios, concurrencia, secretos, throttle y migración                                                    |
+| Frontend automatizado         | 2 archivos, 29/29 con Vitest y RTL: F1–F6, carga sin contenido protegido, cuatro roles no ADMIN, login, cambio/confirmación, logout, 401/403, alta, acciones propias y paginación                                     |
+| Navegador contra API real     | Login ADMIN, tabla y acciones propias deshabilitadas, selector de roles, logout, VENTAS sin menú Usuarios y URL directa 403; cuenta temporal redirigida desde `/users` a contraseña sin menú; `ecosoap_auth_cli_test` |
+| CLI real en base nueva        | `ecosoap_auth_bootstrap_verify_test`: ambas migraciones, seed, primer ADMIN creado con contraseña aleatoria no mostrada; segundo intento rechazado sin modificar usuario                                              |
+| Swagger real                  | `/api/docs-json`: 12 operaciones, esquema `ecosoap_session` declarado como cookie                                                                                                                                     |
+| Calidad                       | `pnpm build`, `pnpm lint` y `pnpm format:check` pasan; compilación TypeScript incluida en los builds                                                                                                                  |
+
+**Desviación del bloqueo ADMIN.** U9 detectó un interbloqueo con `FOR UPDATE` cuando dos ADMIN
+actuaban sobre el otro: la comprobación de FK de auditoría necesita `FOR KEY SHARE` sobre el
+actor. Se corrigió a `FOR NO KEY UPDATE` en objetivo y rol, compatible con esa FK y con la
+serialización de escrituras. Se mantienen auditoría atómica, READ COMMITTED, orden objetivo → rol
+y candado ADMIN condicional. La suite e2e actual vuelve a pasar el escenario; el traspaso anterior
+registró además seis repeticiones sin fallos. Detalle en spec §22 y `database.md`, sin cambiar ADR
+ni migraciones compartidas.
+
+**Corrección frontend probada.** `QueryClient.clear()` eliminaba también el observador activo de
+sesión y podía mantener la vista anterior después del login o un 401. Se cancelan consultas y
+eliminan datos privados conservando `['auth', 'me']` para notificar el usuario nuevo o `null`.
+Las pruebas de login, logout y revocación cubren esta regresión.
+
+**Limitación de build.** Vite avisa que el bundle inicial mide aproximadamente 683 kB (211 kB
+gzip), por encima de su umbral de 500 kB. La página administrativa se carga aparte (115 kB,
+36 kB gzip). El build termina correctamente; la optimización restante queda como deuda de
+rendimiento, sin añadir dependencias ni cambiar el umbral para ocultar el aviso.
+
+Las bases de verificación terminan en `_test`. No se modificó `ecosoap_erp`. Las tres cuentas de
+navegador se desactivan al cerrar la comprobación, preservando las filas referenciadas por
+auditoría. Los archivos locales de fixtures y sus credenciales no se versionan.
+
+---
+
 ## Desviaciones de proceso
 
-Los dos primeros pull requests se integraron sin la revisión que exige el flujo del equipo. Esa
+Los dos primeros pull requests se integraron sin la revisión que exigía el flujo de esas etapas. Esa
 revisión no se reconstruye ni se completa de forma retroactiva: queda registrada como desviación.
 
 | PR  | Rama                          | Integración                                      | Pruebas                              | Revisión                                            |
@@ -274,14 +315,27 @@ revisión no se reconstruye ni se completa de forma retroactiva: queda registrad
 | #1  | `feature/project-setup`       | Fusionado en `develop` (merge `4060763`)         | Verificadas; evidencia de la Etapa 1 | Sin aprobación formal registrada de otro integrante |
 | #2  | `feature/database-foundation` | Fusionado en `develop` el 2026-09-24 (`dbda607`) | Verificadas; evidencia de la Etapa 2 | Sin aprobación formal registrada de otro integrante |
 
-Desde el pull request de `feature/auth`, el flujo se cumple sin excepciones:
+### Política vigente desde 2026-10-01
+
+Se añade `.github/workflows/ci.yml`: `Quality and tests` ejecuta en Linux la misma cadena de
+lint, formato, builds y 115 pruebas contra PostgreSQL 18 efímero (`ecosoap_ci_test`). Las Actions
+están fijadas por SHA; el secreto de sesión se genera por ejecución. El resultado remoto se
+verifica en el PR antes de integrar; la existencia del workflow por sí sola no acredita un pase.
+
+Por autorización del responsable del proyecto, los cambios siempre se integran mediante PR hacia
+`develop`. Luigui789 puede fusionar sus propios PR una vez verificados el diff y los checks
+requeridos. Los otros dos integrantes necesitan al menos una aprobación de otro miembro antes
+del merge. Nadie trabaja directamente sobre `develop` ni `main`; `main` conserva bloques estables.
+Esta excepción no reconstruye revisiones ni borra las desviaciones históricas de los PR #1 y #2.
 
 ```text
-feature/* → PR hacia develop → revisión de otro integrante → aprobación → merge
+Luigui789: feature/* → PR hacia develop → diff y checks verificados → merge propio permitido
+Otros integrantes: feature/* → PR hacia develop → aprobación de otro miembro → merge
 ```
 
-Se recomienda activar la protección de `develop` con al menos una aprobación obligatoria. Es una
-configuración del repositorio y se hará aparte, no dentro de la implementación de autenticación.
+La protección de `develop`, si se configura, debe reflejar esta excepción para Luigui789 y exigir
+la aprobación para los demás. La configuración de GitHub se gestiona aparte; esta actualización
+solo documenta la política y no cambia permisos ni reglas remotas.
 
 ---
 
@@ -289,7 +343,7 @@ configuración del repositorio y se hará aparte, no dentro de la implementació
 
 | Etapa | Contenido                                         | Estado                              |
 | ----- | ------------------------------------------------- | ----------------------------------- |
-| 3     | Autenticación JWT y RBAC                          | En implementación en `feature/auth` |
+| 3     | Autenticación JWT y RBAC                          | Verificada localmente; pendiente PR |
 | 4     | Datos maestros: productos, almacenes, proveedores | Pendiente                           |
 | 5     | Compras y recepción                               | Pendiente                           |
 | 6     | Inventario y movimientos                          | Pendiente                           |

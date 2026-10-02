@@ -68,18 +68,26 @@ exclusivamente para persistencia; no se escribe SQL manual salvo razón técnica
 
 ## 4. Estado actual del backend
 
-Los módulos HTTP implementados siguen siendo:
+Los módulos implementados en `feature/auth` son:
 
-| Módulo         | Responsabilidad                                                     |
-| -------------- | ------------------------------------------------------------------- |
-| `ConfigModule` | Carga y **valida** las variables de entorno al arrancar (fail fast) |
-| `PrismaModule` | Expone `PrismaService`, único punto de acceso a PostgreSQL          |
-| `HealthModule` | `GET /api/health`: verifica NestJS → Prisma → PostgreSQL            |
+| Módulo         | Responsabilidad                                                         |
+| -------------- | ----------------------------------------------------------------------- |
+| `ConfigModule` | Carga y **valida** las variables de entorno al arrancar (fail fast)     |
+| `PrismaModule` | Expone `PrismaService`, único punto de acceso a PostgreSQL              |
+| `HealthModule` | `GET /api/health`: verifica NestJS → Prisma → PostgreSQL                |
+| `AuthModule`   | Login, sesión, logout, cambio de contraseña; guards globales y hashing  |
+| `UsersModule`  | Administración de cuentas, bootstrap y protección del último ADMIN      |
+| `AuditModule`  | Auditoría atómica, snapshots por lista permitida y contexto de petición |
 
 ```text
 backend/src/
-├── main.ts              prefijo /api, CORS, ValidationPipe global, Swagger
-├── app.module.ts
+├── main.ts              prefijo /api, CORS con credenciales, Swagger con cookie
+├── app.module.ts        APP_PIPE único, cookie-parser y RequestContextMiddleware
+├── auth/                servicios, contraseña, sesión y cuatro guards globales
+├── users/               DTO, conversión pública y transacciones administrativas
+├── audit/               record(tx), snapshots y diferencias permitidas
+├── common/              contexto AsyncLocalStorage, correo y paginación
+├── cli/                 admin:create (solo primer ADMIN)
 ├── config/              validación de variables de entorno
 ├── prisma/              PrismaModule + PrismaService
 ├── health/              HealthModule + HealthController + HealthService + DTO
@@ -89,6 +97,17 @@ backend/src/
 Foundation añade `backend/src/inventory/apply-adjustment.ts`: valida lote y producto, bloquea
 `StockBalance`, crea movimiento, actualiza saldo y registra auditoría en una transacción. Aún no
 hay un módulo HTTP de inventario. No se crean módulos vacíos para los otros dominios.
+
+Dependencias: `UsersModule → AuthModule → AuditModule → PrismaModule`, sin ciclos.
+`AuthService` consulta con Prisma directamente. La cookie `HttpOnly` transporta el JWT; cada
+petición comprueba usuario activo y `tokenVersion`, y obtiene el rol actual de la base. Los
+guards se ejecutan en orden: origen → JWT → cambio pendiente → política por rol. Sin política se
+deniega. El pipe estricto se registra una vez como `APP_PIPE`, también efectivo en e2e.
+
+Los servicios escriben cambios y auditoría en la misma transacción. El último ADMIN se protege
+en READ COMMITTED bloqueando objetivo y, solo si afecta a ADMIN, la fila del rol, con
+`FOR NO KEY UPDATE`. Este modo admite la comprobación de FK de auditoría y corrige el
+interbloqueo detectado por U9; detalle en el spec §22 y `database.md`.
 
 ## 5. Arquitectura futura del backend
 
@@ -133,15 +152,27 @@ Cada módulo se crea junto a su rama de trabajo. Ejemplo: `ComprasModule` nace e
 ```text
 frontend/src/
 ├── main.tsx
-├── App.tsx              PANTALLA TEMPORAL de verificación del entorno
+├── app/                 App, QueryClientProvider y manejo global de errores
 ├── index.css            Tailwind 4 + tema de shadcn/ui
 ├── lib/utils.ts         helper cn()
-└── components/ui/       componentes de shadcn instalados (button, card, badge)
+├── components/          FormField, ErrorNotice y nueve componentes shadcn/ui
+├── services/            apiFetch con cookies y ApiError sanitizado
+├── routes/              rutas declarativas, inicio y página no encontrada
+├── layouts/             cabecera, menú declarativo por rol y Outlet
+└── features/            auth y users: formularios, páginas, hooks, esquemas y API
 ```
 
-`App.tsx` no forma parte del ERP: comprueba de una sola vez que Tailwind compila, que shadcn
-resuelve, que el alias `@` funciona, que `VITE_API_URL` llega desde el `.env` de la raíz y que el
-backend responde con CORS correcto. Se reemplaza al empezar el layout real.
+La pantalla temporal de Etapa 1 se eliminó. La sesión vive exclusivamente en la consulta
+`['auth', 'me']`; no hay contexto de sesión, store adicional ni token en almacenamiento del
+navegador. Login y cambio de contraseña actualizan esa consulta. Logout y `401` cancelan
+consultas y eliminan datos privados, conservando el observador de sesión para notificar `null`.
+Los `403` vuelven a consultar la sesión; `PASSWORD_CHANGE_REQUIRED` bloquea inmediatamente el
+menú. La ruta protegida espera a la sesión antes de montar contenido, y `/users` exige ADMIN.
+
+`/account/password` permite cambiar o salir en modo obligatorio, sin menú; en modo voluntario
+permite volver al inicio. Los formularios usan RHF y Zod, validan confirmación y envían solo campos
+del DTO. Users pagina en el servidor, confirma acciones y deshabilita las operaciones peligrosas
+sobre la propia cuenta. La autorización definitiva permanece en el backend.
 
 ## 7. Arquitectura futura del frontend
 
@@ -175,8 +206,8 @@ Componentes transversales previstos, para no duplicarlos por módulo: `DataTable
 `Pagination`, `SearchInput`.
 
 Todo dato proveniente del backend es **server state** y se gestiona con TanStack Query, no con un
-store global. El estado global se reserva para usuario autenticado, sesión y preferencias de
-interfaz.
+store global. Usuario y sesión también son estado del servidor en TanStack Query; el estado local
+solo controla formularios, diálogos, mensajes y página seleccionada.
 
 ## 8. Flujo de negocio transversal
 
