@@ -1,0 +1,82 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [develop, main]
+  push:
+    branches: [develop, main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  quality-and-tests:
+    name: Quality and tests
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      NODE_ENV: test
+      DATABASE_URL: postgresql://ecosoap@localhost:5432/ecosoap_ci_test?schema=public
+      FRONTEND_URL: http://localhost:5173
+      VITE_API_URL: http://localhost:3000/api
+    services:
+      postgres:
+        image: postgres:18-alpine
+        env:
+          POSTGRES_USER: ecosoap
+          POSTGRES_DB: ecosoap_ci_test
+          # Solo el servicio efímero de pruebas; no contiene credenciales reales.
+          POSTGRES_HOST_AUTH_METHOD: trust
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U ecosoap -d ecosoap_ci_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install pnpm from packageManager
+        uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+      - name: Set up Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: '22.16.0'
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+      - name: Generate temporary session secret
+        run: |
+          node <<'NODE'
+          const { randomBytes } = require('node:crypto');
+          const { appendFileSync } = require('node:fs');
+          const secret = randomBytes(48).toString('base64url');
+          console.log('::add-mask::' + secret);
+          appendFileSync(process.env.GITHUB_ENV, 'JWT_SECRET=' + secret + '\n');
+          NODE
+      - name: Install locked dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Generate Prisma client
+        run: pnpm --filter backend prisma:generate
+      - name: Apply migrations to test database
+        run: pnpm --filter backend exec prisma migrate deploy
+      - name: Lint
+        run: pnpm lint
+      - name: Check formatting
+        run: pnpm format:check
+      - name: Build backend and frontend
+        run: pnpm build
+      - name: Seed test database
+        run: pnpm --filter backend db:seed
+      - name: Backend unit tests
+        run: pnpm --filter backend test
+      - name: Frontend tests
+        run: pnpm --filter frontend test
+      - name: Backend end-to-end tests
+        run: pnpm --filter backend test:e2e
