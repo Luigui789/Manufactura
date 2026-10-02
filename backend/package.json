@@ -20,7 +20,8 @@
     "test:e2e": "vitest run --config ./vitest.config.e2e.ts",
     "prisma:generate": "prisma generate",
     "prisma:studio": "prisma studio",
-    "db:seed": "pnpm build && node dist/prisma/seed.js"
+    "db:seed": "pnpm build && node dist/prisma/seed.js",
+    "admin:create": "pnpm build && node dist/cli/create-admin.js"
   },
   "dependencies": {
     "@nestjs/common": "^12.0.1",
