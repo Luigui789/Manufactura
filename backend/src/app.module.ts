@@ -10,6 +10,7 @@ import { validateEnv } from './config/env.validation.js';
 import { HealthModule } from './health/health.module.js';
 import { PrismaModule } from './prisma/prisma.module.js';
 import { UsersModule } from './users/users.module.js';
+import { InventoryModule } from './inventory/inventory.module.js';
 
 /**
  * Solo existen los modulos que hacen algo real en esta etapa.
@@ -34,6 +35,7 @@ import { UsersModule } from './users/users.module.js';
     AuthModule,
     UsersModule,
     HealthModule,
+    InventoryModule,
   ],
   providers: [
     // Unica configuracion efectiva del pipe global. Al registrarlo aqui y no en
