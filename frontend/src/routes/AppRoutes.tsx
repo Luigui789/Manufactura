@@ -12,7 +12,9 @@ import { HomePage } from './HomePage';
 import { NotFoundPage } from './NotFoundPage';
 
 const UsersPage = lazy(() =>
-  import('@/features/users/pages/UsersPage').then((module) => ({ default: module.UsersPage })),
+  import('@/features/users/pages/UsersPage').then((module) => ({
+    default: module.UsersPage,
+  })),
 );
 
 const WarehousesPage = lazy(() =>
@@ -25,11 +27,14 @@ export function AppRoutes() {
   return (
     <Routes>
       <Route path="/login" element={<LoginPage />} />
+
       <Route element={<RequireAuth />}>
         <Route path="/account/password" element={<ChangePasswordPage />} />
+
         <Route element={<RequirePasswordCurrent />}>
           <Route element={<AppLayout />}>
             <Route index element={<HomePage />} />
+
             <Route element={<RequireRole roles={['ADMIN']} />}>
               <Route
                 path="/users"
@@ -39,15 +44,17 @@ export function AppRoutes() {
                   </Suspense>
                 }
               />
-              <Route
-                path="/inventory/warehouses"
-                element={
-                  <Suspense fallback={<p role="status">Cargando almacenes…</p>}>
-                    <WarehousesPage />
-                  </Suspense>
-                }
-              />
             </Route>
+
+            <Route
+              path="/inventory/warehouses"
+              element={
+                <Suspense fallback={<p role="status">Cargando almacenes…</p>}>
+                  <WarehousesPage />
+                </Suspense>
+              }
+            />
+
             <Route path="*" element={<NotFoundPage />} />
           </Route>
         </Route>
