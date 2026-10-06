@@ -10,6 +10,9 @@ export class WarehouseResponseDto {
   @ApiProperty({ example: 'Almacén Central' })
   name: string;
 
+  @ApiProperty({ example: 'Nave Norte, Pasillo A' })
+  location: string;
+
   @ApiProperty()
   isActive: boolean;
 
