@@ -88,8 +88,8 @@ export function ProductsPage() {
                 <TableHead>Categoría</TableHead>
                 <TableHead>Unidad</TableHead>
                 <TableHead>Tipo</TableHead>
-                <TableHead>Estado</TableHead>
-                <TableHead>Acciones</TableHead>
+                <TableHead className="min-w-[6rem]">Estado</TableHead>
+                <TableHead className="whitespace-nowrap">Acciones</TableHead>
               </TableRow>
             </TableHeader>
 
@@ -101,13 +101,13 @@ export function ProductsPage() {
                   <TableCell>{product.category}</TableCell>
                   <TableCell>{PRODUCT_UNIT_LABELS[product.unit]}</TableCell>
                   <TableCell>{PRODUCT_TYPE_LABELS[product.type]}</TableCell>
-                  <TableCell>
+                  <TableCell className="min-w-[6rem]">
                     <Badge variant={product.isActive ? 'secondary' : 'outline'}>
                       {product.isActive ? 'Activo' : 'Inactivo'}
                     </Badge>
                   </TableCell>
                   <TableCell>
-                    <div className="flex flex-wrap gap-2">
+                    <div className="flex gap-2 whitespace-nowrap">
                       <Button size="sm" variant="outline" onClick={() => setViewingId(product.id)}>
                         Ver
                       </Button>
