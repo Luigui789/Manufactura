@@ -13,11 +13,16 @@ import { ErrorNotice } from '@/components/ErrorNotice';
 import { useSession } from '@/features/auth/hooks/use-auth';
 import { useProducts } from '../api/product-hooks';
 import { CreateProductDialog } from '../components/products/CreateProductDialog';
+import { ProductDetailDialog } from '../components/products/ProductDetailDialog';
+import { ProductStatusDialog } from '../components/products/ProductStatusDialog';
 import { PRODUCT_TYPE_LABELS, PRODUCT_UNIT_LABELS } from '../product-labels';
+import type { Product } from '../types';
 
 export function ProductsPage() {
   const [page, setPage] = useState(1);
   const [isCreating, setIsCreating] = useState(false);
+  const [viewingId, setViewingId] = useState<string | null>(null);
+  const [statusTarget, setStatusTarget] = useState<Product | null>(null);
   const [message, setMessage] = useState('');
 
   const { data: session } = useSession();
@@ -82,6 +87,7 @@ export function ProductsPage() {
                 <TableHead>Unidad</TableHead>
                 <TableHead>Tipo</TableHead>
                 <TableHead>Estado</TableHead>
+                <TableHead>Acciones</TableHead>
               </TableRow>
             </TableHeader>
 
@@ -98,12 +104,31 @@ export function ProductsPage() {
                       {product.isActive ? 'Activo' : 'Inactivo'}
                     </Badge>
                   </TableCell>
+                  <TableCell>
+                    <div className="flex gap-2">
+                      <Button size="sm" variant="outline" onClick={() => setViewingId(product.id)}>
+                        Ver
+                      </Button>
+                      {canManage && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => {
+                            setMessage('');
+                            setStatusTarget(product);
+                          }}
+                        >
+                          {product.isActive ? 'Desactivar' : 'Activar'}
+                        </Button>
+                      )}
+                    </div>
+                  </TableCell>
                 </TableRow>
               ))}
 
               {products.data.data.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={6} className="py-8 text-center text-muted-foreground">
+                  <TableCell colSpan={7} className="py-8 text-center text-muted-foreground">
                     No hay productos en esta página.
                   </TableCell>
                 </TableRow>
@@ -151,6 +176,21 @@ export function ProductsPage() {
             setIsCreating(false);
             setMessage(notice);
             setPage(1);
+          }}
+        />
+      )}
+
+      {viewingId && (
+        <ProductDetailDialog productId={viewingId} onClose={() => setViewingId(null)} />
+      )}
+
+      {canManage && statusTarget && (
+        <ProductStatusDialog
+          product={statusTarget}
+          onClose={() => setStatusTarget(null)}
+          onSuccess={(notice) => {
+            setStatusTarget(null);
+            setMessage(notice);
           }}
         />
       )}
