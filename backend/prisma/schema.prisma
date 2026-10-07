@@ -79,6 +79,7 @@ enum AuditEntityType {
   WAREHOUSE
   LOT
   INVENTORY_MOVEMENT
+  SUPPLIER
 }
 
 enum DocumentType {
@@ -232,4 +233,18 @@ model DocumentSequence {
 
   @@unique([documentType, year])
   @@map("document_sequences")
+}
+
+model Supplier {
+  id        String   @id @default(uuid(7)) @db.Uuid
+  name      String
+  phone     String
+  email     String   @unique
+  address   String
+  isActive  Boolean  @default(true) @map("is_active")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@index([isActive])
+  @@map("suppliers")
 }
