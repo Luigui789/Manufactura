@@ -8,6 +8,11 @@ export const navigation: {
   { to: '/', label: 'Inicio', roles: ROLE_CODES },
   { to: '/users', label: 'Usuarios', roles: ['ADMIN'] },
   {
+    to: '/inventory/products',
+    label: 'Productos',
+    roles: ROLE_CODES,
+  },
+  {
     to: '/inventory/warehouses',
     label: 'Almacenes',
     roles: ROLE_CODES,

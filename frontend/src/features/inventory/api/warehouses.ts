@@ -1,21 +1,21 @@
 import { apiFetch } from '@/services/api-client';
 import type { CreateWarehouseData, Warehouse } from '../types';
 
-export type UpdateWarehouseData = Partial<CreateWarehouseData>;
+export type UpdateWarehouseData = Partial<Omit<CreateWarehouseData, 'isActive'>>;
 
-type WarehousesListResponse = {
+export type WarehousesListResponse = {
   data: Warehouse[];
   meta: { page: number; limit: number; total: number };
 };
 
 type WarehouseResponse = { data: Warehouse; message: string };
 
-export const getWarehouses = async (page = 1, limit = 20): Promise<Warehouse[]> => {
-  const response = await apiFetch<WarehousesListResponse>(
-    `/warehouses?page=${page}&limit=${limit}`,
-  );
-  return response.data;
-};
+export const getWarehouses = (
+  page = 1,
+  limit = 20,
+  signal?: AbortSignal,
+): Promise<WarehousesListResponse> =>
+  apiFetch<WarehousesListResponse>(`/warehouses?page=${page}&limit=${limit}`, { signal });
 
 export const getWarehouse = async (id: string): Promise<Warehouse> => {
   const response = await apiFetch<WarehouseResponse>(`/warehouses/${id}`);

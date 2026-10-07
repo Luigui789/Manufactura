@@ -8,10 +8,10 @@ import {
   type UpdateWarehouseData,
 } from './warehouses';
 
-export const useWarehouses = () => {
+export const useWarehouses = (page = 1, limit = 20) => {
   return useQuery({
-    queryKey: ['warehouses'],
-    queryFn: () => getWarehouses(),
+    queryKey: ['warehouses', page, limit],
+    queryFn: ({ signal }) => getWarehouses(page, limit, signal),
   });
 };
 

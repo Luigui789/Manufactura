@@ -23,6 +23,12 @@ const WarehousesPage = lazy(() =>
   })),
 );
 
+const ProductsPage = lazy(() =>
+  import('@/features/inventory/pages/ProductsPage').then((module) => ({
+    default: module.ProductsPage,
+  })),
+);
+
 export function AppRoutes() {
   return (
     <Routes>
@@ -45,6 +51,15 @@ export function AppRoutes() {
                 }
               />
             </Route>
+
+            <Route
+              path="/inventory/products"
+              element={
+                <Suspense fallback={<p role="status">Cargando productos…</p>}>
+                  <ProductsPage />
+                </Suspense>
+              }
+            />
 
             <Route
               path="/inventory/warehouses"

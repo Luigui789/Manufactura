@@ -23,11 +23,15 @@ type Action = { type: 'create' } | { type: 'edit' | 'status'; warehouse: Warehou
 
 export function WarehousesList() {
   const { data: session } = useSession();
-  const warehouses = useWarehouses();
+  const [page, setPage] = useState(1);
+  const warehouses = useWarehouses(page);
   const [action, setAction] = useState<Action | null>(null);
   const [message, setMessage] = useState('');
 
   const canManage = session?.role === 'ADMIN' || session?.role === 'INVENTARIO';
+  const totalPages = warehouses.data
+    ? Math.max(1, Math.ceil(warehouses.data.meta.total / warehouses.data.meta.limit))
+    : 1;
 
   const openAction = (next: Action) => {
     if (!canManage) return;
@@ -40,6 +44,11 @@ export function WarehousesList() {
   const onSuccess = (notice: string) => {
     setAction(null);
     setMessage(notice);
+  };
+
+  const changePage = (nextPage: number) => {
+    setMessage('');
+    setPage(nextPage);
   };
 
   return (
@@ -84,7 +93,7 @@ export function WarehousesList() {
             </TableHeader>
 
             <TableBody>
-              {warehouses.data.map((warehouse) => (
+              {warehouses.data.data.map((warehouse) => (
                 <TableRow key={warehouse.id}>
                   <TableCell className="font-medium">{warehouse.code}</TableCell>
                   <TableCell>{warehouse.name}</TableCell>
@@ -110,9 +119,8 @@ export function WarehousesList() {
                         <Button
                           size="sm"
                           variant="outline"
-                          aria-label={`${
-                            warehouse.isActive ? 'Desactivar' : 'Activar'
-                          } ${warehouse.code}`}
+                          aria-label={`${warehouse.isActive ? 'Desactivar' : 'Activar'
+                            } ${warehouse.code}`}
                           onClick={() => openAction({ type: 'status', warehouse })}
                         >
                           {warehouse.isActive ? 'Desactivar' : 'Activar'}
@@ -123,13 +131,13 @@ export function WarehousesList() {
                 </TableRow>
               ))}
 
-              {warehouses.data.length === 0 && (
+              {warehouses.data.data.length === 0 && (
                 <TableRow>
                   <TableCell
                     colSpan={canManage ? 5 : 4}
                     className="py-8 text-center text-muted-foreground"
                   >
-                    No hay almacenes registrados.
+                    No hay almacenes en esta página.
                   </TableCell>
                 </TableRow>
               )}
@@ -137,6 +145,37 @@ export function WarehousesList() {
           </Table>
         </div>
       )}
+
+      <nav
+        aria-label="Paginación de almacenes"
+        className="flex flex-wrap items-center justify-between gap-3"
+      >
+        <p aria-live="polite" className="text-sm text-muted-foreground">
+          {warehouses.data
+            ? `Página ${page} de ${totalPages} · ${warehouses.data.meta.total} almacenes`
+            : `Página ${page}`}
+        </p>
+
+        <div className="flex gap-2">
+          <Button
+            variant="outline"
+            disabled={page <= 1 || warehouses.isFetching}
+            onClick={() => changePage(page - 1)}
+          >
+            Anterior
+          </Button>
+
+          <Button
+            variant="outline"
+            disabled={
+              !warehouses.data || warehouses.isError || warehouses.isFetching || page >= totalPages
+            }
+            onClick={() => changePage(page + 1)}
+          >
+            Siguiente
+          </Button>
+        </div>
+      </nav>
 
       {canManage && action?.type === 'create' && (
         <CreateWarehouseDialog onClose={onClose} onSuccess={onSuccess} />
