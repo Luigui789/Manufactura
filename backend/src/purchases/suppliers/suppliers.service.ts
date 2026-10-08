@@ -22,7 +22,7 @@ export class SuppliersService {
           action: AuditAction.CREATE,
           entityType: AuditEntityType.SUPPLIER,
           entityId: supplier.id,
-          newValues: supplier as any,
+          newValues: supplier,
         },
       });
 
@@ -59,8 +59,8 @@ export class SuppliersService {
           action: AuditAction.UPDATE,
           entityType: AuditEntityType.SUPPLIER,
           entityId: updated.id,
-          previousValues: existing as any,
-          newValues: updated as any,
+          previousValues: existing,
+          newValues: updated,
         },
       });
 
