@@ -12,4 +12,9 @@ export const navigation: {
     label: 'Almacenes',
     roles: ROLE_CODES,
   },
+  {
+    to: '/purchases/suppliers',
+    label: 'Proveedores',
+    roles: ['ADMIN', 'COMPRAS'],
+  },
 ];
