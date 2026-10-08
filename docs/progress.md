@@ -5,7 +5,7 @@ Este documento refleja el estado **real** del proyecto.
 Una casilla marcada significa que la comprobación se ejecutó y se vio el resultado. No se marca
 nada por parecer correcto, por estar escrito ni por estar a punto de terminarse.
 
-Última actualización: 2026-10-01.
+Última actualización: 2026-10-07.
 
 ## Estados del trabajo
 
@@ -206,7 +206,8 @@ los datos que necesite antes de recrear esa base; no se resetea ninguna base aut
 2. **Brechas de Foundation cerradas.** `Product.category` se añadió como texto obligatorio de hasta
    100 caracteres, separado de `ProductType`; `Warehouse.location` se añadió como texto obligatorio
    de hasta 255 caracteres. Se actualizaron migración, seed y pruebas, y se verificó en PostgreSQL
-   18.6 desde base vacía. Los CRUD empresariales siguen pendientes.
+   18.6 desde base vacía. Los CRUD empresariales seguían pendientes al cerrar Foundation; el
+   avance posterior de productos y almacenes se registra en la Etapa 4.
 3. **Requisitos propuestos por el equipo.** La política de lotes, `requestId`, snapshots de
    auditoría, JWT, versionado de BOM y otras extensiones quedan explícitamente como
    `PROPUESTO`; véase [`requirements.md`](requirements.md).
@@ -289,7 +290,8 @@ El PR #3 fue fusionado por Luigui789 a las `2026-10-02T04:50:42Z`
 (2026-10-01 22:50:42 en America/Managua), con merge
 `24bd515b5e8400cb5dbe1b81501d924c78da02e1`. La revisión de diff y checks satisface la política
 vigente para sus PR propios; no se afirma una aprobación externa inexistente. Se actualizó
-`develop` local mediante fast-forward. La Etapa 4 permanece pendiente.
+`develop` local mediante fast-forward. La Etapa 4 permanecía pendiente al cerrar esta integración
+el 2026-10-01; su avance posterior se registra en la sección siguiente.
 
 | Comprobación final de Etapa 3 | Resultado observado                                                                                                                                                                                                   |
 | ----------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -325,6 +327,67 @@ auditoría. Los archivos locales de fixtures y sus credenciales no se versionan.
 
 ---
 
+## Etapa 4 — Datos maestros: Productos y Almacenes
+
+**Implementados y verificados localmente** en la rama `feature/products-warehouses`. El cierre
+final de calidad, la revisión del PR y la integración en `develop` siguen pendientes. Esta sección
+cubre solo Productos y Almacenes (`RF-INV-001`); Proveedores y Clientes se desarrollan en
+`feature/suppliers` y `feature/customers`.
+
+- [x] Backend de Productos: listar (paginado), crear, consultar, editar y cambiar estado
+- [x] Backend de Almacenes: listar (paginado), crear, consultar, editar y cambiar estado
+- [x] Tipos de producto: materia prima, intermedio y terminado, además de consumible del modelo
+- [x] Frontend de Productos y Almacenes: listado paginado, crear, editar, activar/desactivar
+- [x] Detalle de producto en pantalla
+- [x] Entradas de menú y rutas de Productos y Almacenes
+- [x] Consulta para roles autenticados; gestión solo para ADMIN e INVENTARIO
+- [x] Desactivación lógica, sin endpoints de borrado físico
+- [x] Auditoría dentro de la misma transacción que el cambio
+- [x] Pruebas e2e de Productos y Almacenes
+- [x] Pruebas de frontend de Productos y Almacenes
+- [x] `docs/api.md` y `docs/requirements.md` actualizados
+- [ ] Revisión final: lint, formato, build y las tres suites sobre la versión final
+- [ ] Recorrido completo en el navegador y Swagger
+- [ ] Review
+- [ ] Integrated into develop
+
+### Evidencia ejecutada de Productos y Almacenes
+
+Comprobaciones locales del 2026-10-07 en Windows 11, Node 24.21.0 y pnpm 10.30.3. Las pruebas e2e
+usan la base dedicada `ecosoap_inventory_test`; la base de trabajo `ecosoap_erp` no interviene.
+
+| Comprobación                      | Resultado observado                                                |
+| --------------------------------- | ------------------------------------------------------------------ |
+| `pnpm --filter backend test`      | 5 archivos, 72/72, incluidas 37 pruebas de validación de Almacenes |
+| `pnpm --filter backend test:e2e`  | 9 archivos, 105/105 (productos 25, almacenes 29)                   |
+| `pnpm --filter frontend test`     | 4 archivos, 62/62 (productos 16, almacenes 17)                     |
+| `pnpm lint` y `pnpm format:check` | Limpios                                                            |
+| Cambios en `backend/prisma`       | Ninguno respecto a `develop`                                       |
+
+Las pruebas del frontend simulan HTTP y ejercitan las páginas, formularios y hooks reales. Las
+pruebas e2e del backend comprueban persistencia, autenticación, permisos y auditoría. Estos
+resultados locales no acreditan por sí solos un pase de CI ni una integración.
+
+### Decisiones y cuestiones abiertas
+
+1. **Endpoint de estado.** Se implementó `PATCH /:id/status`, como indica la guía del feature.
+   `docs/api.md` usa `POST /users/:id/enable` y `/disable` en usuarios. Pendiente de decisión
+   del equipo.
+2. **Nombres de auditoría.** Se usan las acciones `CREATE`, `UPDATE`, `ENABLE` y `DISABLE` y las
+   entidades `PRODUCT` y `WAREHOUSE`, según la convención existente. Los nombres de ejemplo de
+   la guía (`PRODUCT_CREATED`, etc.) no se crearon.
+3. **Aviso de tamaño del bundle.** Vite sigue avisando de un bundle inicial superior a 500 kB; es
+   deuda conocida y el build termina correctamente.
+
+### Límites de esta feature
+
+No se implementan movimientos de inventario, ajustes manuales de stock, recepciones, órdenes de
+producción, BOM, ventas ni despachos. La infraestructura de Foundation para esos flujos ya
+existía y no implica que sus módulos transaccionales estén terminados. La migración Foundation
+compartida permanece sin modificaciones.
+
+---
+
 ## Desviaciones de proceso
 
 Los dos primeros pull requests se integraron sin la revisión que exigía el flujo de esas etapas. Esa
@@ -338,9 +401,10 @@ revisión no se reconstruye ni se completa de forma retroactiva: queda registrad
 ### Política vigente desde 2026-10-01
 
 Se añade `.github/workflows/ci.yml`: `Quality and tests` ejecuta en Linux la misma cadena de
-lint, formato, builds y 115 pruebas contra PostgreSQL 18 efímero (`ecosoap_ci_test`). Las Actions
-están fijadas por SHA; el secreto de sesión se genera por ejecución. El resultado remoto se
-verifica en el PR antes de integrar; la existencia del workflow por sí sola no acredita un pase.
+lint, formato, builds y las suites contra PostgreSQL 18 efímero (`ecosoap_ci_test`). El cierre de
+la Etapa 3 registró 115 pruebas; los resultados de la rama actual se documentan por separado. Las
+Actions están fijadas por SHA; el secreto de sesión se genera por ejecución. El resultado remoto
+se verifica en el PR antes de integrar; la existencia del workflow por sí sola no acredita un pase.
 
 Por autorización del responsable del proyecto, los cambios siempre se integran mediante PR hacia
 `develop`. Luigui789 puede fusionar sus propios PR una vez verificados el diff y los checks
@@ -361,17 +425,17 @@ solo documenta la política y no cambia permisos ni reglas remotas.
 
 ## Etapas siguientes
 
-| Etapa | Contenido                                         | Estado                         |
-| ----- | ------------------------------------------------- | ------------------------------ |
-| 3     | Autenticación JWT y RBAC                          | Integrada en `develop` (PR #3) |
-| 4     | Datos maestros: productos, almacenes, proveedores | Pendiente                      |
-| 5     | Compras y recepción                               | Pendiente                      |
-| 6     | Inventario y movimientos                          | Pendiente                      |
-| 7     | BOM y producción                                  | Pendiente                      |
-| 8     | Lotes, trazabilidad y calidad                     | Pendiente                      |
-| 9     | Clientes, ventas y despacho                       | Pendiente                      |
-| 10    | Dashboard y reportes básicos                      | Pendiente                      |
-| 11    | Simulación ISA-95                                 | Pendiente                      |
+| Etapa | Contenido                                         | Estado                                                                                  |
+| ----- | ------------------------------------------------- | --------------------------------------------------------------------------------------- |
+| 3     | Autenticación JWT y RBAC                          | Integrada en `develop` (PR #3)                                                          |
+| 4     | Datos maestros: productos, almacenes, proveedores | En curso: productos y almacenes verificados localmente; cierre e integración pendientes |
+| 5     | Compras y recepción                               | Pendiente                                                                               |
+| 6     | Inventario y movimientos                          | Pendiente                                                                               |
+| 7     | BOM y producción                                  | Pendiente                                                                               |
+| 8     | Lotes, trazabilidad y calidad                     | Pendiente                                                                               |
+| 9     | Clientes, ventas y despacho                       | Pendiente                                                                               |
+| 10    | Dashboard y reportes básicos                      | Pendiente                                                                               |
+| 11    | Simulación ISA-95                                 | Pendiente                                                                               |
 
 `develop` se integra en `main` cuando haya un bloque funcional completo —configuración, modelo de
 datos, autenticación y datos maestros—, no al terminar cada etapa.

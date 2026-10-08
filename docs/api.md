@@ -89,12 +89,10 @@ detecte sin interpretar el JSON.
 
 Rutas que el sistema expondrá conforme avancen las etapas. Aún no existen.
 
-```text
-/api/suppliers            /api/purchase-orders
-/api/products             /api/inventory            /api/inventory/movements
-/api/boms                 /api/production-orders    /api/lots
-/api/customers            /api/sales-orders
-```
+/api/suppliers /api/purchase-orders
+/api/inventory /api/inventory/movements
+/api/boms /api/production-orders /api/lots
+/api/customers /api/sales-orders
 
 ### Acciones de negocio
 
@@ -113,11 +111,17 @@ empresa:
 
 ## 6. Tags de Swagger
 
-Cada módulo declara su tag al incorporarse, de modo que la documentación quede agrupada por
-dominio. Actualmente existen `Health`, `Auth` y `Users`; los previstos son:
+## 6. Tags de Swagger
+
+Cada módulo declara su tag al incorporarse para agrupar su documentación.
+
+En esta rama están implementados los tags `Health`, `Auth`, `Users`, `Products`
+y `Warehouses`.
+
+Los previstos para etapas posteriores son:
 
 ```text
-Suppliers · Purchases · Products · Inventory
+Suppliers · Purchases · Inventory
 Production · Lots · Quality · Customers · Sales
 ```
 
@@ -184,3 +188,208 @@ probar las rutas; no se pega un JWT en el formulario de autorización.
 
 Los listados administrativos se paginan desde el backend. No se devuelven miles de registros de
 una vez para que el frontend los filtre.
+
+## 9. Inventario: productos y almacenes
+
+Implementado en la rama `feature/products-warehouses`. Los catálogos pertenecen
+al dominio de Inventario y reutilizan los modelos `Product` y `Warehouse`.
+
+La gestión de productos cubre `RF-INV-001`. Estas operaciones administran datos
+maestros y no modifican existencias ni generan movimientos de inventario.
+
+### 9.1. Acceso
+
+Todas las rutas requieren una sesión válida y haber completado cualquier cambio
+de contraseña obligatorio.
+
+- Consulta: `ADMIN`, `INVENTARIO`, `COMPRAS`, `PRODUCCION` y `VENTAS`.
+- Creación, edición y cambio de estado: únicamente `ADMIN` e `INVENTARIO`.
+- Sin sesión válida: `401`.
+- Sin permiso para modificar: `403`.
+
+Se reutilizan la cookie `ecosoap_session`, JWT y los guards y políticas del
+proyecto. El backend consulta el rol del usuario en la base de datos.
+
+Swagger agrupa los endpoints bajo `Products` y `Warehouses`, con autenticación
+por cookie. Se puede iniciar sesión desde `/api/docs` para probarlos.
+
+### 9.2. Endpoints de productos
+
+- `GET /api/products?page=1&limit=20`: listado paginado; responde `200`.
+- `POST /api/products`: crea un producto; responde `201`.
+- `GET /api/products/:id`: consulta el detalle; responde `200`.
+- `PATCH /api/products/:id`: actualiza los datos; responde `200`.
+- `PATCH /api/products/:id/status`: activa o desactiva; responde `200`.
+
+Ejemplo de creación:
+
+```json
+{
+  "code": "MP-ACEITE-01",
+  "name": "Aceite usado recolectado",
+  "category": "Aceites",
+  "type": "RAW_MATERIAL",
+  "unit": "LITER"
+}
+```
+
+Los cinco campos son obligatorios al crear:
+
+- `code`: texto de 1 a 50 caracteres; único.
+- `name`: texto de 1 a 200 caracteres.
+- `category`: texto de 1 a 100 caracteres, independiente del tipo.
+- `type`: uno de los valores del enum `ProductType`.
+- `unit`: uno de los valores del enum `UnitOfMeasure`.
+
+Código, nombre y categoría se recortan en los extremos. El código del producto
+conserva sus mayúsculas y minúsculas.
+
+Tipos admitidos:
+
+- `RAW_MATERIAL`: materia prima.
+- `INTERMEDIATE`: producto intermedio.
+- `FINISHED_GOOD`: producto terminado.
+- `CONSUMABLE`: consumible, conservado del modelo existente.
+
+Unidades admitidas: `UNIT`, `GRAM`, `KILOGRAM`, `MILLILITER` y `LITER`.
+
+El producto se crea activo. `isActive`, `isLotTracked` y
+`requiresQualityInspection` no se aceptan en el cuerpo de creación ni en la
+edición general. Los dos últimos conservan sus valores predeterminados del
+modelo al crear.
+
+La edición permite enviar cualquiera de los cinco campos del alta, con las
+mismas validaciones. Debe incluir al menos un campo; `{}` y los valores `null`
+se rechazan.
+
+Ejemplo de edición parcial:
+
+```json
+{
+  "name": "Aceite usado recolectado para proceso",
+  "category": "Aceites recuperados"
+}
+```
+
+`ProductResponse` incluye `id`, `code`, `name`, `category`, `type`, `unit`,
+`isLotTracked`, `requiresQualityInspection`, `isActive`, `createdAt` y
+`updatedAt`. El identificador es UUID y las fechas se serializan como texto
+ISO 8601.
+
+### 9.3. Endpoints de almacenes
+
+- `GET /api/warehouses?page=1&limit=20`: listado paginado; responde `200`.
+- `POST /api/warehouses`: crea un almacén; responde `201`.
+- `GET /api/warehouses/:id`: consulta el detalle; responde `200`.
+- `PATCH /api/warehouses/:id`: actualiza los datos; responde `200`.
+- `PATCH /api/warehouses/:id/status`: activa o desactiva; responde `200`.
+
+Ejemplo de creación:
+
+```json
+{
+  "code": "ALM-CENTRAL",
+  "name": "Almacén Central",
+  "location": "Nave Norte, Pasillo A",
+  "isActive": true
+}
+```
+
+Validaciones del alta:
+
+- `code`: obligatorio, de 3 a 50 caracteres; se recorta y convierte a mayúsculas.
+- `name`: obligatorio, de 3 a 100 caracteres; se recorta.
+- `location`: obligatoria, de 1 a 255 caracteres; se recorta.
+- `isActive`: booleano opcional; si se omite, se usa `true`.
+
+El código es único. Enviar el mismo código con distinta capitalización también
+produce un conflicto, porque se normaliza a mayúsculas.
+
+La edición acepta `code`, `name` y `location` de forma parcial, con las mismas
+validaciones. Debe incluir al menos un campo y no admite `null` ni `isActive`.
+El estado se modifica mediante `/status`.
+
+Ejemplo de edición parcial:
+
+```json
+{
+  "location": "Nave Sur, Pasillo B"
+}
+```
+
+`WarehouseResponse` incluye `id`, `code`, `name`, `location`, `isActive`,
+`createdAt` y `updatedAt`. El identificador es UUID y las fechas se serializan
+como texto ISO 8601.
+
+### 9.4. Estados y conservación de datos
+
+Los dos endpoints `PATCH /:id/status` reciben exclusivamente:
+
+```json
+{
+  "isActive": false
+}
+```
+
+Para reactivar se envía `true`. Se exigen booleanos JSON reales: `"false"`,
+`0` y `null` se rechazan con `400`.
+
+Solicitar el estado que el recurso ya tiene devuelve `409`.
+
+La desactivación conserva el registro y sus relaciones. No se ofrecen
+endpoints `DELETE` para productos ni almacenes.
+
+### 9.5. Respuestas y paginación
+
+Los listados responden con:
+
+```json
+{
+  "data": [],
+  "meta": {
+    "page": 1,
+    "limit": 20,
+    "total": 0
+  }
+}
+```
+
+- `page`: entero desde 1; predeterminado 1.
+- `limit`: entero entre 1 y 100; predeterminado 20.
+- `total`: cantidad total de registros, incluidos activos e inactivos.
+- Productos: orden por nombre ascendente y, en caso de empate, por identificador.
+- Almacenes: orden por código ascendente.
+- Una página sin registros devuelve `data: []`.
+
+El detalle, la creación, la edición y el cambio de estado responden con
+`{ data: recurso, message: texto }`, siguiendo las convenciones generales.
+
+### 9.6. Errores
+
+- `400`: datos inválidos, campos adicionales, edición vacía, UUID incorrecto
+  o paginación fuera de los límites.
+- `401`: sesión ausente o inválida.
+- `403`: rol sin permiso, cambio obligatorio de contraseña pendiente u otra
+  restricción de los guards globales.
+- `404`: producto o almacén inexistente.
+- `409`: código duplicado o solicitud de un estado que el recurso ya tiene.
+- `500`: fallo interno, incluido un fallo al registrar la auditoría.
+
+### 9.7. Auditoría y transacciones
+
+Se utilizan las convenciones existentes: acciones `CREATE`, `UPDATE`, `ENABLE`
+y `DISABLE`, junto con la entidad `PRODUCT` o `WAREHOUSE`.
+
+Los eventos identifican al usuario mediante `actorType: USER` y `actorUserId`,
+y se correlacionan con la petición mediante `requestId`.
+
+- Creación: registra los valores iniciales del catálogo.
+- Edición: registra los valores anteriores y nuevos únicamente de los campos
+  que cambiaron.
+- Activación y desactivación: registran el cambio de `isActive`.
+- En almacenes, los cambios de `location` también quedan auditados.
+- Una edición que conserva todos los valores no genera un evento `UPDATE`.
+
+El cambio del recurso y su evento se guardan dentro de la misma transacción.
+Si falla la auditoría, ambos se revierten. Los cambios sobre un mismo recurso
+se serializan mediante un bloqueo de fila dentro de la transacción.
