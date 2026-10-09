@@ -695,6 +695,10 @@ ya existe un ADMIN activo o el correo, nunca modifica un usuario existente y aud
 | 4   | `production`          | `Bom`, `BomItem`, `ProductionOrder`, `QualityInspection`; origen del lote de salida                                                                                                  |
 | 5   | `sales`               | `Customer`, `SalesOrder`, `SalesOrderItem`, `Dispatch`, `DispatchItem`                                                                                                               |
 
+`customers` se introduce antes de `sales`, con la tabla `customers` del modelo de §10 y el valor
+`CUSTOMER` de `AuditEntityType`. Las órdenes de venta y los despachos siguen reservados para
+`sales`.
+
 `auth_rbac` se introdujo entre Foundation y Compras con la etapa de autenticación. El ADR 007, ya
 aceptado, llama «migración 2» a la de Compras porque se redactó antes; ese texto designa la
 migración `purchases`, no un número de orden.

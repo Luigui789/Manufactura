@@ -86,17 +86,20 @@ backend/src/
 ├── auth/                servicios, contraseña, sesión y cuatro guards globales
 ├── users/               DTO, conversión pública y transacciones administrativas
 ├── audit/               record(tx), snapshots y diferencias permitidas
-├── common/              contexto AsyncLocalStorage, correo y paginación
+├── common/              contexto AsyncLocalStorage, correo, paginación y validadores de catálogo
 ├── cli/                 admin:create (solo primer ADMIN)
 ├── config/              validación de variables de entorno
 ├── prisma/              PrismaModule + PrismaService
 ├── health/              HealthModule + HealthController + HealthService + DTO
-└── inventory/           protocolo de ajustes Foundation, todavía sin endpoint
+├── inventory/           protocolo de ajustes Foundation, todavía sin endpoint
+└── sales/               SalesModule → CustomersModule (clientes)
 ```
 
 Foundation añade `backend/src/inventory/apply-adjustment.ts`: valida lote y producto, bloquea
 `StockBalance`, crea movimiento, actualiza saldo y registra auditoría en una transacción. Aún no
-hay un módulo HTTP de inventario. No se crean módulos vacíos para los otros dominios.
+hay un módulo HTTP de inventario. Ventas empieza con `CustomersModule`, que valida con los
+decoradores compartidos de `common/catalog.dto.ts`. No se crean módulos vacíos para los otros
+dominios.
 
 Dependencias: `UsersModule → AuthModule → AuditModule → PrismaModule`, sin ciclos.
 `AuthService` consulta con Prisma directamente. La cookie `HttpOnly` transporta el JWT; cada
@@ -198,8 +201,8 @@ frontend/src/
 ```
 
 Cada feature puede contener `components/`, `pages/`, `hooks/`, `services/`, `schemas/` y
-`types/`. Igual que en el backend, cada carpeta nace con su funcionalidad: `features/inventory/`
-se crea en `feature/inventory`.
+`types/`. Igual que en el backend, cada carpeta nace con su funcionalidad: `features/sales/`
+nació con clientes, y `features/inventory/` se crea en `feature/inventory`.
 
 Componentes transversales previstos, para no duplicarlos por módulo: `DataTable`, `PageHeader`,
 `StatusBadge`, `ConfirmDialog`, `FormField`, `EmptyState`, `LoadingState`, `ErrorState`,

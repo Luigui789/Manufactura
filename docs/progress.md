@@ -5,7 +5,7 @@ Este documento refleja el estado **real** del proyecto.
 Una casilla marcada significa que la comprobación se ejecutó y se vio el resultado. No se marca
 nada por parecer correcto, por estar escrito ni por estar a punto de terminarse.
 
-Última actualización: 2026-10-01.
+Última actualización: 2026-10-08.
 
 ## Estados del trabajo
 
@@ -289,7 +289,8 @@ El PR #3 fue fusionado por Luigui789 a las `2026-10-02T04:50:42Z`
 (2026-10-01 22:50:42 en America/Managua), con merge
 `24bd515b5e8400cb5dbe1b81501d924c78da02e1`. La revisión de diff y checks satisface la política
 vigente para sus PR propios; no se afirma una aprobación externa inexistente. Se actualizó
-`develop` local mediante fast-forward. La Etapa 4 permanece pendiente.
+`develop` local mediante fast-forward. La Etapa 4 permanecía pendiente al cerrar esta integración
+el 2026-10-01; el avance de clientes se registra en la sección siguiente.
 
 | Comprobación final de Etapa 3 | Resultado observado                                                                                                                                                                                                   |
 | ----------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -322,6 +323,43 @@ rendimiento, sin añadir dependencias ni cambiar el umbral para ocultar el aviso
 Las bases de verificación terminan en `_test`. No se modificó `ecosoap_erp`. Las tres cuentas de
 navegador se desactivan al cerrar la comprobación, preservando las filas referenciadas por
 auditoría. Los archivos locales de fixtures y sus credenciales no se versionan.
+
+---
+
+## Etapa 4 — Datos maestros: Clientes
+
+**Implementado y verificado localmente** en la rama `feature/customers`, creada desde `develop`
+e independiente de productos y almacenes (PR #6) y de proveedores (PR #8). Reutiliza el patrón
+revisado en proveedores: `common/catalog.dto.ts`, `AuditService`, bloqueo de fila y paginación.
+
+- [x] Backend: listar (paginado), crear, consultar, editar y cambiar estado en `/api/customers`
+- [x] Modelo `Customer` según `database.md` §10 y migración `customers`
+- [x] Consulta para roles autenticados; gestión solo para ADMIN y VENTAS
+- [x] Auditoría mediante `AuditService`, con lista permitida y en la misma transacción
+- [x] Bloqueo de fila y `409` para código duplicado o estado repetido
+- [x] Frontend: listado paginado, alta, edición parcial, activar/desactivar con confirmación
+- [x] Pruebas e2e y de frontend de clientes
+- [x] `docs/api.md` §11, `docs/requirements.md`, `docs/database.md` y `docs/architecture.md`
+- [ ] Recorrido completo en el navegador
+- [ ] Review
+- [ ] Integrated into develop
+
+### Evidencia ejecutada de Clientes
+
+| Comprobación                       | Resultado observado                                                                                            |
+| ---------------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| `pnpm --filter backend test:e2e`   | 8 archivos, 81/81 contra una base temporal `_test` con la migración `customers`; `customers.e2e-spec.ts` 30/30 |
+| `pnpm --filter backend test`       | 4 archivos, 35/35                                                                                              |
+| `pnpm --filter frontend test`      | 4 archivos, 46/46; clientes 17 (página con HTTP simulado y esquema)                                            |
+| `pnpm lint`, `format:check`, build | Aprobados; Vite mantiene el aviso conocido por el tamaño del bundle                                            |
+
+### Integración con las otras ramas de la Etapa 4
+
+La sección 11 de `api.md` deja libres la 9 (inventario, PR #6) y la 10 (proveedores, PR #8). Al
+integrar las ramas habrá conflictos de registro en `app.module.ts`, `navigation.ts`,
+`AppRoutes.tsx`, `schema.prisma` (valores de `AuditEntityType` y modelos al final) y en la
+documentación; en todos se conservan ambas partes. `common/catalog.dto.ts` es idéntico al de
+proveedores y no produce conflicto. Las migraciones van en carpetas propias.
 
 ---
 
@@ -361,17 +399,17 @@ solo documenta la política y no cambia permisos ni reglas remotas.
 
 ## Etapas siguientes
 
-| Etapa | Contenido                                         | Estado                         |
-| ----- | ------------------------------------------------- | ------------------------------ |
-| 3     | Autenticación JWT y RBAC                          | Integrada en `develop` (PR #3) |
-| 4     | Datos maestros: productos, almacenes, proveedores | Pendiente                      |
-| 5     | Compras y recepción                               | Pendiente                      |
-| 6     | Inventario y movimientos                          | Pendiente                      |
-| 7     | BOM y producción                                  | Pendiente                      |
-| 8     | Lotes, trazabilidad y calidad                     | Pendiente                      |
-| 9     | Clientes, ventas y despacho                       | Pendiente                      |
-| 10    | Dashboard y reportes básicos                      | Pendiente                      |
-| 11    | Simulación ISA-95                                 | Pendiente                      |
+| Etapa | Contenido                                                    | Estado                                                                                                |
+| ----- | ------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------- |
+| 3     | Autenticación JWT y RBAC                                     | Integrada en `develop` (PR #3)                                                                        |
+| 4     | Datos maestros: productos, almacenes, proveedores y clientes | En curso: clientes verificados en `feature/customers`; productos, almacenes y proveedores en revisión |
+| 5     | Compras y recepción                                          | Pendiente                                                                                             |
+| 6     | Inventario y movimientos                                     | Pendiente                                                                                             |
+| 7     | BOM y producción                                             | Pendiente                                                                                             |
+| 8     | Lotes, trazabilidad y calidad                                | Pendiente                                                                                             |
+| 9     | Clientes, ventas y despacho                                  | Pendiente                                                                                             |
+| 10    | Dashboard y reportes básicos                                 | Pendiente                                                                                             |
+| 11    | Simulación ISA-95                                            | Pendiente                                                                                             |
 
 `develop` se integra en `main` cuando haya un bloque funcional completo —configuración, modelo de
 datos, autenticación y datos maestros—, no al terminar cada etapa.
