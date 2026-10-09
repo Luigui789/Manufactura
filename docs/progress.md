@@ -330,9 +330,9 @@ auditoría. Los archivos locales de fixtures y sus credenciales no se versionan.
 
 **Implementado y verificado localmente** en la rama `feature/suppliers` (PR #8, de Lure94). La
 revisión del 2026-10-08 pidió cambios y el responsable del proyecto los aplicó en la misma rama.
-Productos y Almacenes se registran en `feature/products-warehouses` (PR #6), que debe integrarse
-antes: esta rama arrastra cuatro commits antiguos de esa feature, que desaparecen del diff al
-integrarla.
+La rama se reconstruyó sobre `develop` sin los cuatro commits de inventario que arrastraba, de
+modo que se integra con independencia de `feature/products-warehouses` (PR #6). Los commits de
+Lure94 conservan su autoría.
 
 - [x] Backend: listar (paginado), crear, consultar, editar y cambiar estado en `/api/suppliers`
 - [x] Modelo `Supplier` según `database.md` §10 y migración `suppliers`
@@ -348,15 +348,15 @@ integrarla.
 
 ### Evidencia ejecutada de Proveedores
 
-| Comprobación                       | Resultado observado                                                                                                                                                                                                                 |
-| ---------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `pnpm --filter backend test:e2e`   | 8 archivos, 81/81 contra una base temporal `_test` con la migración `suppliers`; `suppliers.e2e-spec.ts` 30/30                                                                                                                      |
-| `pnpm --filter backend test`       | 5 archivos, 72/72                                                                                                                                                                                                                   |
-| `pnpm --filter frontend test`      | 4 archivos, 46/46; proveedores 17 (página con HTTP simulado y esquema)                                                                                                                                                              |
-| `pnpm lint`, `format:check`, build | Aprobados; Vite mantiene el aviso conocido por el tamaño del bundle                                                                                                                                                                 |
-| Migración en `ecosoap_erp`         | `prisma migrate deploy` aplicó `20261009025713_suppliers`; `migrate status` sin pendientes                                                                                                                                          |
-| Swagger en ejecución               | `/api/docs-json`: cinco operaciones bajo `/api/suppliers` con el esquema de cookie `ecosoap_session`                                                                                                                                |
-| Navegador, ADMIN                   | Confirmado por el responsable: alta con código en minúsculas guardado en mayúsculas y contacto vacío; código duplicado rechazado en el diálogo; edición solo del teléfono; desactivación con confirmación; persistencia al recargar |
+| Comprobación                       | Resultado observado                                                                                                                                                                                                                                                                                                 |
+| ---------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `pnpm --filter backend test:e2e`   | 8 archivos, 81/81 contra una base temporal `_test` con la migración `suppliers`; `suppliers.e2e-spec.ts` 30/30, tras la reconstrucción                                                                                                                                                                              |
+| `pnpm --filter backend test`       | 4 archivos, 35/35                                                                                                                                                                                                                                                                                                   |
+| `pnpm --filter frontend test`      | 4 archivos, 46/46; proveedores 17 (página con HTTP simulado y esquema)                                                                                                                                                                                                                                              |
+| `pnpm lint`, `format:check`, build | Aprobados; Vite mantiene el aviso conocido por el tamaño del bundle                                                                                                                                                                                                                                                 |
+| Migración en `ecosoap_erp`         | `prisma migrate deploy` aplicó `20261009025713_suppliers`; `migrate status` sin pendientes                                                                                                                                                                                                                          |
+| Swagger en ejecución               | `/api/docs-json`: cinco operaciones bajo `/api/suppliers` con el esquema de cookie `ecosoap_session`                                                                                                                                                                                                                |
+| Navegador, ADMIN                   | Confirmado por el responsable sobre la versión previa a la reconstrucción, con el mismo código de proveedores: alta con código en minúsculas guardado en mayúsculas y contacto vacío; código duplicado rechazado en el diálogo; edición solo del teléfono; desactivación con confirmación; persistencia al recargar |
 
 ### Correcciones de la revisión del 2026-10-08
 
@@ -376,8 +376,9 @@ detectaban ninguno de estos fallos.
 
 ### Cuestiones abiertas
 
-- `catalog.dto.ts` vive en `inventory/` y ahora también lo usa `purchases/`; conviene moverlo a
-  `common/` en un cambio aparte.
+- Los decoradores de catálogo viven en `common/catalog.dto.ts`. El PR #6 trae una copia en
+  `inventory/catalog.dto.ts`; al integrarlo, productos y almacenes deben importar la de `common/` y
+  borrar la suya.
 - Filtros de listado (estado y búsqueda) cuando Compras los necesite al elegir proveedor.
 
 ---
@@ -421,7 +422,7 @@ solo documenta la política y no cambia permisos ni reglas remotas.
 | Etapa | Contenido                                         | Estado                                                                                              |
 | ----- | ------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
 | 3     | Autenticación JWT y RBAC                          | Integrada en `develop` (PR #3)                                                                      |
-| 4     | Datos maestros: productos, almacenes, proveedores | En curso: proveedores verificados en `feature/suppliers` (PR #8); productos y almacenes en el PR #6 |
+| 4     | Datos maestros: productos, almacenes, proveedores | En curso: proveedores verificados en `feature/suppliers` (PR #8); productos y almacenes en revisión |
 | 5     | Compras y recepción                               | Pendiente                                                                                           |
 | 6     | Inventario y movimientos                          | Pendiente                                                                                           |
 | 7     | BOM y producción                                  | Pendiente                                                                                           |

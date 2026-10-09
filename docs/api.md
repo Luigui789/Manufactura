@@ -92,7 +92,7 @@ implementado (§10).
 
 ```text
 /api/purchase-orders
-/api/inventory            /api/inventory/movements
+/api/products             /api/inventory            /api/inventory/movements
 /api/boms                 /api/production-orders    /api/lots
 /api/customers            /api/sales-orders
 ```
@@ -115,11 +115,10 @@ empresa:
 ## 6. Tags de Swagger
 
 Cada módulo declara su tag al incorporarse, de modo que la documentación quede agrupada por
-dominio. Actualmente existen `Health`, `Auth`, `Users`, `Products`, `Warehouses` y `Suppliers`;
-los previstos son:
+dominio. Actualmente existen `Health`, `Auth`, `Users` y `Suppliers`; los previstos son:
 
 ```text
-Purchases · Inventory
+Purchases · Products · Inventory
 Production · Lots · Quality · Customers · Sales
 ```
 
@@ -190,7 +189,7 @@ una vez para que el frontend los filtre.
 ## 10. Compras: proveedores
 
 Implementado en la rama `feature/suppliers`. Cubre `RF-COM-001` con el modelo `Supplier` de
-`database.md` §10 y sigue las mismas convenciones que productos y almacenes.
+`database.md` §10. Valida con los decoradores compartidos de `common/catalog.dto.ts`.
 
 ### 10.1. Acceso
 

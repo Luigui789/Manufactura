@@ -91,14 +91,14 @@ backend/src/
 ├── config/              validación de variables de entorno
 ├── prisma/              PrismaModule + PrismaService
 ├── health/              HealthModule + HealthController + HealthService + DTO
-├── inventory/           productos, almacenes y protocolo de ajustes Foundation
+├── inventory/           protocolo de ajustes Foundation, todavía sin endpoint
 └── purchases/           PurchasesModule → SuppliersModule (proveedores)
 ```
 
 Foundation añade `backend/src/inventory/apply-adjustment.ts`: valida lote y producto, bloquea
 `StockBalance`, crea movimiento, actualiza saldo y registra auditoría en una transacción. Aún no
 hay endpoints de existencias ni de movimientos. Compras empieza con `SuppliersModule`, que
-reutiliza los decoradores de validación de `inventory/catalog.dto.ts`. No se crean módulos vacíos
+reutiliza los decoradores de validación de `common/catalog.dto.ts`. No se crean módulos vacíos
 para los otros dominios.
 
 Dependencias: `UsersModule → AuthModule → AuditModule → PrismaModule`, sin ciclos.
@@ -201,8 +201,8 @@ frontend/src/
 ```
 
 Cada feature puede contener `components/`, `pages/`, `hooks/`, `services/`, `schemas/` y
-`types/`. Igual que en el backend, cada carpeta nace con su funcionalidad: `features/inventory/`
-nació con productos y almacenes, y `features/purchases/` con proveedores.
+`types/`. Igual que en el backend, cada carpeta nace con su funcionalidad: `features/purchases/`
+nació con proveedores, y `features/inventory/` se crea en `feature/inventory`.
 
 Componentes transversales previstos, para no duplicarlos por módulo: `DataTable`, `PageHeader`,
 `StatusBadge`, `ConfirmDialog`, `FormField`, `EmptyState`, `LoadingState`, `ErrorState`,
