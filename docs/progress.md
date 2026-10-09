@@ -342,20 +342,21 @@ integrarla.
 - [x] Frontend: listado paginado, alta, edición parcial, activar/desactivar con confirmación
 - [x] Pruebas e2e y de frontend de proveedores
 - [x] `docs/api.md` §10, `docs/requirements.md`, `docs/database.md` y `docs/architecture.md`
-- [ ] Recorrido completo en el navegador
+- [x] Recorrido completo en el navegador
 - [ ] Review
 - [ ] Integrated into develop
 
 ### Evidencia ejecutada de Proveedores
 
-| Comprobación                       | Resultado observado                                                                                            |
-| ---------------------------------- | -------------------------------------------------------------------------------------------------------------- |
-| `pnpm --filter backend test:e2e`   | 8 archivos, 81/81 contra una base temporal `_test` con la migración `suppliers`; `suppliers.e2e-spec.ts` 30/30 |
-| `pnpm --filter backend test`       | 5 archivos, 72/72                                                                                              |
-| `pnpm --filter frontend test`      | 4 archivos, 46/46; proveedores 17 (página con HTTP simulado y esquema)                                         |
-| `pnpm lint`, `format:check`, build | Aprobados; Vite mantiene el aviso conocido por el tamaño del bundle                                            |
-| Migración en `ecosoap_erp`         | `prisma migrate deploy` aplicó `20261009025713_suppliers`; `migrate status` sin pendientes                     |
-| Swagger en ejecución               | `/api/docs-json`: cinco operaciones bajo `/api/suppliers` con el esquema de cookie `ecosoap_session`           |
+| Comprobación                       | Resultado observado                                                                                                                                                                                                                 |
+| ---------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `pnpm --filter backend test:e2e`   | 8 archivos, 81/81 contra una base temporal `_test` con la migración `suppliers`; `suppliers.e2e-spec.ts` 30/30                                                                                                                      |
+| `pnpm --filter backend test`       | 5 archivos, 72/72                                                                                                                                                                                                                   |
+| `pnpm --filter frontend test`      | 4 archivos, 46/46; proveedores 17 (página con HTTP simulado y esquema)                                                                                                                                                              |
+| `pnpm lint`, `format:check`, build | Aprobados; Vite mantiene el aviso conocido por el tamaño del bundle                                                                                                                                                                 |
+| Migración en `ecosoap_erp`         | `prisma migrate deploy` aplicó `20261009025713_suppliers`; `migrate status` sin pendientes                                                                                                                                          |
+| Swagger en ejecución               | `/api/docs-json`: cinco operaciones bajo `/api/suppliers` con el esquema de cookie `ecosoap_session`                                                                                                                                |
+| Navegador, ADMIN                   | Confirmado por el responsable: alta con código en minúsculas guardado en mayúsculas y contacto vacío; código duplicado rechazado en el diálogo; edición solo del teléfono; desactivación con confirmación; persistencia al recargar |
 
 ### Correcciones de la revisión del 2026-10-08
 
