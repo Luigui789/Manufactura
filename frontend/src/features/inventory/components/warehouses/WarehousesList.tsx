@@ -119,8 +119,9 @@ export function WarehousesList() {
                         <Button
                           size="sm"
                           variant="outline"
-                          aria-label={`${warehouse.isActive ? 'Desactivar' : 'Activar'
-                            } ${warehouse.code}`}
+                          aria-label={`${
+                            warehouse.isActive ? 'Desactivar' : 'Activar'
+                          } ${warehouse.code}`}
                           onClick={() => openAction({ type: 'status', warehouse })}
                         >
                           {warehouse.isActive ? 'Desactivar' : 'Activar'}

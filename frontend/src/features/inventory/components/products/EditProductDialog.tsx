@@ -1,6 +1,5 @@
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { z } from 'zod';
 import {
   Dialog,
   DialogContent,
@@ -9,26 +8,13 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
+import { Label } from '@/components/ui/label';
 import { FormField } from '@/components/FormField';
 import { ErrorNotice } from '@/components/ErrorNotice';
 import { useUpdateProduct } from '../../api/product-hooks';
+import { createProductSchema, PRODUCT_TYPES, UNITS_OF_MEASURE } from '../../schemas';
 import { PRODUCT_TYPE_LABELS, PRODUCT_UNIT_LABELS } from '../../product-labels';
-import type { Product } from '../../types';
-
-const editProductSchema = z.object({
-  name: z
-    .string()
-    .trim()
-    .min(3, 'El nombre debe tener al menos 3 caracteres')
-    .max(100, 'El nombre admite hasta 100 caracteres'),
-  category: z
-    .string()
-    .trim()
-    .min(1, 'La categoría es obligatoria')
-    .max(100, 'La categoría admite hasta 100 caracteres'),
-});
-
-type EditProductForm = z.infer<typeof editProductSchema>;
+import type { CreateProductData, Product } from '../../types';
 
 export function EditProductDialog({
   product,
@@ -45,11 +31,14 @@ export function EditProductDialog({
     register,
     handleSubmit,
     formState: { errors },
-  } = useForm<EditProductForm>({
-    resolver: zodResolver(editProductSchema),
+  } = useForm<CreateProductData>({
+    resolver: zodResolver(createProductSchema),
     defaultValues: {
+      code: product.code,
       name: product.name,
       category: product.category,
+      type: product.type,
+      unit: product.unit,
     },
   });
 
@@ -67,19 +56,9 @@ export function EditProductDialog({
         <DialogHeader>
           <DialogTitle>Editar producto</DialogTitle>
           <DialogDescription>
-            Actualiza el nombre y la categoría. El código, el tipo y la unidad no se modifican desde
-            aquí.
+            Actualiza los datos del producto. El estado se cambia desde Activar o Desactivar.
           </DialogDescription>
         </DialogHeader>
-
-        <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 rounded-md border bg-muted/40 p-3 text-sm">
-          <dt className="font-medium">Código</dt>
-          <dd>{product.code}</dd>
-          <dt className="font-medium">Tipo</dt>
-          <dd>{PRODUCT_TYPE_LABELS[product.type]}</dd>
-          <dt className="font-medium">Unidad</dt>
-          <dd>{PRODUCT_UNIT_LABELS[product.unit]}</dd>
-        </dl>
 
         <form
           noValidate
@@ -88,12 +67,21 @@ export function EditProductDialog({
             mutation.mutate(
               { id: product.id, data },
               {
-                onSuccess: () => onSuccess(`Producto ${product.code} actualizado correctamente`),
+                onSuccess: (updated) =>
+                  onSuccess(`Producto ${updated.code} actualizado correctamente`),
               },
             ),
           )}
         >
           <fieldset disabled={mutation.isPending} className="space-y-4">
+            <FormField
+              id="edit-product-code"
+              label="Código"
+              autoComplete="off"
+              error={errors.code?.message}
+              {...register('code')}
+            />
+
             <FormField
               id="edit-product-name"
               label="Nombre"
@@ -101,6 +89,7 @@ export function EditProductDialog({
               error={errors.name?.message}
               {...register('name')}
             />
+
             <FormField
               id="edit-product-category"
               label="Categoría"
@@ -108,6 +97,50 @@ export function EditProductDialog({
               error={errors.category?.message}
               {...register('category')}
             />
+
+            <div className="space-y-2">
+              <Label htmlFor="edit-product-type">Tipo de producto</Label>
+              <select
+                id="edit-product-type"
+                className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm"
+                aria-invalid={!!errors.type}
+                aria-describedby={errors.type ? 'edit-product-type-error' : undefined}
+                {...register('type')}
+              >
+                {PRODUCT_TYPES.map((type) => (
+                  <option key={type} value={type}>
+                    {PRODUCT_TYPE_LABELS[type]}
+                  </option>
+                ))}
+              </select>
+              {errors.type && (
+                <p id="edit-product-type-error" className="text-sm text-destructive">
+                  {errors.type.message}
+                </p>
+              )}
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="edit-product-unit">Unidad de medida</Label>
+              <select
+                id="edit-product-unit"
+                className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm"
+                aria-invalid={!!errors.unit}
+                aria-describedby={errors.unit ? 'edit-product-unit-error' : undefined}
+                {...register('unit')}
+              >
+                {UNITS_OF_MEASURE.map((unit) => (
+                  <option key={unit} value={unit}>
+                    {PRODUCT_UNIT_LABELS[unit]}
+                  </option>
+                ))}
+              </select>
+              {errors.unit && (
+                <p id="edit-product-unit-error" className="text-sm text-destructive">
+                  {errors.unit.message}
+                </p>
+              )}
+            </div>
           </fieldset>
 
           <ErrorNotice error={mutation.error} />

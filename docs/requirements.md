@@ -191,7 +191,7 @@ flujos estén implementados.
 Proveedores y clientes corresponden a las otras features de la primera oleada:
 `feature/suppliers` y `feature/customers`.
 
-El cierre de la entrega requiere actualizar `docs/progress.md`, completar
-las comprobaciones finales, revisar el recorrido completo en el navegador
-y verificar el PR hacia `develop` y sus checks. El estado `Verified` no
-implica integración.
+El avance de la feature y sus comprobaciones se registran en `docs/progress.md`.
+El cierre de la entrega requiere completar las comprobaciones finales, revisar
+el recorrido completo en el navegador y Swagger, y verificar el PR hacia
+`develop` y sus checks. El estado `Verified` no implica integración.
