@@ -340,18 +340,20 @@ revisado en proveedores: `common/catalog.dto.ts`, `AuditService`, bloqueo de fil
 - [x] Frontend: listado paginado, alta, edición parcial, activar/desactivar con confirmación
 - [x] Pruebas e2e y de frontend de clientes
 - [x] `docs/api.md` §11, `docs/requirements.md`, `docs/database.md` y `docs/architecture.md`
-- [ ] Recorrido completo en el navegador
+- [x] Recorrido completo en el navegador
 - [ ] Review
 - [ ] Integrated into develop
 
 ### Evidencia ejecutada de Clientes
 
-| Comprobación                       | Resultado observado                                                                                            |
-| ---------------------------------- | -------------------------------------------------------------------------------------------------------------- |
-| `pnpm --filter backend test:e2e`   | 8 archivos, 81/81 contra una base temporal `_test` con la migración `customers`; `customers.e2e-spec.ts` 30/30 |
-| `pnpm --filter backend test`       | 4 archivos, 35/35                                                                                              |
-| `pnpm --filter frontend test`      | 4 archivos, 46/46; clientes 17 (página con HTTP simulado y esquema)                                            |
-| `pnpm lint`, `format:check`, build | Aprobados; Vite mantiene el aviso conocido por el tamaño del bundle                                            |
+| Comprobación                       | Resultado observado                                                                                                                                                                                                                                            |
+| ---------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `pnpm --filter backend test:e2e`   | 8 archivos, 81/81 contra una base temporal `_test` con la migración `customers`; `customers.e2e-spec.ts` 30/30                                                                                                                                                 |
+| `pnpm --filter backend test`       | 4 archivos, 35/35                                                                                                                                                                                                                                              |
+| `pnpm --filter frontend test`      | 4 archivos, 46/46; clientes 17 (página con HTTP simulado y esquema)                                                                                                                                                                                            |
+| `pnpm lint`, `format:check`, build | Aprobados; Vite mantiene el aviso conocido por el tamaño del bundle                                                                                                                                                                                            |
+| Migración en `ecosoap_erp`         | `prisma migrate deploy` aplicó `20261009034442_customers`                                                                                                                                                                                                      |
+| Navegador                          | Confirmado por el responsable con ADMIN: código en minúsculas guardado en mayúsculas, código duplicado rechazado en el diálogo, edición solo del teléfono, desactivación con confirmación y persistencia al recargar. Con COMPRAS, el menú no muestra Clientes |
 
 ### Integración con las otras ramas de la Etapa 4
 
