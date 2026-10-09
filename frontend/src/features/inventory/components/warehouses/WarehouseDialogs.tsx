@@ -12,6 +12,7 @@ import { Button } from '@/components/ui/button';
 import { FormField } from '@/components/FormField';
 import { ErrorNotice } from '@/components/ErrorNotice';
 import { createWarehouseSchema, updateWarehouseSchema } from '../../schemas';
+import { onlyDirty } from '../../only-dirty';
 import type { Warehouse } from '../../types';
 import { useCreateWarehouse, useSetWarehouseStatus, useUpdateWarehouse } from '../../api/hooks';
 
@@ -46,13 +47,21 @@ function WarehouseDialog({
   );
 }
 
-function FormActions({ pending, onClose }: { pending: boolean; onClose: () => void }) {
+function FormActions({
+  pending,
+  onClose,
+  submitDisabled = false,
+}: {
+  pending: boolean;
+  onClose: () => void;
+  submitDisabled?: boolean;
+}) {
   return (
     <div className="flex justify-end gap-2 pt-2">
       <Button type="button" variant="outline" disabled={pending} onClick={onClose}>
         Cancelar
       </Button>
-      <Button type="submit" disabled={pending}>
+      <Button type="submit" disabled={pending || submitDisabled}>
         {pending ? 'Guardando…' : 'Confirmar'}
       </Button>
     </div>
@@ -110,6 +119,7 @@ export function CreateWarehouseDialog({
             error={errors.code?.message}
             {...register('code')}
           />
+
           <FormField
             id="name"
             label="Nombre del Almacén"
@@ -117,6 +127,7 @@ export function CreateWarehouseDialog({
             error={errors.name?.message}
             {...register('name')}
           />
+
           <FormField
             id="location"
             label="Ubicación"
@@ -124,6 +135,7 @@ export function CreateWarehouseDialog({
             error={errors.location?.message}
             {...register('location')}
           />
+
           <label className="flex items-center gap-2 text-sm font-medium">
             <input type="checkbox" {...register('isActive')} className="rounded border-gray-300" />
             Almacén Activo
@@ -151,7 +163,7 @@ export function EditWarehouseDialog({
   const {
     register,
     handleSubmit,
-    formState: { errors },
+    formState: { errors, dirtyFields, isDirty },
   } = useForm({
     resolver: zodResolver(updateWarehouseSchema),
     defaultValues: {
@@ -171,12 +183,18 @@ export function EditWarehouseDialog({
       <form
         noValidate
         className="space-y-4"
-        onSubmit={handleSubmit((data) =>
+        onSubmit={handleSubmit((data) => {
+          if (mutation.isPending) return;
+
+          const changes = onlyDirty(data, dirtyFields);
+
+          if (Object.keys(changes).length === 0) return;
+
           mutation.mutate(
-            { id: warehouse.id, data },
+            { id: warehouse.id, data: changes },
             { onSuccess: () => onSuccess('Almacén actualizado exitosamente') },
-          ),
-        )}
+          );
+        })}
       >
         <fieldset disabled={mutation.isPending} className="space-y-4">
           <FormField
@@ -186,6 +204,7 @@ export function EditWarehouseDialog({
             error={errors.code?.message}
             {...register('code')}
           />
+
           <FormField
             id="edit-name"
             label="Nombre del Almacén"
@@ -193,6 +212,7 @@ export function EditWarehouseDialog({
             error={errors.name?.message}
             {...register('name')}
           />
+
           <FormField
             id="edit-location"
             label="Ubicación"
@@ -203,7 +223,8 @@ export function EditWarehouseDialog({
         </fieldset>
 
         <ErrorNotice error={mutation.error} />
-        <FormActions pending={mutation.isPending} onClose={onClose} />
+
+        <FormActions pending={mutation.isPending} onClose={onClose} submitDisabled={!isDirty} />
       </form>
     </WarehouseDialog>
   );
@@ -233,10 +254,12 @@ export function WarehouseStatusDialog({
       onClose={onClose}
     >
       <ErrorNotice error={mutation.error} />
+
       <div className="flex justify-end gap-2 pt-2">
         <Button type="button" variant="outline" disabled={mutation.isPending} onClick={onClose}>
           Cancelar
         </Button>
+
         <Button
           type="button"
           disabled={mutation.isPending}

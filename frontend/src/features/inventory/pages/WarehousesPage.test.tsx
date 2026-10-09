@@ -297,6 +297,62 @@ describe('Almacenes: interfaz de Inventario', () => {
     expect(JSON.parse(String(options?.body))).toEqual(changes);
   });
 
+  it('deshabilita confirmar al abrir y al revertir los cambios', async () => {
+    const fetch = warehousesApi();
+    mount();
+    await screen.findByText(warehouse.name);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Editar ' + warehouse.code }));
+
+    const save = screen.getByRole('button', { name: 'Confirmar' }) as HTMLButtonElement;
+    expect(save.disabled).toBe(true);
+    fireEvent.click(save);
+    expect(writes(fetch)).toHaveLength(0);
+
+    fill('Ubicación', 'Ubicación temporal');
+    await waitFor(() => expect(save.disabled).toBe(false));
+
+    fill('Ubicación', warehouse.location);
+    await waitFor(() => expect(save.disabled).toBe(true));
+    fireEvent.click(save);
+
+    expect(writes(fetch)).toHaveLength(0);
+    expect(screen.getByRole('dialog')).toBeTruthy();
+  });
+
+  it('envía únicamente la ubicación modificada al editar', async () => {
+    const fetch = warehousesApi();
+    mount();
+    await screen.findByText(warehouse.name);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Editar ' + warehouse.code }));
+    const location = 'Nave Sur, pasillo 2';
+    fill('Ubicación', location);
+
+    // Un campo que vuelve a su valor original tampoco debe enviarse.
+    fill('Nombre del Almacén', 'Nombre temporal');
+    fill('Nombre del Almacén', warehouse.name);
+
+    const save = screen.getByRole('button', { name: 'Confirmar' }) as HTMLButtonElement;
+    await waitFor(() => expect(save.disabled).toBe(false));
+    fireEvent.click(save);
+
+    expect(await screen.findByText('Almacén actualizado exitosamente')).toBeTruthy();
+    expect(screen.queryByRole('dialog')).toBeNull();
+    expect(await screen.findByText(location)).toBeTruthy();
+    expect(writes(fetch)).toHaveLength(1);
+
+    const [url, options] = writes(fetch)[0];
+    expect(url).toBe('http://localhost:3000/api/warehouses/' + warehouse.id);
+    expect(options?.method).toBe('PATCH');
+    expect(JSON.parse(String(options?.body))).toEqual({ location });
+
+    const table = within(screen.getByRole('table', { name: 'Almacenes' }));
+    for (const text of [warehouse.code, warehouse.name, 'Activo']) {
+      expect(table.getByText(text)).toBeTruthy();
+    }
+  });
+
   it('rechaza dejar la ubicación vacía al editar', async () => {
     const fetch = warehousesApi();
     mount();

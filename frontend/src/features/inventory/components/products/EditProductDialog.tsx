@@ -14,6 +14,7 @@ import { ErrorNotice } from '@/components/ErrorNotice';
 import { useUpdateProduct } from '../../api/product-hooks';
 import { createProductSchema, PRODUCT_TYPES, UNITS_OF_MEASURE } from '../../schemas';
 import { PRODUCT_TYPE_LABELS, PRODUCT_UNIT_LABELS } from '../../product-labels';
+import { onlyDirty } from '../../only-dirty';
 import type { CreateProductData, Product } from '../../types';
 
 export function EditProductDialog({
@@ -30,7 +31,7 @@ export function EditProductDialog({
   const {
     register,
     handleSubmit,
-    formState: { errors },
+    formState: { errors, dirtyFields, isDirty },
   } = useForm<CreateProductData>({
     resolver: zodResolver(createProductSchema),
     defaultValues: {
@@ -63,15 +64,21 @@ export function EditProductDialog({
         <form
           noValidate
           className="space-y-4"
-          onSubmit={handleSubmit((data) =>
+          onSubmit={handleSubmit((data) => {
+            if (mutation.isPending) return;
+
+            const changes = onlyDirty(data, dirtyFields);
+
+            if (Object.keys(changes).length === 0) return;
+
             mutation.mutate(
-              { id: product.id, data },
+              { id: product.id, data: changes },
               {
                 onSuccess: (updated) =>
                   onSuccess(`Producto ${updated.code} actualizado correctamente`),
               },
-            ),
-          )}
+            );
+          })}
         >
           <fieldset disabled={mutation.isPending} className="space-y-4">
             <FormField
@@ -149,7 +156,7 @@ export function EditProductDialog({
             <Button type="button" variant="outline" disabled={mutation.isPending} onClick={onClose}>
               Cancelar
             </Button>
-            <Button type="submit" disabled={mutation.isPending}>
+            <Button type="submit" disabled={mutation.isPending || !isDirty}>
               {mutation.isPending ? 'Guardando…' : 'Guardar cambios'}
             </Button>
           </div>

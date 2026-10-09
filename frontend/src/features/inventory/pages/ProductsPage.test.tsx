@@ -279,6 +279,60 @@ describe('Productos: interfaz de Inventario', () => {
     expect(JSON.parse(String(options?.body))).toEqual(changes);
   });
 
+  it('deshabilita guardar al abrir y al revertir los cambios', async () => {
+    const fetch = productsApi();
+    mount();
+    await screen.findByText(product.name);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Editar' }));
+
+    const save = screen.getByRole('button', { name: 'Guardar cambios' }) as HTMLButtonElement;
+    expect(save.disabled).toBe(true);
+    fireEvent.click(save);
+    expect(writes(fetch)).toHaveLength(0);
+
+    fill('Nombre', 'Nombre temporal');
+    await waitFor(() => expect(save.disabled).toBe(false));
+
+    fill('Nombre', product.name);
+    await waitFor(() => expect(save.disabled).toBe(true));
+    fireEvent.click(save);
+
+    expect(writes(fetch)).toHaveLength(0);
+    expect(screen.getByRole('dialog')).toBeTruthy();
+  });
+
+  it('envía únicamente el nombre modificado al editar', async () => {
+    const fetch = productsApi();
+    mount();
+    await screen.findByText(product.name);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Editar' }));
+    const name = 'Aceite con nombre actualizado';
+    fill('Nombre', name);
+
+    const save = screen.getByRole('button', { name: 'Guardar cambios' }) as HTMLButtonElement;
+    await waitFor(() => expect(save.disabled).toBe(false));
+    fireEvent.click(save);
+
+    expect(
+      await screen.findByText('Producto ' + product.code + ' actualizado correctamente'),
+    ).toBeTruthy();
+    expect(screen.queryByRole('dialog')).toBeNull();
+    expect(await screen.findByText(name)).toBeTruthy();
+    expect(writes(fetch)).toHaveLength(1);
+
+    const [url, options] = writes(fetch)[0];
+    expect(url).toBe('http://localhost:3000/api/products/' + product.id);
+    expect(options?.method).toBe('PATCH');
+    expect(JSON.parse(String(options?.body))).toEqual({ name });
+
+    const table = within(screen.getByRole('table', { name: 'Productos' }));
+    for (const text of [product.code, product.category, 'Litro', 'Materia prima', 'Activo']) {
+      expect(table.getByText(text)).toBeTruthy();
+    }
+  });
+
   it('consulta el detalle al pulsar Ver', async () => {
     const fetch = productsApi();
     mount();
