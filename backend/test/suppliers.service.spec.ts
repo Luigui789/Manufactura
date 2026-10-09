@@ -1,13 +1,25 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi, type Mock } from 'vitest';
 import { SuppliersService } from '../src/purchases/suppliers/suppliers.service.js';
 import { PrismaService } from '../src/prisma/prisma.service.js';
 import { NotFoundException } from '@nestjs/common';
 import { AuditAction, AuditEntityType, ActorType } from '../src/generated/prisma/client.js';
 
+interface MockPrismaService {
+  $transaction: Mock;
+  supplier: {
+    create: Mock;
+    findMany: Mock;
+    findUnique: Mock;
+    update: Mock;
+  };
+  auditLog: {
+    create: Mock;
+  };
+}
+
 describe('SuppliersService', () => {
   let service: SuppliersService;
-  let prisma: PrismaService;
 
   const mockUserId = 'user-uuid-123';
   const mockSupplierId = 'supplier-uuid-123';
@@ -23,8 +35,8 @@ describe('SuppliersService', () => {
     updatedAt: new Date(),
   };
 
-  const mockPrismaService = {
-    $transaction: vi.fn(async (callback) => await callback(mockPrismaService)),
+  const mockPrismaService: MockPrismaService = {
+    $transaction: vi.fn(),
     supplier: {
       create: vi.fn(),
       findMany: vi.fn(),
@@ -37,6 +49,12 @@ describe('SuppliersService', () => {
   };
 
   beforeEach(async () => {
+    mockPrismaService.$transaction.mockImplementation(
+      async <T>(callback: (tx: PrismaService) => Promise<T>): Promise<T> => {
+        return callback(mockPrismaService as unknown as PrismaService);
+      }
+    );
+
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         SuppliersService,
@@ -45,11 +63,9 @@ describe('SuppliersService', () => {
     }).compile();
 
     service = module.get<SuppliersService>(SuppliersService);
-    prisma = module.get<PrismaService>(PrismaService);
   });
 
   afterEach(() => {
-    // Limpieza de mocks usando Vitest
     vi.clearAllMocks();
   });
 
@@ -71,15 +87,16 @@ describe('SuppliersService', () => {
 
       const result = await service.create(dto, mockUserId);
 
-      expect(prisma.supplier.create).toHaveBeenCalledWith({ data: dto });
-      expect(prisma.auditLog.create).toHaveBeenCalledWith({
-        data: expect.objectContaining({
+      expect(mockPrismaService.supplier.create).toHaveBeenCalledWith({ data: dto });
+      expect(mockPrismaService.auditLog.create).toHaveBeenCalledWith({
+        data: {
           actorType: ActorType.USER,
           actorUserId: mockUserId,
           action: AuditAction.CREATE,
           entityType: AuditEntityType.SUPPLIER,
           entityId: mockSupplierId,
-        }),
+          newValues: mockSupplier,
+        },
       });
       expect(result).toEqual(mockSupplier);
     });
@@ -89,7 +106,8 @@ describe('SuppliersService', () => {
     it('debe retornar todos los proveedores ordenados por fecha', async () => {
       mockPrismaService.supplier.findMany.mockResolvedValue([mockSupplier]);
       const result = await service.findAll();
-      expect(prisma.supplier.findMany).toHaveBeenCalledWith({ orderBy: { createdAt: 'desc' } });
+      
+      expect(mockPrismaService.supplier.findMany).toHaveBeenCalledWith({ orderBy: { createdAt: 'desc' } });
       expect(result).toEqual([mockSupplier]);
     });
   });
@@ -98,7 +116,8 @@ describe('SuppliersService', () => {
     it('debe retornar un proveedor si existe', async () => {
       mockPrismaService.supplier.findUnique.mockResolvedValue(mockSupplier);
       const result = await service.findOne(mockSupplierId);
-      expect(prisma.supplier.findUnique).toHaveBeenCalledWith({ where: { id: mockSupplierId } });
+      
+      expect(mockPrismaService.supplier.findUnique).toHaveBeenCalledWith({ where: { id: mockSupplierId } });
       expect(result).toEqual(mockSupplier);
     });
 
@@ -118,15 +137,20 @@ describe('SuppliersService', () => {
 
       const result = await service.update(mockSupplierId, dto, mockUserId);
 
-      expect(prisma.supplier.update).toHaveBeenCalledWith({
+      expect(mockPrismaService.supplier.update).toHaveBeenCalledWith({
         where: { id: mockSupplierId },
         data: dto,
       });
-      expect(prisma.auditLog.create).toHaveBeenCalledWith({
-        data: expect.objectContaining({
+      expect(mockPrismaService.auditLog.create).toHaveBeenCalledWith({
+        data: {
+          actorType: ActorType.USER,
+          actorUserId: mockUserId,
           action: AuditAction.UPDATE,
+          entityType: AuditEntityType.SUPPLIER,
           entityId: mockSupplierId,
-        }),
+          previousValues: mockSupplier,
+          newValues: updatedSupplier,
+        },
       });
       expect(result.name).toBe('Nuevo Nombre');
     });
@@ -141,14 +165,18 @@ describe('SuppliersService', () => {
 
       const result = await service.updateStatus(mockSupplierId, { isActive: false }, mockUserId);
 
-      expect(prisma.supplier.update).toHaveBeenCalledWith({
+      expect(mockPrismaService.supplier.update).toHaveBeenCalledWith({
         where: { id: mockSupplierId },
         data: { isActive: false },
       });
-      expect(prisma.auditLog.create).toHaveBeenCalledWith({
-        data: expect.objectContaining({
+      expect(mockPrismaService.auditLog.create).toHaveBeenCalledWith({
+        data: {
+          actorType: ActorType.USER,
+          actorUserId: mockUserId,
           action: AuditAction.DISABLE,
-        }),
+          entityType: AuditEntityType.SUPPLIER,
+          entityId: mockSupplierId,
+        },
       });
       expect(result.isActive).toBe(false);
     });

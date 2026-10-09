@@ -15,8 +15,15 @@ describe('SupplierDialogs Component', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    vi.spyOn(hooks, 'useCreateSupplier').mockReturnValue({ mutateAsync: mockCreateMutateAsync, isPending: false } as any);
-    vi.spyOn(hooks, 'useUpdateSupplier').mockReturnValue({ mutateAsync: mockUpdateMutateAsync, isPending: false } as any);
+    vi.spyOn(hooks, 'useCreateSupplier').mockReturnValue({ 
+      mutateAsync: mockCreateMutateAsync, 
+      isPending: false 
+    } as unknown as ReturnType<typeof hooks.useCreateSupplier>);
+
+    vi.spyOn(hooks, 'useUpdateSupplier').mockReturnValue({ 
+      mutateAsync: mockUpdateMutateAsync, 
+      isPending: false 
+    } as unknown as ReturnType<typeof hooks.useUpdateSupplier>);
   });
 
   it('debe renderizar el título "Nuevo Proveedor" cuando no hay datos iniciales', () => {
