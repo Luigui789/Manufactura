@@ -125,6 +125,22 @@ export class WarehousesService {
         throw new ConflictException('El almacén ya tiene ese estado');
       }
 
+      if (!isActive) {
+        const stocked = await tx.stockBalance.findFirst({
+          where: {
+            warehouseId: id,
+            quantity: { not: 0 },
+          },
+          select: { id: true },
+        });
+
+        if (stocked) {
+          throw new ConflictException(
+            'No se puede desactivar un almacén con existencias; el saldo debe ser cero para todos sus productos',
+          );
+        }
+      }
+
       const after = await tx.warehouse.update({
         where: { id },
         data: { isActive },

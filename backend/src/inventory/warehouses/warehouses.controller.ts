@@ -85,7 +85,11 @@ export class WarehousesController {
   @ApiOperation({ summary: 'Activa o desactiva un almacén' })
   @ApiOkResponse({ type: WarehouseResultDto })
   @ApiResponse({ status: 404, description: 'Almacén no encontrado' })
-  @ApiResponse({ status: 409, description: 'El almacén ya tiene ese estado' })
+  @ApiResponse({
+    status: 409,
+    description:
+      'El almacén ya tiene ese estado o se intenta desactivarlo con existencias distintas de cero en alguno de sus productos',
+  })
   async setStatus(
     @CurrentUser() actor: AuthenticatedUser,
     @Param('id', new ParseUUIDPipe()) id: string,

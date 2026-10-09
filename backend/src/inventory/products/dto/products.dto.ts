@@ -2,11 +2,16 @@ import { ApiProperty, PartialType } from '@nestjs/swagger';
 import { IsEnum, IsString, Length } from 'class-validator';
 
 import { ProductType, UnitOfMeasure } from '../../../generated/prisma/client.js';
-import { RawValue, TrimText } from '../../catalog.dto.js';
+import { RawValue, TrimText, TrimUpperCase } from '../../catalog.dto.js';
 
 export class CreateProductDto {
-  @ApiProperty({ example: 'MP-ACEITE', minLength: 1, maxLength: 50 })
-  @TrimText()
+  @ApiProperty({
+    example: 'MP-ACEITE',
+    minLength: 1,
+    maxLength: 50,
+    description: 'Se eliminan los espacios exteriores y se convierte a mayúsculas',
+  })
+  @TrimUpperCase()
   @IsString()
   @Length(1, 50)
   code: string;

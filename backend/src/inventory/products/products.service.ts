@@ -98,6 +98,22 @@ export class ProductsService {
       return await this.prisma.$transaction(async (tx) => {
         const before = await lockProduct(tx, id);
 
+        const changesUnit = dto.unit !== undefined && dto.unit !== before.unit;
+        const changesType = dto.type !== undefined && dto.type !== before.type;
+
+        if (changesUnit || changesType) {
+          const used = await tx.inventoryMovement.findFirst({
+            where: { productId: id },
+            select: { id: true },
+          });
+
+          if (used) {
+            throw new ConflictException(
+              'No se puede cambiar la unidad ni el tipo de un producto con movimientos de inventario',
+            );
+          }
+        }
+
         const after = await tx.product.update({
           where: { id },
           data: {
@@ -124,6 +140,22 @@ export class ProductsService {
 
       if (before.isActive === isActive) {
         throw new ConflictException('El producto ya tiene ese estado');
+      }
+
+      if (!isActive) {
+        const stocked = await tx.stockBalance.findFirst({
+          where: {
+            productId: id,
+            quantity: { not: 0 },
+          },
+          select: { id: true },
+        });
+
+        if (stocked) {
+          throw new ConflictException(
+            'No se puede desactivar un producto con existencias; el saldo debe ser cero en todos los almacenes',
+          );
+        }
       }
 
       const after = await tx.product.update({

@@ -82,7 +82,8 @@ export class ProductsController {
   @ApiResponse({ status: 404, description: 'Producto no encontrado' })
   @ApiResponse({
     status: 409,
-    description: 'Ya existe un producto con ese código',
+    description:
+      'Código duplicado o cambio de unidad o tipo bloqueado por movimientos de inventario',
   })
   async update(
     @CurrentUser() actor: AuthenticatedUser,
@@ -102,7 +103,8 @@ export class ProductsController {
   @ApiResponse({ status: 404, description: 'Producto no encontrado' })
   @ApiResponse({
     status: 409,
-    description: 'El producto ya tiene ese estado',
+    description:
+      'El producto ya tiene ese estado o se intenta desactivarlo con existencias distintas de cero',
   })
   async setStatus(
     @CurrentUser() actor: AuthenticatedUser,
