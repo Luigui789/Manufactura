@@ -10,6 +10,7 @@ import {
 import { AppLayout } from '@/layouts/AppLayout';
 import { HomePage } from './HomePage';
 import { NotFoundPage } from './NotFoundPage';
+import CustomersPage from '@/features/sales/pages/CustomersPage';
 
 const UsersPage = lazy(() =>
   import('@/features/users/pages/UsersPage').then((module) => ({ default: module.UsersPage })),
@@ -33,6 +34,9 @@ export function AppRoutes() {
                   </Suspense>
                 }
               />
+            </Route>
+            <Route element={<RequireRole roles={['ADMIN', 'VENTAS']} />}>
+              <Route path="/sales/customers" element={<CustomersPage />} />
             </Route>
             <Route path="*" element={<NotFoundPage />} />
           </Route>
