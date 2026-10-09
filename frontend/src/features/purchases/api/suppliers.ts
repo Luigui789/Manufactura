@@ -1,39 +1,41 @@
-import { apiFetch } from '@/services/api-client';
-import type { Supplier, CreateSupplierPayload, UpdateSupplierPayload } from '../types';
+import { apiFetch, type ApiResponse } from '@/services/api-client';
+import type { CreateSupplierPayload, Supplier, UpdateSupplierPayload } from '../types';
 
-export const getSuppliers = async (): Promise<Supplier[]> => {
-  return apiFetch<Supplier[]>('/api/suppliers');
+export type SuppliersListResponse = {
+  data: Supplier[];
+  meta: { page: number; limit: number; total: number };
 };
 
+export const getSuppliers = (
+  page = 1,
+  limit = 20,
+  signal?: AbortSignal,
+): Promise<SuppliersListResponse> =>
+  apiFetch<SuppliersListResponse>(`/suppliers?page=${page}&limit=${limit}`, { signal });
+
 export const createSupplier = async (payload: CreateSupplierPayload): Promise<Supplier> => {
-  return apiFetch<Supplier>('/api/suppliers', {
+  const response = await apiFetch<ApiResponse<Supplier>>('/suppliers', {
     method: 'POST',
     body: JSON.stringify(payload),
   });
+  return response.data;
 };
 
-export const updateSupplier = async ({
-  id,
-  payload,
-}: {
-  id: string;
-  payload: UpdateSupplierPayload;
-}): Promise<Supplier> => {
-  return apiFetch<Supplier>(`/api/suppliers/${id}`, {
+export const updateSupplier = async (
+  id: string,
+  payload: UpdateSupplierPayload,
+): Promise<Supplier> => {
+  const response = await apiFetch<ApiResponse<Supplier>>(`/suppliers/${id}`, {
     method: 'PATCH',
     body: JSON.stringify(payload),
   });
+  return response.data;
 };
 
-export const toggleSupplierStatus = async ({
-  id,
-  isActive,
-}: {
-  id: string;
-  isActive: boolean;
-}): Promise<Supplier> => {
-  return apiFetch<Supplier>(`/api/suppliers/${id}/status`, {
+export const setSupplierStatus = async (id: string, isActive: boolean): Promise<Supplier> => {
+  const response = await apiFetch<ApiResponse<Supplier>>(`/suppliers/${id}/status`, {
     method: 'PATCH',
     body: JSON.stringify({ isActive }),
   });
+  return response.data;
 };

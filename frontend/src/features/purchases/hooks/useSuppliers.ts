@@ -1,38 +1,45 @@
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import {
-  getSuppliers,
-  createSupplier,
-  updateSupplier,
-  toggleSupplierStatus,
-} from '../api/suppliers';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import type { CreateSupplierPayload, UpdateSupplierPayload } from '../types';
+import { createSupplier, getSuppliers, setSupplierStatus, updateSupplier } from '../api/suppliers';
 
-export const useSuppliers = () => {
+export function useSuppliers(page = 1, limit = 20) {
   return useQuery({
-    queryKey: ['suppliers'],
-    queryFn: getSuppliers,
+    queryKey: ['suppliers', 'list', page, limit],
+    queryFn: ({ signal }) => getSuppliers(page, limit, signal),
   });
-};
+}
 
-export const useCreateSupplier = () => {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: createSupplier,
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['suppliers'] }),
-  });
-};
+function useRefreshSuppliers() {
+  const client = useQueryClient();
 
-export const useUpdateSupplier = () => {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: updateSupplier,
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['suppliers'] }),
-  });
-};
+  return () => client.invalidateQueries({ queryKey: ['suppliers'] });
+}
 
-export const useToggleSupplierStatus = () => {
-  const queryClient = useQueryClient();
+export function useCreateSupplier() {
+  const onSuccess = useRefreshSuppliers();
+
   return useMutation({
-    mutationFn: toggleSupplierStatus,
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['suppliers'] }),
+    mutationFn: (payload: CreateSupplierPayload) => createSupplier(payload),
+    onSuccess,
   });
-};
+}
+
+export function useUpdateSupplier() {
+  const onSuccess = useRefreshSuppliers();
+
+  return useMutation({
+    mutationFn: ({ id, payload }: { id: string; payload: UpdateSupplierPayload }) =>
+      updateSupplier(id, payload),
+    onSuccess,
+  });
+}
+
+export function useSetSupplierStatus() {
+  const onSuccess = useRefreshSuppliers();
+
+  return useMutation({
+    mutationFn: ({ id, isActive }: { id: string; isActive: boolean }) =>
+      setSupplierStatus(id, isActive),
+    onSuccess,
+  });
+}

@@ -184,3 +184,66 @@ probar las rutas; no se pega un JWT en el formulario de autorización.
 
 Los listados administrativos se paginan desde el backend. No se devuelven miles de registros de
 una vez para que el frontend los filtre.
+
+## 10. Compras: proveedores
+
+Implementado en la rama `feature/suppliers`. Cubre `RF-COM-001` con el modelo `Supplier` de
+`database.md` §10 y sigue las mismas convenciones que productos y almacenes.
+
+### 10.1. Acceso
+
+- Consulta: cualquier rol autenticado (`ADMIN`, `COMPRAS`, `INVENTARIO`, `PRODUCCION`, `VENTAS`).
+- Creación, edición y cambio de estado: únicamente `ADMIN` y `COMPRAS`.
+- Sin sesión válida: `401`. Sin permiso para modificar: `403`.
+
+### 10.2. Endpoints
+
+- `GET /api/suppliers?page=1&limit=20`: listado paginado por razón social; responde `200`.
+- `POST /api/suppliers`: crea un proveedor; responde `201`.
+- `GET /api/suppliers/:id`: consulta el detalle; responde `200`.
+- `PATCH /api/suppliers/:id`: actualiza los datos enviados; responde `200`.
+- `PATCH /api/suppliers/:id/status`: activa o desactiva con `{ "isActive": boolean }`; responde `200`.
+
+Ejemplo de creación:
+
+```json
+{
+  "code": "PROV-ACEITES",
+  "name": "Recicladora del Pacífico S.A.",
+  "taxId": "J0310000000001",
+  "email": "compras@recicladora.com.ni",
+  "phone": "+505 2222-0000",
+  "address": "Km 7 Carretera Norte, Managua"
+}
+```
+
+Validaciones:
+
+- `code`: obligatorio, de 3 a 50 caracteres; se recorta y convierte a mayúsculas; único, también
+  con distinta capitalización.
+- `name`: obligatorio, de 3 a 200 caracteres; se recorta.
+- `taxId` (hasta 50), `phone` (hasta 50) y `address` (hasta 255): opcionales; se recortan.
+- `email`: opcional, formato de correo, hasta 254 caracteres; se recorta y pasa a minúsculas.
+- Los campos de contacto aceptan `null` para quedar sin dato; un texto vacío se rechaza.
+- `isActive` no se acepta en el alta ni en la edición general; el proveedor se crea activo.
+
+La edición es parcial: debe incluir al menos un campo, y `code` y `name` no admiten `null`. El
+estado exige un booleano JSON real: `"false"`, `0` y `null` se rechazan con `400`.
+
+`SupplierResponse` incluye `id`, `code`, `name`, `taxId`, `email`, `phone`, `address`,
+`isActive`, `createdAt` y `updatedAt`. Los campos de contacto pueden ser `null`.
+
+### 10.3. Errores
+
+- `400`: datos inválidos, campos adicionales, edición vacía, UUID incorrecto o paginación fuera
+  de los límites.
+- `404`: proveedor inexistente.
+- `409`: código duplicado o solicitud de un estado que el proveedor ya tiene.
+
+### 10.4. Auditoría y transacciones
+
+Acciones `CREATE`, `UPDATE`, `ENABLE` y `DISABLE` sobre la entidad `SUPPLIER`, escritas mediante
+`AuditService` con `requestId`. Los snapshots usan una lista permitida (`code`, `name`, `taxId`,
+`email`, `phone`, `address`, `isActive`), y una edición registra solo los campos que cambiaron.
+El cambio y su evento comparten transacción; los cambios sobre un mismo proveedor se serializan
+con un bloqueo de fila. La desactivación es lógica: no hay `DELETE`.
