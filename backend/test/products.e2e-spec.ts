@@ -46,7 +46,7 @@ function productData(response: { body: unknown }): ProductJson {
 
 function newProduct() {
   return {
-    code: `E2E-${randomUUID()}`,
+    code: `E2E-${randomUUID()}`.toUpperCase(),
     name: 'Aceite usado recolectado',
     category: 'Aceites',
     type: ProductType.RAW_MATERIAL,
@@ -61,43 +61,56 @@ async function createProduct() {
     .set('Cookie', cookie)
     .send(newProduct())
     .expect(201);
+
   return productData(response);
 }
 
 function auditFor(response: { headers: Record<string, unknown> }) {
   const requestId = response.headers['x-request-id'];
   expect(requestId).toEqual(expect.any(String));
-  return kit.prisma.auditLog.findMany({ where: { requestId: requestId as string } });
+
+  return kit.prisma.auditLog.findMany({
+    where: { requestId: requestId as string },
+  });
 }
 
 describe('Productos: API, permisos y auditoría', () => {
-  it.each(Object.values(ProductType))('crea un producto %s y registra CREATE', async (type) => {
-    const payload = { ...newProduct(), type };
-    const response = await kit
-      .http()
-      .post('/api/products')
-      .set('Cookie', cookie)
-      .send({ ...payload, code: ` ${payload.code} `, name: ` ${payload.name} ` })
-      .expect(201);
-    const product = productData(response);
+  it.each(Object.values(ProductType))(
+    'crea un producto %s, normaliza el código y registra CREATE',
+    async (type) => {
+      const payload = { ...newProduct(), type };
 
-    expect(product).toMatchObject({ ...payload, isActive: true });
-    expect(await kit.prisma.product.findUniqueOrThrow({ where: { id: product.id } })).toMatchObject(
-      { ...payload, isActive: true },
-    );
+      const response = await kit
+        .http()
+        .post('/api/products')
+        .set('Cookie', cookie)
+        .send({
+          ...payload,
+          code: ` ${payload.code.toLowerCase()} `,
+          name: ` ${payload.name} `,
+        })
+        .expect(201);
 
-    const logs = await auditFor(response);
-    expect(logs).toHaveLength(1);
-    expect(logs[0]).toMatchObject({
-      actorType: ActorType.USER,
-      actorUserId: actor.id,
-      action: AuditAction.CREATE,
-      entityType: AuditEntityType.PRODUCT,
-      entityId: product.id,
-      previousValues: null,
-      newValues: { ...payload, isActive: true },
-    });
-  });
+      const product = productData(response);
+
+      expect(product).toMatchObject({ ...payload, isActive: true });
+      expect(
+        await kit.prisma.product.findUniqueOrThrow({ where: { id: product.id } }),
+      ).toMatchObject({ ...payload, isActive: true });
+
+      const logs = await auditFor(response);
+      expect(logs).toHaveLength(1);
+      expect(logs[0]).toMatchObject({
+        actorType: ActorType.USER,
+        actorUserId: actor.id,
+        action: AuditAction.CREATE,
+        entityType: AuditEntityType.PRODUCT,
+        entityId: product.id,
+        previousValues: null,
+        newValues: { ...payload, isActive: true },
+      });
+    },
+  );
 
   it('consulta el detalle y pagina desde el servidor', async () => {
     const product = await createProduct();
@@ -108,12 +121,14 @@ describe('Productos: API, permisos y auditoría', () => {
       .get(`/api/products/${product.id}`)
       .set('Cookie', cookie)
       .expect(200);
+
     expect(productData(detail)).toEqual(product);
 
     const pages: Array<{
       data: ProductJson[];
       meta: { page: number; limit: number; total: number };
     }> = [];
+
     const total = await kit.prisma.product.count();
 
     for (const page of [1, 2]) {
@@ -122,7 +137,9 @@ describe('Productos: API, permisos y auditoría', () => {
         .get(`/api/products?page=${page}&limit=1`)
         .set('Cookie', cookie)
         .expect(200);
+
       const result = response.body as (typeof pages)[number];
+
       expect(result.meta).toEqual({ page, limit: 1, total });
       expect(result.data).toHaveLength(1);
       pages.push(result);
@@ -131,20 +148,25 @@ describe('Productos: API, permisos y auditoría', () => {
     expect(pages[0].data[0].id).not.toBe(pages[1].data[0].id);
   });
 
-  it('actualiza los cinco campos y audita los valores anteriores y nuevos', async () => {
+  it('actualiza los cinco campos, normaliza el código y audita los cambios', async () => {
     const product = await createProduct();
+
     const changes = {
-      code: `EDIT-${randomUUID()}`,
+      code: `EDIT-${randomUUID()}`.toUpperCase(),
       name: 'Aceite filtrado',
       category: 'Semielaborados',
       type: ProductType.INTERMEDIATE,
       unit: UnitOfMeasure.MILLILITER,
     };
+
     const response = await kit
       .http()
       .patch(`/api/products/${product.id}`)
       .set('Cookie', cookie)
-      .send(changes)
+      .send({
+        ...changes,
+        code: ` ${changes.code.toLowerCase()} `,
+      })
       .expect(200);
 
     expect(productData(response)).toMatchObject({ ...changes, isActive: true });
@@ -220,6 +242,7 @@ describe('Productos: API, permisos y auditoría', () => {
     { isActive: false },
   ])('rechaza un alta inválida: %j', async (invalid) => {
     const total = await kit.prisma.product.count();
+
     const response = await kit
       .http()
       .post('/api/products')
@@ -231,24 +254,32 @@ describe('Productos: API, permisos y auditoría', () => {
     expect(await auditFor(response)).toHaveLength(0);
   });
 
-  it('rechaza códigos duplicados al crear y editar sin dejar cambios', async () => {
+  it('rechaza códigos duplicados con distinta capitalización al crear y editar', async () => {
     const first = await createProduct();
     const second = await createProduct();
-    const before = await kit.prisma.product.findUniqueOrThrow({ where: { id: second.id } });
+
+    const before = await kit.prisma.product.findUniqueOrThrow({
+      where: { id: second.id },
+    });
     const total = await kit.prisma.product.count();
 
     const duplicate = await kit
       .http()
       .post('/api/products')
       .set('Cookie', cookie)
-      .send({ ...newProduct(), code: first.code })
+      .send({
+        ...newProduct(),
+        code: ` ${first.code.toLowerCase()} `,
+      })
       .expect(409);
 
     const update = await kit
       .http()
       .patch(`/api/products/${second.id}`)
       .set('Cookie', cookie)
-      .send({ code: first.code })
+      .send({
+        code: ` ${first.code.toLowerCase()} `,
+      })
       .expect(409);
 
     expect(await kit.prisma.product.count()).toBe(total);
@@ -261,7 +292,9 @@ describe('Productos: API, permisos y auditoría', () => {
 
   it('rechaza edición vacía, null y cambios de estado por el endpoint general', async () => {
     const product = await createProduct();
-    const before = await kit.prisma.product.findUniqueOrThrow({ where: { id: product.id } });
+    const before = await kit.prisma.product.findUniqueOrThrow({
+      where: { id: product.id },
+    });
 
     for (const payload of [{}, { name: null }, { isActive: false }]) {
       await kit
@@ -293,12 +326,14 @@ describe('Productos: API, permisos y auditoría', () => {
     const id = randomUUID();
 
     await kit.http().get(`/api/products/${id}`).set('Cookie', cookie).expect(404);
+
     await kit
       .http()
       .patch(`/api/products/${id}`)
       .set('Cookie', cookie)
       .send({ name: 'Inexistente' })
       .expect(404);
+
     await kit
       .http()
       .patch(`/api/products/${id}/status`)
@@ -322,18 +357,23 @@ describe('Productos: API, permisos y auditoría', () => {
     async (role) => {
       const readerCookie = await login(kit, await createUser(kit, role));
       const product = await createProduct();
-      const before = await kit.prisma.product.findUniqueOrThrow({ where: { id: product.id } });
+
+      const before = await kit.prisma.product.findUniqueOrThrow({
+        where: { id: product.id },
+      });
       const payload = newProduct();
 
       await kit.http().get('/api/products').set('Cookie', readerCookie).expect(200);
       await kit.http().get(`/api/products/${product.id}`).set('Cookie', readerCookie).expect(200);
       await kit.http().post('/api/products').set('Cookie', readerCookie).send(payload).expect(403);
+
       await kit
         .http()
         .patch(`/api/products/${product.id}`)
         .set('Cookie', readerCookie)
         .send({ name: 'Cambio prohibido' })
         .expect(403);
+
       await kit
         .http()
         .patch(`/api/products/${product.id}/status`)
@@ -350,6 +390,7 @@ describe('Productos: API, permisos y auditoría', () => {
 
   it('ADMIN también puede crear, editar y desactivar', async () => {
     const adminCookie = await login(kit, await createUser(kit, RoleCode.ADMIN));
+
     const response = await kit
       .http()
       .post('/api/products')
@@ -365,6 +406,7 @@ describe('Productos: API, permisos y auditoría', () => {
       .set('Cookie', adminCookie)
       .send({ name: 'Modificado por ADMIN' })
       .expect(200);
+
     await kit
       .http()
       .patch(`/api/products/${id}/status`)
@@ -395,9 +437,11 @@ describe('Productos: API, permisos y auditoría', () => {
           .expect(200);
       }
 
-      const before = await kit.prisma.product.findUniqueOrThrow({ where: { id: product.id } });
+      const before = await kit.prisma.product.findUniqueOrThrow({
+        where: { id: product.id },
+      });
 
-      // El producto y el evento deben revertirse aunque el evento ya se haya insertado.
+      // También debe revertirse el evento si ya se había insertado.
       vi.spyOn(audit, 'record').mockImplementationOnce(async (writer, event) => {
         await originalRecord(writer, event);
         throw new Error('Fallo simulado de auditoría de productos');
