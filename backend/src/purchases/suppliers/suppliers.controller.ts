@@ -1,60 +1,99 @@
-import { Controller, Get, Post, Body, Patch, Param } from '@nestjs/common';
-import { SuppliersService } from './suppliers.service.js';
-import { CreateSupplierDto } from './dto/create-suplier.dto.js';
-import { UpdateSupplierDto } from './dto/update-supplier.dto.js';
-import { UpdateSupplierStatusDto } from './dto/update-supplier-status.dto.js';
-import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
-import * as accessPolicy from '../../auth/access-policy.js';
+import { Body, Controller, Get, Param, ParseUUIDPipe, Patch, Post, Query } from '@nestjs/common';
+import {
+  ApiCookieAuth,
+  ApiCreatedResponse,
+  ApiOkResponse,
+  ApiOperation,
+  ApiResponse,
+  ApiTags,
+} from '@nestjs/swagger';
+
+import {
+  Authenticated,
+  type AuthenticatedUser,
+  CurrentUser,
+  Roles,
+} from '../../auth/access-policy.js';
+import { SESSION_COOKIE } from '../../auth/session-cookie.js';
+import { SetCatalogStatusDto } from '../../common/catalog.dto.js';
+import { PaginationQueryDto } from '../../common/pagination/pagination.js';
 import { RoleCode } from '../../generated/prisma/client.js';
+import { CreateSupplierDto, UpdateSupplierDto } from './dto/suppliers.dto.js';
+import { SupplierResultDto, SuppliersListDto } from './suppliers-response.js';
+import { SuppliersService } from './suppliers.service.js';
 
 @ApiTags('Suppliers')
-@ApiBearerAuth()
-@Controller('api/suppliers')
-@accessPolicy.Authenticated()
+@ApiCookieAuth(SESSION_COOKIE)
+@ApiResponse({ status: 400, description: 'Datos, paginación o UUID inválidos' })
+@ApiResponse({ status: 401, description: 'Sin sesión válida' })
+@ApiResponse({ status: 403, description: 'Acceso denegado' })
+@Controller('suppliers')
 export class SuppliersController {
-  constructor(private readonly suppliersService: SuppliersService) {}
-
-  @Post()
-  @accessPolicy.Roles(RoleCode.ADMIN, RoleCode.COMPRAS)
-  @ApiOperation({ summary: 'Crear proveedor' })
-  create(
-    @Body() createSupplierDto: CreateSupplierDto,
-    @accessPolicy.CurrentUser() user: accessPolicy.AuthenticatedUser,
-  ) {
-    return this.suppliersService.create(createSupplierDto, user.id);
-  }
+  constructor(private readonly suppliers: SuppliersService) {}
 
   @Get()
-  @ApiOperation({ summary: 'Consultar proveedores' })
-  findAll() {
-    return this.suppliersService.findAll();
+  @Authenticated()
+  @ApiOperation({ summary: 'Lista paginada de proveedores' })
+  @ApiOkResponse({ type: SuppliersListDto })
+  list(@Query() query: PaginationQueryDto) {
+    return this.suppliers.list(query.page, query.limit);
   }
 
   @Get(':id')
-  @ApiOperation({ summary: 'Consultar el detalle de un proveedor' })
-  findOne(@Param('id') id: string) {
-    return this.suppliersService.findOne(id);
+  @Authenticated()
+  @ApiOperation({ summary: 'Consulta el detalle de un proveedor' })
+  @ApiOkResponse({ type: SupplierResultDto })
+  @ApiResponse({ status: 404, description: 'Proveedor no encontrado' })
+  async get(@Param('id', new ParseUUIDPipe()) id: string) {
+    return {
+      data: await this.suppliers.get(id),
+      message: 'Proveedor encontrado',
+    };
+  }
+
+  @Post()
+  @Roles(RoleCode.ADMIN, RoleCode.COMPRAS)
+  @ApiOperation({ summary: 'Crea un proveedor' })
+  @ApiCreatedResponse({ type: SupplierResultDto })
+  @ApiResponse({ status: 409, description: 'Ya existe un proveedor con ese código' })
+  async create(@CurrentUser() actor: AuthenticatedUser, @Body() dto: CreateSupplierDto) {
+    return {
+      data: await this.suppliers.create(actor, dto),
+      message: 'Proveedor creado',
+    };
   }
 
   @Patch(':id')
-  @accessPolicy.Roles(RoleCode.ADMIN, RoleCode.COMPRAS)
-  @ApiOperation({ summary: 'Editar proveedor' })
-  update(
-    @Param('id') id: string,
-    @Body() updateSupplierDto: UpdateSupplierDto,
-    @accessPolicy.CurrentUser() user: accessPolicy.AuthenticatedUser,
+  @Roles(RoleCode.ADMIN, RoleCode.COMPRAS)
+  @ApiOperation({ summary: 'Actualiza un proveedor' })
+  @ApiOkResponse({ type: SupplierResultDto })
+  @ApiResponse({ status: 404, description: 'Proveedor no encontrado' })
+  @ApiResponse({ status: 409, description: 'Ya existe un proveedor con ese código' })
+  async update(
+    @CurrentUser() actor: AuthenticatedUser,
+    @Param('id', new ParseUUIDPipe()) id: string,
+    @Body() dto: UpdateSupplierDto,
   ) {
-    return this.suppliersService.update(id, updateSupplierDto, user.id);
+    return {
+      data: await this.suppliers.update(actor, id, dto),
+      message: 'Proveedor actualizado',
+    };
   }
 
   @Patch(':id/status')
-  @accessPolicy.Roles(RoleCode.ADMIN, RoleCode.COMPRAS)
-  @ApiOperation({ summary: 'Activar o desactivar proveedor' })
-  updateStatus(
-    @Param('id') id: string,
-    @Body() updateSupplierStatusDto: UpdateSupplierStatusDto,
-    @accessPolicy.CurrentUser() user: accessPolicy.AuthenticatedUser,
+  @Roles(RoleCode.ADMIN, RoleCode.COMPRAS)
+  @ApiOperation({ summary: 'Activa o desactiva un proveedor' })
+  @ApiOkResponse({ type: SupplierResultDto })
+  @ApiResponse({ status: 404, description: 'Proveedor no encontrado' })
+  @ApiResponse({ status: 409, description: 'El proveedor ya tiene ese estado' })
+  async setStatus(
+    @CurrentUser() actor: AuthenticatedUser,
+    @Param('id', new ParseUUIDPipe()) id: string,
+    @Body() dto: SetCatalogStatusDto,
   ) {
-    return this.suppliersService.updateStatus(id, updateSupplierStatusDto, user.id);
+    return {
+      data: await this.suppliers.setStatus(actor, id, dto.isActive),
+      message: dto.isActive ? 'Proveedor activado' : 'Proveedor desactivado',
+    };
   }
 }

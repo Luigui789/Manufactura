@@ -235,12 +235,15 @@ model DocumentSequence {
   @@map("document_sequences")
 }
 
+// Datos maestros de Compras (RF-COM-001). Contacto opcional según database.md §10.
 model Supplier {
   id        String   @id @default(uuid(7)) @db.Uuid
+  code      String   @unique
   name      String
-  phone     String
-  email     String   @unique
-  address   String
+  taxId     String?  @map("tax_id") @db.VarChar(50)
+  email     String?  @db.VarChar(254)
+  phone     String?  @db.VarChar(50)
+  address   String?  @db.VarChar(255)
   isActive  Boolean  @default(true) @map("is_active")
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
