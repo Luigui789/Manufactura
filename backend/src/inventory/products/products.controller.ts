@@ -15,10 +15,10 @@ import {
   Roles,
 } from '../../auth/access-policy.js';
 import { SESSION_COOKIE } from '../../auth/session-cookie.js';
-import { PaginationQueryDto } from '../../common/pagination/pagination.js';
 import { RoleCode } from '../../generated/prisma/client.js';
 import { SetCatalogStatusDto } from '../catalog.dto.js';
 import { CreateProductDto, UpdateProductDto } from './dto/products.dto.js';
+import { ProductsQueryDto } from './dto/products-query.dto.js';
 import { ProductResultDto, ProductsListDto } from './products-response.js';
 import { ProductsService } from './products.service.js';
 
@@ -26,7 +26,7 @@ import { ProductsService } from './products.service.js';
 @ApiCookieAuth(SESSION_COOKIE)
 @ApiResponse({
   status: 400,
-  description: 'Datos, paginación o UUID inválidos',
+  description: 'Datos, filtros, paginación o UUID inválidos',
 })
 @ApiResponse({
   status: 401,
@@ -42,10 +42,14 @@ export class ProductsController {
 
   @Get()
   @Authenticated()
-  @ApiOperation({ summary: 'Lista paginada de productos' })
+  @ApiOperation({
+    summary: 'Lista paginada de productos',
+    description:
+      'Permite filtrar por estado y tipo, y buscar por código o nombre. El total corresponde a los filtros aplicados.',
+  })
   @ApiOkResponse({ type: ProductsListDto })
-  list(@Query() query: PaginationQueryDto) {
-    return this.products.list(query.page, query.limit);
+  list(@Query() query: ProductsQueryDto) {
+    return this.products.list(query);
   }
 
   @Get(':id')
