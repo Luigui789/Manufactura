@@ -89,10 +89,17 @@ detecte sin interpretar el JSON.
 
 Rutas que el sistema expondrá conforme avancen las etapas. Aún no existen.
 
-/api/suppliers /api/purchase-orders
-/api/inventory /api/inventory/movements
-/api/boms /api/production-orders /api/lots
-/api/customers /api/sales-orders
+```text
+/api/suppliers
+/api/purchase-orders
+/api/inventory
+/api/inventory/movements
+/api/boms
+/api/production-orders
+/api/lots
+/api/customers
+/api/sales-orders
+```
 
 ### Acciones de negocio
 
@@ -108,8 +115,6 @@ empresa:
 | `POST /production-orders/:id/complete` | Consume materia prima, genera lote y producto terminado |
 | `POST /sales-orders/:id/confirm`       | Confirma la venta; no toca inventario                   |
 | `POST /sales-orders/:id/dispatch`      | Registra despacho; **disminuye** inventario             |
-
-## 6. Tags de Swagger
 
 ## 6. Tags de Swagger
 
@@ -241,8 +246,10 @@ Los cinco campos son obligatorios al crear:
 - `type`: uno de los valores del enum `ProductType`.
 - `unit`: uno de los valores del enum `UnitOfMeasure`.
 
-Código, nombre y categoría se recortan en los extremos. El código del producto
-conserva sus mayúsculas y minúsculas.
+Código, nombre y categoría se recortan en los extremos. Además, el código del
+producto se convierte a mayúsculas al crear y editar, igual que el de almacenes.
+Por ejemplo, `" mp-aceite-01 "` se guarda como `"MP-ACEITE-01"`. Si el código
+normalizado ya pertenece a otro producto, la operación devuelve `409`.
 
 Tipos admitidos:
 
@@ -260,7 +267,17 @@ modelo al crear.
 
 La edición permite enviar cualquiera de los cinco campos del alta, con las
 mismas validaciones. Debe incluir al menos un campo; `{}` y los valores `null`
-se rechazan.
+se rechazan. Los campos omitidos conservan su valor.
+
+Si el producto tiene al menos un movimiento de inventario, cambiar `unit` o
+`type` devuelve `409`, incluso si sus existencias actuales son cero. Enviar el
+mismo valor de unidad o tipo no se considera un cambio. Código, nombre y
+categoría siguen siendo editables. Si se intenta un cambio bloqueado junto con
+otros campos, se rechaza toda la edición y no se registra un evento `UPDATE`.
+
+El formulario de productos construye el PATCH con `dirtyFields` y envía solo
+los campos modificados. Guardar queda deshabilitado si no hay cambios, también
+cuando se restauran todos los valores originales.
 
 Ejemplo de edición parcial:
 
@@ -302,12 +319,16 @@ Validaciones del alta:
 - `location`: obligatoria, de 1 a 255 caracteres; se recorta.
 - `isActive`: booleano opcional; si se omite, se usa `true`.
 
-El código es único. Enviar el mismo código con distinta capitalización también
-produce un conflicto, porque se normaliza a mayúsculas.
+El código es único. Intentar usar el código de otro almacén con distinta
+capitalización también produce un conflicto, porque se normaliza a mayúsculas.
 
 La edición acepta `code`, `name` y `location` de forma parcial, con las mismas
 validaciones. Debe incluir al menos un campo y no admite `null` ni `isActive`.
-El estado se modifica mediante `/status`.
+Los campos omitidos conservan su valor. El estado se modifica mediante `/status`.
+
+El formulario de almacenes construye el PATCH con `dirtyFields` y envía solo
+los campos modificados. Confirmar queda deshabilitado si no hay cambios, también
+cuando se restauran todos los valores originales.
 
 Ejemplo de edición parcial:
 
@@ -336,8 +357,25 @@ Para reactivar se envía `true`. Se exigen booleanos JSON reales: `"false"`,
 
 Solicitar el estado que el recurso ya tiene devuelve `409`.
 
+La desactivación exige que no existan saldos distintos de cero:
+
+- Producto: se comprueban sus saldos en todos los almacenes. Si cualquiera
+  tiene `quantity != 0`, se devuelve `409`.
+- Almacén: se comprueban los saldos de todos sus productos. Si cualquiera
+  tiene `quantity != 0`, se devuelve `409`.
+
+La comprobación se realiza dentro de la transacción, después de bloquear
+la fila del producto o almacén y antes de actualizar su estado. Cuando se
+rechaza la operación, el recurso conserva sus valores y no se registra
+un evento `DISABLE`.
+
+Si todos los saldos son cero, se permite desactivar, aunque existan filas
+de `StockBalance` o movimientos históricos. También se permite cuando
+el recurso no tiene saldos registrados. La reactivación no exige saldo cero.
+
 La desactivación conserva el registro y sus relaciones. No se ofrecen
-endpoints `DELETE` para productos ni almacenes.
+endpoints `DELETE` para productos ni almacenes. Cambiar el estado no
+modifica saldos ni genera movimientos de inventario.
 
 ### 9.5. Respuestas y paginación
 
@@ -372,7 +410,9 @@ El detalle, la creación, la edición y el cambio de estado responden con
 - `403`: rol sin permiso, cambio obligatorio de contraseña pendiente u otra
   restricción de los guards globales.
 - `404`: producto o almacén inexistente.
-- `409`: código duplicado o solicitud de un estado que el recurso ya tiene.
+- `409`: código duplicado, solicitud de un estado que el recurso ya tiene,
+  cambio de `unit` o `type` de un producto con movimientos de inventario,
+  o intento de desactivar un producto o almacén con existencias distintas de cero.
 - `500`: fallo interno, incluido un fallo al registrar la auditoría.
 
 ### 9.7. Auditoría y transacciones
