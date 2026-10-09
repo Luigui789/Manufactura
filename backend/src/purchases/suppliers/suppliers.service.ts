@@ -32,7 +32,7 @@ export class SuppliersService {
 
   async findAll() {
     return this.prisma.supplier.findMany({
-      orderBy: { createdAt: 'desc' }
+      orderBy: { createdAt: 'desc' },
     });
   }
 
@@ -69,7 +69,11 @@ export class SuppliersService {
   }
 
   // Cumple con la regla: No se debe eliminar físicamente un proveedor
-  async updateStatus(id: string, updateSupplierStatusDto: UpdateSupplierStatusDto, actorUserId: string) {
+  async updateStatus(
+    id: string,
+    updateSupplierStatusDto: UpdateSupplierStatusDto,
+    actorUserId: string,
+  ) {
     return this.prisma.$transaction(async (tx) => {
       const existing = await tx.supplier.findUnique({ where: { id } });
       if (!existing) throw new NotFoundException(`Supplier not found`);

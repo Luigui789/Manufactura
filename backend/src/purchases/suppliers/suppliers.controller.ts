@@ -18,8 +18,8 @@ export class SuppliersController {
   @accessPolicy.Roles(RoleCode.ADMIN, RoleCode.COMPRAS)
   @ApiOperation({ summary: 'Crear proveedor' })
   create(
-    @Body() createSupplierDto: CreateSupplierDto, 
-    @accessPolicy.CurrentUser() user: accessPolicy.AuthenticatedUser
+    @Body() createSupplierDto: CreateSupplierDto,
+    @accessPolicy.CurrentUser() user: accessPolicy.AuthenticatedUser,
   ) {
     return this.suppliersService.create(createSupplierDto, user.id);
   }
@@ -40,9 +40,9 @@ export class SuppliersController {
   @accessPolicy.Roles(RoleCode.ADMIN, RoleCode.COMPRAS)
   @ApiOperation({ summary: 'Editar proveedor' })
   update(
-    @Param('id') id: string, 
-    @Body() updateSupplierDto: UpdateSupplierDto, 
-    @accessPolicy.CurrentUser() user: accessPolicy.AuthenticatedUser
+    @Param('id') id: string,
+    @Body() updateSupplierDto: UpdateSupplierDto,
+    @accessPolicy.CurrentUser() user: accessPolicy.AuthenticatedUser,
   ) {
     return this.suppliersService.update(id, updateSupplierDto, user.id);
   }
@@ -51,9 +51,9 @@ export class SuppliersController {
   @accessPolicy.Roles(RoleCode.ADMIN, RoleCode.COMPRAS)
   @ApiOperation({ summary: 'Activar o desactivar proveedor' })
   updateStatus(
-    @Param('id') id: string, 
-    @Body() updateSupplierStatusDto: UpdateSupplierStatusDto, 
-    @accessPolicy.CurrentUser() user: accessPolicy.AuthenticatedUser
+    @Param('id') id: string,
+    @Body() updateSupplierStatusDto: UpdateSupplierStatusDto,
+    @accessPolicy.CurrentUser() user: accessPolicy.AuthenticatedUser,
   ) {
     return this.suppliersService.updateStatus(id, updateSupplierStatusDto, user.id);
   }

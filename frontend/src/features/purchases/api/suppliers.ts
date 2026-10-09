@@ -12,14 +12,26 @@ export const createSupplier = async (payload: CreateSupplierPayload): Promise<Su
   });
 };
 
-export const updateSupplier = async ({ id, payload }: { id: string; payload: UpdateSupplierPayload }): Promise<Supplier> => {
+export const updateSupplier = async ({
+  id,
+  payload,
+}: {
+  id: string;
+  payload: UpdateSupplierPayload;
+}): Promise<Supplier> => {
   return apiFetch<Supplier>(`/api/suppliers/${id}`, {
     method: 'PATCH',
     body: JSON.stringify(payload),
   });
 };
 
-export const toggleSupplierStatus = async ({ id, isActive }: { id: string; isActive: boolean }): Promise<Supplier> => {
+export const toggleSupplierStatus = async ({
+  id,
+  isActive,
+}: {
+  id: string;
+  isActive: boolean;
+}): Promise<Supplier> => {
   return apiFetch<Supplier>(`/api/suppliers/${id}/status`, {
     method: 'PATCH',
     body: JSON.stringify({ isActive }),

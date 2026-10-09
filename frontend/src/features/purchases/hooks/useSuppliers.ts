@@ -1,5 +1,10 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { getSuppliers, createSupplier, updateSupplier, toggleSupplierStatus } from '../api/suppliers';
+import {
+  getSuppliers,
+  createSupplier,
+  updateSupplier,
+  toggleSupplierStatus,
+} from '../api/suppliers';
 
 export const useSuppliers = () => {
   return useQuery({

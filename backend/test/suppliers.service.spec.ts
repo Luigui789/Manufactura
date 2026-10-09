@@ -52,14 +52,11 @@ describe('SuppliersService', () => {
     mockPrismaService.$transaction.mockImplementation(
       async <T>(callback: (tx: PrismaService) => Promise<T>): Promise<T> => {
         return callback(mockPrismaService as unknown as PrismaService);
-      }
+      },
     );
 
     const module: TestingModule = await Test.createTestingModule({
-      providers: [
-        SuppliersService,
-        { provide: PrismaService, useValue: mockPrismaService },
-      ],
+      providers: [SuppliersService, { provide: PrismaService, useValue: mockPrismaService }],
     }).compile();
 
     service = module.get<SuppliersService>(SuppliersService);
@@ -106,8 +103,10 @@ describe('SuppliersService', () => {
     it('debe retornar todos los proveedores ordenados por fecha', async () => {
       mockPrismaService.supplier.findMany.mockResolvedValue([mockSupplier]);
       const result = await service.findAll();
-      
-      expect(mockPrismaService.supplier.findMany).toHaveBeenCalledWith({ orderBy: { createdAt: 'desc' } });
+
+      expect(mockPrismaService.supplier.findMany).toHaveBeenCalledWith({
+        orderBy: { createdAt: 'desc' },
+      });
       expect(result).toEqual([mockSupplier]);
     });
   });
@@ -116,8 +115,10 @@ describe('SuppliersService', () => {
     it('debe retornar un proveedor si existe', async () => {
       mockPrismaService.supplier.findUnique.mockResolvedValue(mockSupplier);
       const result = await service.findOne(mockSupplierId);
-      
-      expect(mockPrismaService.supplier.findUnique).toHaveBeenCalledWith({ where: { id: mockSupplierId } });
+
+      expect(mockPrismaService.supplier.findUnique).toHaveBeenCalledWith({
+        where: { id: mockSupplierId },
+      });
       expect(result).toEqual(mockSupplier);
     });
 

@@ -21,9 +21,14 @@ export function SupplierDialogs({ open, onOpenChange, supplierToEdit }: Props) {
   const updateMutation = useUpdateSupplier();
   const isEditing = !!supplierToEdit;
 
-  const { register, handleSubmit, reset, formState: { errors, isSubmitting } } = useForm<SupplierFormData>({
+  const {
+    register,
+    handleSubmit,
+    reset,
+    formState: { errors, isSubmitting },
+  } = useForm<SupplierFormData>({
     resolver: zodResolver(supplierSchema),
-    defaultValues: { name: '', phone: '', email: '', address: '' }
+    defaultValues: { name: '', phone: '', email: '', address: '' },
   });
 
   useEffect(() => {
@@ -79,11 +84,18 @@ export function SupplierDialogs({ open, onOpenChange, supplierToEdit }: Props) {
           <div>
             <Label htmlFor="address">Dirección</Label>
             <Input id="address" {...register('address')} />
-            {errors.address && <span className="text-red-500 text-sm">{errors.address.message}</span>}
+            {errors.address && (
+              <span className="text-red-500 text-sm">{errors.address.message}</span>
+            )}
           </div>
           <div className="flex justify-end space-x-2 pt-4">
-            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Cancelar</Button>
-            <Button type="submit" disabled={isSubmitting || createMutation.isPending || updateMutation.isPending}>
+            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+              Cancelar
+            </Button>
+            <Button
+              type="submit"
+              disabled={isSubmitting || createMutation.isPending || updateMutation.isPending}
+            >
               Guardar
             </Button>
           </div>

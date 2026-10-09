@@ -16,7 +16,7 @@ describe('supplierSchema', () => {
   it('debe fallar si faltan campos obligatorios', () => {
     const invalidData = { name: '', phone: '', email: '', address: '' };
     const result = supplierSchema.safeParse(invalidData);
-    
+
     expect(result.success).toBe(false);
     if (!result.success) {
       const errors = result.error.format();
@@ -34,10 +34,12 @@ describe('supplierSchema', () => {
       address: 'Managua, Nicaragua',
     };
     const result = supplierSchema.safeParse(invalidEmailData);
-    
+
     expect(result.success).toBe(false);
     if (!result.success) {
-      expect(result.error.format().email?._errors).toContain('Debe ser un correo electrónico válido');
+      expect(result.error.format().email?._errors).toContain(
+        'Debe ser un correo electrónico válido',
+      );
     }
   });
 });

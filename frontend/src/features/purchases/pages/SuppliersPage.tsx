@@ -3,14 +3,21 @@ import { useSuppliers, useToggleSupplierStatus } from '../hooks/useSuppliers';
 import { SupplierDialogs } from '../components/suppliers/SupplierDialogs';
 import type { Supplier } from '../types';
 import { Button } from '@/components/ui/button';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { ErrorNotice } from '@/components/ErrorNotice';
 
 export default function SuppliersPage() {
   const { data: suppliers, isLoading, isError, error } = useSuppliers();
   const toggleStatusMutation = useToggleSupplierStatus();
-  
+
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [selectedSupplier, setSelectedSupplier] = useState<Supplier | null>(null);
 
@@ -67,9 +74,9 @@ export default function SuppliersPage() {
                   <Button variant="outline" size="sm" onClick={() => handleEdit(supplier)}>
                     Editar
                   </Button>
-                  <Button 
-                    variant={supplier.isActive ? 'destructive' : 'default'} 
-                    size="sm" 
+                  <Button
+                    variant={supplier.isActive ? 'destructive' : 'default'}
+                    size="sm"
                     onClick={() => handleToggleStatus(supplier.id, supplier.isActive)}
                     disabled={toggleStatusMutation.isPending}
                   >
@@ -80,17 +87,19 @@ export default function SuppliersPage() {
             ))}
             {suppliers?.length === 0 && (
               <TableRow>
-                <TableCell colSpan={5} className="text-center py-4">No hay proveedores registrados.</TableCell>
+                <TableCell colSpan={5} className="text-center py-4">
+                  No hay proveedores registrados.
+                </TableCell>
               </TableRow>
             )}
           </TableBody>
         </Table>
       </div>
 
-      <SupplierDialogs 
-        open={isDialogOpen} 
-        onOpenChange={setIsDialogOpen} 
-        supplierToEdit={selectedSupplier} 
+      <SupplierDialogs
+        open={isDialogOpen}
+        onOpenChange={setIsDialogOpen}
+        supplierToEdit={selectedSupplier}
       />
     </div>
   );

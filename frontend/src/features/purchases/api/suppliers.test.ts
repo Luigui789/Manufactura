@@ -19,7 +19,7 @@ describe('Suppliers API', () => {
   it('createSupplier debe hacer un POST con el payload stringificado', async () => {
     const payload = { name: 'Eco', phone: '123', email: 'eco@eco.com', address: 'Nicaragua' };
     await createSupplier(payload);
-    
+
     expect(apiFetch).toHaveBeenCalledWith('/api/suppliers', {
       method: 'POST',
       body: JSON.stringify(payload),
@@ -29,7 +29,7 @@ describe('Suppliers API', () => {
   it('updateSupplier debe hacer un PATCH a la ruta del ID', async () => {
     const payload = { name: 'Eco Editado' };
     await updateSupplier({ id: '123', payload });
-    
+
     expect(apiFetch).toHaveBeenCalledWith('/api/suppliers/123', {
       method: 'PATCH',
       body: JSON.stringify(payload),
@@ -38,7 +38,7 @@ describe('Suppliers API', () => {
 
   it('toggleSupplierStatus debe hacer un PATCH al endpoint de status', async () => {
     await toggleSupplierStatus({ id: '123', isActive: false });
-    
+
     expect(apiFetch).toHaveBeenCalledWith('/api/suppliers/123/status', {
       method: 'PATCH',
       body: JSON.stringify({ isActive: false }),

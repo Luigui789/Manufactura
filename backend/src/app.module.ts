@@ -35,7 +35,7 @@ import { PurchasesModule } from './purchases/purchases.module.js';
     AuthModule,
     UsersModule,
     HealthModule,
-    PurchasesModule
+    PurchasesModule,
   ],
   providers: [
     // Unica configuracion efectiva del pipe global. Al registrarlo aqui y no en

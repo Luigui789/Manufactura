@@ -77,7 +77,7 @@ describe('SuppliersController', () => {
       };
 
       const result = await controller.create(dto, mockUser);
-      
+
       expect(mockSuppliersService.create).toHaveBeenCalledWith(dto, mockUserId);
       expect(result).toEqual(mockSupplier);
     });
@@ -86,7 +86,7 @@ describe('SuppliersController', () => {
   describe('findAll', () => {
     it('debe retornar un arreglo de proveedores', async () => {
       const result = await controller.findAll();
-      
+
       expect(mockSuppliersService.findAll).toHaveBeenCalled();
       expect(result).toEqual([mockSupplier]);
     });
@@ -95,7 +95,7 @@ describe('SuppliersController', () => {
   describe('findOne', () => {
     it('debe retornar un proveedor específico', async () => {
       const result = await controller.findOne(mockSupplierId);
-      
+
       expect(mockSuppliersService.findOne).toHaveBeenCalledWith(mockSupplierId);
       expect(result).toEqual(mockSupplier);
     });
@@ -104,9 +104,9 @@ describe('SuppliersController', () => {
   describe('update', () => {
     it('debe llamar al servicio para actualizar un proveedor', async () => {
       const dto: UpdateSupplierDto = { name: 'Eco Proveedor Editado' };
-      
+
       const result = await controller.update(mockSupplierId, dto, mockUser);
-      
+
       expect(mockSuppliersService.update).toHaveBeenCalledWith(mockSupplierId, dto, mockUserId);
       expect(result).toEqual(mockSupplier);
     });
@@ -115,10 +115,14 @@ describe('SuppliersController', () => {
   describe('updateStatus', () => {
     it('debe llamar al servicio para cambiar el estado de un proveedor', async () => {
       const dto: UpdateSupplierStatusDto = { isActive: false };
-      
+
       const result = await controller.updateStatus(mockSupplierId, dto, mockUser);
-      
-      expect(mockSuppliersService.updateStatus).toHaveBeenCalledWith(mockSupplierId, dto, mockUserId);
+
+      expect(mockSuppliersService.updateStatus).toHaveBeenCalledWith(
+        mockSupplierId,
+        dto,
+        mockUserId,
+      );
       expect(result.isActive).toBe(false);
     });
   });
