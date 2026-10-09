@@ -87,11 +87,12 @@ detecte sin interpretar el JSON.
 
 ## 5. Endpoints previstos
 
-Rutas que el sistema expondrá conforme avancen las etapas. Aún no existen.
+Rutas que el sistema expondrá conforme avancen las etapas. Aún no existen. Proveedores ya está
+implementado (§10).
 
 ```text
-/api/suppliers            /api/purchase-orders
-/api/products             /api/inventory            /api/inventory/movements
+/api/purchase-orders
+/api/inventory            /api/inventory/movements
 /api/boms                 /api/production-orders    /api/lots
 /api/customers            /api/sales-orders
 ```
@@ -114,10 +115,11 @@ empresa:
 ## 6. Tags de Swagger
 
 Cada módulo declara su tag al incorporarse, de modo que la documentación quede agrupada por
-dominio. Actualmente existen `Health`, `Auth` y `Users`; los previstos son:
+dominio. Actualmente existen `Health`, `Auth`, `Users`, `Products`, `Warehouses` y `Suppliers`;
+los previstos son:
 
 ```text
-Suppliers · Purchases · Products · Inventory
+Purchases · Inventory
 Production · Lots · Quality · Customers · Sales
 ```
 

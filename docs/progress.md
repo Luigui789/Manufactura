@@ -5,7 +5,7 @@ Este documento refleja el estado **real** del proyecto.
 Una casilla marcada significa que la comprobación se ejecutó y se vio el resultado. No se marca
 nada por parecer correcto, por estar escrito ni por estar a punto de terminarse.
 
-Última actualización: 2026-10-01.
+Última actualización: 2026-10-08.
 
 ## Estados del trabajo
 
@@ -289,7 +289,8 @@ El PR #3 fue fusionado por Luigui789 a las `2026-10-02T04:50:42Z`
 (2026-10-01 22:50:42 en America/Managua), con merge
 `24bd515b5e8400cb5dbe1b81501d924c78da02e1`. La revisión de diff y checks satisface la política
 vigente para sus PR propios; no se afirma una aprobación externa inexistente. Se actualizó
-`develop` local mediante fast-forward. La Etapa 4 permanece pendiente.
+`develop` local mediante fast-forward. La Etapa 4 permanecía pendiente al cerrar esta integración
+el 2026-10-01; el avance de proveedores se registra en la sección siguiente.
 
 | Comprobación final de Etapa 3 | Resultado observado                                                                                                                                                                                                   |
 | ----------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -322,6 +323,61 @@ rendimiento, sin añadir dependencias ni cambiar el umbral para ocultar el aviso
 Las bases de verificación terminan en `_test`. No se modificó `ecosoap_erp`. Las tres cuentas de
 navegador se desactivan al cerrar la comprobación, preservando las filas referenciadas por
 auditoría. Los archivos locales de fixtures y sus credenciales no se versionan.
+
+---
+
+## Etapa 4 — Datos maestros: Proveedores
+
+**Implementado y verificado localmente** en la rama `feature/suppliers` (PR #8, de Lure94). La
+revisión del 2026-10-08 pidió cambios y el responsable del proyecto los aplicó en la misma rama.
+Productos y Almacenes se registran en `feature/products-warehouses` (PR #6), que debe integrarse
+antes: esta rama arrastra cuatro commits antiguos de esa feature, que desaparecen del diff al
+integrarla.
+
+- [x] Backend: listar (paginado), crear, consultar, editar y cambiar estado en `/api/suppliers`
+- [x] Modelo `Supplier` según `database.md` §10 y migración `suppliers`
+- [x] Consulta para roles autenticados; gestión solo para ADMIN y COMPRAS
+- [x] Auditoría mediante `AuditService`, con lista permitida y en la misma transacción
+- [x] Bloqueo de fila y `409` para código duplicado o estado repetido
+- [x] Frontend: listado paginado, alta, edición parcial, activar/desactivar con confirmación
+- [x] Pruebas e2e y de frontend de proveedores
+- [x] `docs/api.md` §10, `docs/requirements.md`, `docs/database.md` y `docs/architecture.md`
+- [ ] Recorrido completo en el navegador
+- [ ] Review
+- [ ] Integrated into develop
+
+### Evidencia ejecutada de Proveedores
+
+| Comprobación                       | Resultado observado                                                                                            |
+| ---------------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| `pnpm --filter backend test:e2e`   | 8 archivos, 81/81 contra una base temporal `_test` con la migración `suppliers`; `suppliers.e2e-spec.ts` 30/30 |
+| `pnpm --filter backend test`       | 5 archivos, 72/72                                                                                              |
+| `pnpm --filter frontend test`      | 4 archivos, 46/46; proveedores 17 (página con HTTP simulado y esquema)                                         |
+| `pnpm lint`, `format:check`, build | Aprobados; Vite mantiene el aviso conocido por el tamaño del bundle                                            |
+| Migración en `ecosoap_erp`         | `prisma migrate deploy` aplicó `20261009025713_suppliers`; `migrate status` sin pendientes                     |
+| Swagger en ejecución               | `/api/docs-json`: cinco operaciones bajo `/api/suppliers` con el esquema de cookie `ecosoap_session`           |
+
+### Correcciones de la revisión del 2026-10-08
+
+1. La ruta era `/api/api/suppliers` por repetir el prefijo global; el frontend repetía el error.
+2. El modelo usaba el correo como identidad única y no tenía `code`; ahora sigue la especificación.
+   La migración se regeneró antes de integrarse; quien aplicó la anterior debe resetear su base
+   local.
+3. `{"isActive": "false"}` activaba el proveedor; ahora se exige un booleano JSON real.
+4. Correo duplicado, UUID inválido y `null` en la edición producían `500`.
+5. La auditoría se escribía sin `AuditService`: sin `requestId`, con la fila completa y sin
+   valores en los cambios de estado.
+6. `pnpm-workspace.yaml` aprobaba los scripts de `@scarf/scarf` y `argon2`; se restauró la
+   versión documentada de `develop`.
+
+Las pruebas unitarias con Prisma simulado se sustituyeron por `suppliers.e2e-spec.ts`, porque no
+detectaban ninguno de estos fallos.
+
+### Cuestiones abiertas
+
+- `catalog.dto.ts` vive en `inventory/` y ahora también lo usa `purchases/`; conviene moverlo a
+  `common/` en un cambio aparte.
+- Filtros de listado (estado y búsqueda) cuando Compras los necesite al elegir proveedor.
 
 ---
 
@@ -361,17 +417,17 @@ solo documenta la política y no cambia permisos ni reglas remotas.
 
 ## Etapas siguientes
 
-| Etapa | Contenido                                         | Estado                         |
-| ----- | ------------------------------------------------- | ------------------------------ |
-| 3     | Autenticación JWT y RBAC                          | Integrada en `develop` (PR #3) |
-| 4     | Datos maestros: productos, almacenes, proveedores | Pendiente                      |
-| 5     | Compras y recepción                               | Pendiente                      |
-| 6     | Inventario y movimientos                          | Pendiente                      |
-| 7     | BOM y producción                                  | Pendiente                      |
-| 8     | Lotes, trazabilidad y calidad                     | Pendiente                      |
-| 9     | Clientes, ventas y despacho                       | Pendiente                      |
-| 10    | Dashboard y reportes básicos                      | Pendiente                      |
-| 11    | Simulación ISA-95                                 | Pendiente                      |
+| Etapa | Contenido                                         | Estado                                                                                              |
+| ----- | ------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
+| 3     | Autenticación JWT y RBAC                          | Integrada en `develop` (PR #3)                                                                      |
+| 4     | Datos maestros: productos, almacenes, proveedores | En curso: proveedores verificados en `feature/suppliers` (PR #8); productos y almacenes en el PR #6 |
+| 5     | Compras y recepción                               | Pendiente                                                                                           |
+| 6     | Inventario y movimientos                          | Pendiente                                                                                           |
+| 7     | BOM y producción                                  | Pendiente                                                                                           |
+| 8     | Lotes, trazabilidad y calidad                     | Pendiente                                                                                           |
+| 9     | Clientes, ventas y despacho                       | Pendiente                                                                                           |
+| 10    | Dashboard y reportes básicos                      | Pendiente                                                                                           |
+| 11    | Simulación ISA-95                                 | Pendiente                                                                                           |
 
 `develop` se integra en `main` cuando haya un bloque funcional completo —configuración, modelo de
 datos, autenticación y datos maestros—, no al terminar cada etapa.
