@@ -378,7 +378,7 @@ describe('Almacenes: API, permisos y auditoría', () => {
         .expect(403);
       await kit
         .http()
-        .patch(`/api/warehouses/${warehouse.id}`)
+        .patch(`/api/warehouses/${warehouse.id}/status`)
         .set('Cookie', readerCookie)
         .send({ isActive: false })
         .expect(403);

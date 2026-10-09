@@ -15,16 +15,16 @@ import {
   Roles,
 } from '../../auth/access-policy.js';
 import { SESSION_COOKIE } from '../../auth/session-cookie.js';
-import { PaginationQueryDto } from '../../common/pagination/pagination.js';
 import { RoleCode } from '../../generated/prisma/client.js';
 import { SetCatalogStatusDto } from '../catalog.dto.js';
 import { CreateWarehouseDto, UpdateWarehouseDto } from './dto/warehouses.dto.js';
+import { WarehousesQueryDto } from './dto/warehouses-query.dto.js';
 import { WarehouseResultDto, WarehousesListDto } from './warehouses-response.js';
 import { WarehousesService } from './warehouses.service.js';
 
 @ApiTags('Warehouses')
 @ApiCookieAuth(SESSION_COOKIE)
-@ApiResponse({ status: 400, description: 'Datos, paginación o UUID inválidos' })
+@ApiResponse({ status: 400, description: 'Datos, filtros, paginación o UUID inválidos' })
 @ApiResponse({ status: 401, description: 'Sin sesión válida' })
 @ApiResponse({ status: 403, description: 'Acceso denegado' })
 @Controller('warehouses')
@@ -33,10 +33,14 @@ export class WarehousesController {
 
   @Get()
   @Authenticated()
-  @ApiOperation({ summary: 'Lista paginada de almacenes' })
+  @ApiOperation({
+    summary: 'Lista paginada de almacenes',
+    description:
+      'Permite filtrar por estado y buscar por código, nombre o ubicación. El total corresponde a los filtros aplicados.',
+  })
   @ApiOkResponse({ type: WarehousesListDto })
-  list(@Query() query: PaginationQueryDto) {
-    return this.warehouses.list(query.page, query.limit);
+  list(@Query() query: WarehousesQueryDto) {
+    return this.warehouses.list(query);
   }
 
   @Get(':id')

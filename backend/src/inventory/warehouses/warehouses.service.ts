@@ -16,6 +16,7 @@ import {
 } from '../../generated/prisma/client.js';
 import { PrismaService } from '../../prisma/prisma.service.js';
 import type { CreateWarehouseDto, UpdateWarehouseDto } from './dto/warehouses.dto.js';
+import type { WarehousesQueryDto } from './dto/warehouses-query.dto.js';
 
 type Tx = Prisma.TransactionClient;
 
@@ -26,14 +27,30 @@ export class WarehousesService {
     private readonly audit: AuditService,
   ) {}
 
-  async list(page: number, limit: number) {
+  async list(query: WarehousesQueryDto) {
+    const { page, limit, isActive, search } = query;
+
+    const where: Prisma.WarehouseWhereInput = {
+      isActive,
+      ...(search
+        ? {
+            OR: [
+              { code: { contains: search, mode: 'insensitive' } },
+              { name: { contains: search, mode: 'insensitive' } },
+              { location: { contains: search, mode: 'insensitive' } },
+            ],
+          }
+        : {}),
+    };
+
     const [data, total] = await this.prisma.$transaction([
       this.prisma.warehouse.findMany({
+        where,
         skip: (page - 1) * limit,
         take: limit,
         orderBy: { code: 'asc' },
       }),
-      this.prisma.warehouse.count(),
+      this.prisma.warehouse.count({ where }),
     ]);
 
     return {
