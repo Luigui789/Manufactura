@@ -9,6 +9,7 @@ import { RequestContextMiddleware } from './common/request-context/request-conte
 import { validateEnv } from './config/env.validation.js';
 import { HealthModule } from './health/health.module.js';
 import { PrismaModule } from './prisma/prisma.module.js';
+import { SalesModule } from './sales/sales.module.js';
 import { UsersModule } from './users/users.module.js';
 
 /**
@@ -34,6 +35,7 @@ import { UsersModule } from './users/users.module.js';
     AuthModule,
     UsersModule,
     HealthModule,
+    SalesModule,
   ],
   providers: [
     // Unica configuracion efectiva del pipe global. Al registrarlo aqui y no en
