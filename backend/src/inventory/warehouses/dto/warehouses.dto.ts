@@ -1,7 +1,7 @@
 import { ApiProperty, ApiPropertyOptional, OmitType, PartialType } from '@nestjs/swagger';
 import { IsBoolean, IsString, Length, ValidateIf } from 'class-validator';
 
-import { RawValue, TrimText, TrimUpperCase } from '../../catalog.dto.js';
+import { RawValue, TrimText, TrimUpperCase } from '../../../common/catalog.dto.js';
 
 export class CreateWarehouseDto {
   @ApiProperty({

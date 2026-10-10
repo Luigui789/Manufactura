@@ -3,7 +3,7 @@ import { Transform } from 'class-transformer';
 import { IsBoolean, IsString, Length, ValidateIf } from 'class-validator';
 
 import { PaginationQueryDto } from '../../../common/pagination/pagination.js';
-import { TrimText } from '../../catalog.dto.js';
+import { TrimText } from '../../../common/catalog.dto.js';
 
 export class WarehousesQueryDto extends PaginationQueryDto {
   @ApiPropertyOptional({

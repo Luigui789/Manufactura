@@ -140,7 +140,7 @@ pendientes a la vez. Queda resuelto.
 | 1   | Matriz tipo → origen de `InventoryMovement` definida por migración          |
 | 2   | `AuditLog` admite `ANONYMOUS` y entidad nula solo en `LOGIN_FAILED`         |
 | 3   | `ProductionOrder.plannedDate` añadida como fecha de calendario              |
-| 4   | `BomItem` sin unidad propia; congelación de la versión de BOM usada         |
+| 4   | Datos maestros: productos, almacenes, proveedores                           | En curso: productos y almacenes integrados (PR #6); proveedores en actualización (PR #8) |
 | 5   | Igualdad lote–producto garantizada con clave foránea compuesta              |
 | 6   | Origen único y obligatorio de cada lote                                     |
 | 7   | Política de calidad; bloqueo de consumo además de despacho                  |
@@ -329,12 +329,12 @@ auditoría. Los archivos locales de fixtures y sus credenciales no se versionan.
 
 ## Etapa 4 — Datos maestros: Productos y Almacenes
 
-**Implementados, con las correcciones verificadas en local** en la rama
+**Integrados en `develop` mediante el PR #6**, con las correcciones verificadas en la rama
 `feature/products-warehouses`, asociada al [PR #6](https://github.com/Luigui789/Manufactura/pull/6)
 hacia `develop`. El CRUD inicial se comprobó también en navegador el 2026-10-08. Las siete
 correcciones de revisión cuentan con pruebas automatizadas aprobadas el 2026-10-09. El
 responsable confirmó ese día la comprobación manual de filtros y PATCH parcial, y aportó
-capturas de los parámetros en Swagger. El cierre remoto sigue pendiente. Esta sección cubre solo
+capturas de los parámetros en Swagger. El cierre remoto se completó el 2026-10-09. Esta sección cubre solo
 Productos y Almacenes (`RF-INV-001`); Proveedores y Clientes se desarrollan en
 `feature/suppliers` y `feature/customers`.
 
@@ -354,9 +354,9 @@ Productos y Almacenes (`RF-INV-001`); Proveedores y Clientes se desarrollan en
 - [x] Recorrido inicial en navegador y visualización de los diez endpoints en Swagger (2026-10-08)
 - [x] Correcciones del PR #6 implementadas y cubiertas por pruebas automatizadas
 - [x] Verificación manual de filtros y PATCH parcial contra la API real, confirmada por el responsable (2026-10-09)
-- [ ] Checks del PR sobre el último commit publicado
-- [ ] Nueva aprobación de las correcciones del PR #6
-- [ ] Integrated into develop
+- [x] Checks del PR sobre el último commit publicado (`4d2c796`)
+- [x] Nueva aprobación de las correcciones del PR #6 por Luigui789
+- [x] Integrated into develop (PR #6, merge `332e499`)
 
 ### Evidencia ejecutada de Productos y Almacenes
 
@@ -562,6 +562,101 @@ No se implementan movimientos de inventario, ajustes manuales de stock, recepcio
 producción, BOM, ventas ni despachos. La infraestructura de Foundation para esos flujos ya
 existía y no implica que sus módulos transaccionales estén terminados. La migración Foundation
 compartida permanece sin modificaciones.
+
+---
+
+### Cierre remoto del PR #6 (2026-10-09)
+
+El commit `4d2c796` recibió aprobación de Luigui789 después de pasar la
+[CI del PR](https://github.com/Luigui789/Manufactura/actions/runs/38015214216).
+El merge `332e499` pasó nuevamente la
+[CI de develop](https://github.com/Luigui789/Manufactura/actions/runs/38015405667):
+72 unitarias backend, 86 frontend y 173 e2e (331 en total), además de lint, formato,
+builds, migraciones y seed en PostgreSQL 18. La cobertura incluye los ocho casos de
+concurrencia entre cambios de catálogo y ajustes.
+
+## Etapa 4 — Datos maestros: Proveedores
+
+**Implementado y verificado localmente** en la rama `feature/suppliers` (PR #8, de Lure94). La
+revisión del 2026-10-08 pidió cambios y el responsable del proyecto los aplicó en la misma rama.
+La reconstrucción del 2026-10-08 eliminó los cuatro commits de inventario que arrastraba.
+El 2026-10-09 se actualiza con `develop` después del merge del PR #6, conservando proveedores,
+productos, almacenes y la corrección de concurrencia con ajustes. Los commits de Lure94
+conservan su autoría. Al preparar esta actualización, la aprobación y la integración del PR #8
+siguen pendientes.
+
+- [x] Backend: listar (paginado), crear, consultar, editar y cambiar estado en `/api/suppliers`
+- [x] Modelo `Supplier` según `database.md` §10 y migración `suppliers`
+- [x] Consulta para roles autenticados; gestión solo para ADMIN y COMPRAS
+- [x] Auditoría mediante `AuditService`, con lista permitida y en la misma transacción
+- [x] Bloqueo de fila y `409` para código duplicado o estado repetido
+- [x] Frontend: listado paginado, alta, edición parcial, activar/desactivar con confirmación
+- [x] Pruebas e2e y de frontend de proveedores
+- [x] `docs/api.md` §10, `docs/requirements.md`, `docs/database.md` y `docs/architecture.md`
+- [x] Recorrido completo en el navegador
+- [ ] Review
+- [ ] Integrated into develop
+
+### Evidencia ejecutada de Proveedores
+
+| Comprobación                       | Resultado observado                                                                                                                                                                                                                                                                                                 |
+| ---------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `pnpm --filter backend test:e2e`   | 8 archivos, 81/81 contra una base temporal `_test` con la migración `suppliers`; `suppliers.e2e-spec.ts` 30/30, tras la reconstrucción                                                                                                                                                                              |
+| `pnpm --filter backend test`       | 4 archivos, 35/35                                                                                                                                                                                                                                                                                                   |
+| `pnpm --filter frontend test`      | 4 archivos, 46/46; proveedores 17 (página con HTTP simulado y esquema)                                                                                                                                                                                                                                              |
+| `pnpm lint`, `format:check`, build | Aprobados; Vite mantiene el aviso conocido por el tamaño del bundle                                                                                                                                                                                                                                                 |
+| Migración en `ecosoap_erp`         | `prisma migrate deploy` aplicó `20261009025713_suppliers`; `migrate status` sin pendientes                                                                                                                                                                                                                          |
+| Swagger en ejecución               | `/api/docs-json`: cinco operaciones bajo `/api/suppliers` con el esquema de cookie `ecosoap_session`                                                                                                                                                                                                                |
+| Navegador, ADMIN                   | Confirmado por el responsable sobre la versión previa a la reconstrucción, con el mismo código de proveedores: alta con código en minúsculas guardado en mayúsculas y contacto vacío; código duplicado rechazado en el diálogo; edición solo del teléfono; desactivación con confirmación; persistencia al recargar |
+
+### Correcciones de la revisión del 2026-10-08
+
+1. La ruta era `/api/api/suppliers` por repetir el prefijo global; el frontend repetía el error.
+2. El modelo usaba el correo como identidad única y no tenía `code`; ahora sigue la especificación.
+   La migración se regeneró antes de integrarse; quien aplicó la anterior debe resetear su base
+   local.
+3. `{"isActive": "false"}` activaba el proveedor; ahora se exige un booleano JSON real.
+4. Correo duplicado, UUID inválido y `null` en la edición producían `500`.
+5. La auditoría se escribía sin `AuditService`: sin `requestId`, con la fila completa y sin
+   valores en los cambios de estado.
+6. `pnpm-workspace.yaml` aprobaba los scripts de `@scarf/scarf` y `argon2`; se restauró la
+   versión documentada de `develop`.
+
+Las pruebas unitarias con Prisma simulado se sustituyeron por `suppliers.e2e-spec.ts`, porque no
+detectaban ninguno de estos fallos.
+
+### Actualización con develop y verificación local (2026-10-09)
+
+Se incorporó `develop` (`332e499`) mediante merge, conservando el historial de ambos PR.
+Los siete conflictos se resolvieron manteniendo `InventoryModule` y `PurchasesModule`, las
+rutas y el menú de los tres catálogos, y la documentación de sus contratos y requisitos.
+La migración compartida de proveedores se conserva sin cambios.
+
+Los decoradores y el DTO de estado de productos, almacenes y proveedores se unificaron en
+`common/catalog.dto.ts`; se eliminó la copia de Inventario. Se comprobó que el código de los
+validadores es idéntico y que los cambios en Inventario solo sustituyen sus imports. La lógica
+de proveedores, las pantallas de Inventario y `apply-adjustment.ts` se conservaron.
+
+La base aislada `ecosoap_pr8_integration_test`, en PostgreSQL 16.9, recibió las tres migraciones
+desde cero y el seed. Las comprobaciones locales después de la consolidación aprobaron:
+
+- Backend unitario: 72/72 en cinco archivos, incluidos los 37 casos de DTO de almacenes.
+- Frontend: 108/108 en siete archivos, incluidos cinco casos nuevos de rutas y permisos.
+- Backend e2e: 203/203 en 16 archivos, incluidos 30 de proveedores y ocho de concurrencia
+  entre catálogo y ajustes.
+- Total: 383 pruebas. Los subconjuntos anteriores ya están incluidos en ese total.
+- `pnpm lint`, `pnpm format:check`, `pnpm build` y `git diff --check`: aprobados.
+
+Las pruebas de rutas usan el árbol real de `AppRoutes` y HTTP simulado: abren cada catálogo,
+comprueban la API correspondiente, el menú de ADMIN y la restricción de proveedores para
+INVENTARIO y VENTAS. Los e2e usan la aplicación y PostgreSQL reales, con sus guards,
+transacciones, auditoría y bloqueos. La instancia temporal se detuvo al finalizar la verificación.
+La comprobación remota del nuevo commit en PostgreSQL 18 queda pendiente antes de aprobar
+e integrar el PR #8. Vite conserva el aviso de tamaño del bundle; el build termina correctamente.
+
+### Cuestiones abiertas
+
+- Filtros de listado (estado y búsqueda) cuando Compras los necesite al elegir proveedor.
 
 ---
 

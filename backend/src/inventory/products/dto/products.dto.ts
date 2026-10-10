@@ -2,7 +2,7 @@ import { ApiProperty, PartialType } from '@nestjs/swagger';
 import { IsEnum, IsString, Length } from 'class-validator';
 
 import { ProductType, UnitOfMeasure } from '../../../generated/prisma/client.js';
-import { RawValue, TrimText, TrimUpperCase } from '../../catalog.dto.js';
+import { RawValue, TrimText, TrimUpperCase } from '../../../common/catalog.dto.js';
 
 export class CreateProductDto {
   @ApiProperty({

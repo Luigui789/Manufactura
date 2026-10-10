@@ -3,7 +3,7 @@ import 'reflect-metadata';
 import { BadRequestException, type Type, ValidationPipe } from '@nestjs/common';
 import { describe, expect, it } from 'vitest';
 
-import { SetCatalogStatusDto } from '../../catalog.dto.js';
+import { SetCatalogStatusDto } from '../../../common/catalog.dto.js';
 import { CreateWarehouseDto, UpdateWarehouseDto } from './warehouses.dto.js';
 
 const pipe = new ValidationPipe({

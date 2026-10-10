@@ -94,25 +94,27 @@ backend/src/
 ├── auth/                servicios, contraseña, sesión y cuatro guards globales
 ├── users/               DTO, conversión pública y transacciones administrativas
 ├── audit/               record(tx), snapshots y diferencias permitidas
-├── common/              contexto AsyncLocalStorage, correo y paginación
+├── common/              contexto AsyncLocalStorage, correo, paginación y DTO de catálogo
 ├── cli/                 admin:create (solo primer ADMIN)
 ├── config/              validación de variables de entorno
 ├── prisma/              PrismaModule + PrismaService
 ├── health/              HealthModule + HealthController + HealthService + DTO
-└── inventory/           productos y almacenes (Etapa 4) y ajustes Foundation
-    ├── inventory.module.ts composición de los dos módulos de catálogo
-    ├── catalog.dto.ts      transformaciones y DTO de cambio de estado
-    ├── products/           módulo, controller, service, DTO y respuestas
-    ├── warehouses/         módulo, controller, service, DTO y respuestas
-    └── apply-adjustment.ts protocolo de ajustes Foundation
+├── inventory/           productos y almacenes (Etapa 4) y ajustes Foundation
+│   ├── inventory.module.ts composición de los dos módulos de catálogo
+│   ├── products/           módulo, controller, service, DTO y respuestas
+│   ├── warehouses/         módulo, controller, service, DTO y respuestas
+│   └── apply-adjustment.ts protocolo de ajustes Foundation
+└── purchases/           PurchasesModule → SuppliersModule (proveedores)
 ```
 
 Foundation añade `backend/src/inventory/apply-adjustment.ts`: valida producto, almacén, usuario
-y lote cuando corresponde; bloquea `StockBalance`, crea movimiento, actualiza saldo y registra
+y lote cuando corresponde; bloquea producto y almacén con `FOR SHARE`, y después
+`StockBalance` con `FOR UPDATE`; crea movimiento, actualiza saldo y registra
 auditoría en una transacción. Esta función conserva el protocolo técnico de ajustes Foundation.
 Aún no hay endpoints de existencias ni de movimientos. Las rutas de productos y almacenes
 administran datos maestros y no generan movimientos ni modifican saldos. No se crean módulos
-vacíos para los otros dominios.
+vacíos para los otros dominios. Compras empieza con `SuppliersModule`, que reutiliza los
+decoradores de validación de `common/catalog.dto.ts`.
 
 Dependencias: `UsersModule → AuthModule → AuditModule → PrismaModule`, sin ciclos.
 `AuthService` consulta con Prisma directamente. La cookie `HttpOnly` transporta el JWT; cada
@@ -253,7 +255,7 @@ frontend/src/
 
 Cada feature puede contener `components/`, `pages/`, `hooks/`, `services/`, `schemas/` y
 `types/`, o archivos equivalentes según su tamaño. Igual que en el backend, cada carpeta nace
-con su funcionalidad. `features/inventory/` ya existe en `feature/products-warehouses` con los
+con su funcionalidad. `features/purchases/` contiene proveedores. `features/inventory/` contiene los
 catálogos de productos y almacenes; las futuras operaciones de stock ampliarán ese dominio.
 
 Ya se reutilizan `FormField`, `ErrorNotice` y los componentes de `components/ui/`. Otros

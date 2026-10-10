@@ -4,7 +4,7 @@ import { IsBoolean, IsEnum, IsString, Length, ValidateIf } from 'class-validator
 
 import { PaginationQueryDto } from '../../../common/pagination/pagination.js';
 import { ProductType } from '../../../generated/prisma/client.js';
-import { RawValue, TrimText } from '../../catalog.dto.js';
+import { RawValue, TrimText } from '../../../common/catalog.dto.js';
 
 export class ProductsQueryDto extends PaginationQueryDto {
   @ApiPropertyOptional({

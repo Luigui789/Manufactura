@@ -16,7 +16,7 @@ import {
 } from '../../auth/access-policy.js';
 import { SESSION_COOKIE } from '../../auth/session-cookie.js';
 import { RoleCode } from '../../generated/prisma/client.js';
-import { SetCatalogStatusDto } from '../catalog.dto.js';
+import { SetCatalogStatusDto } from '../../common/catalog.dto.js';
 import { CreateWarehouseDto, UpdateWarehouseDto } from './dto/warehouses.dto.js';
 import { WarehousesQueryDto } from './dto/warehouses-query.dto.js';
 import { WarehouseResultDto, WarehousesListDto } from './warehouses-response.js';
