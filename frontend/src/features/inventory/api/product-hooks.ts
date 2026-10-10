@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import type { CreateProductData, UpdateProductData } from '../types';
+import type { CreateProductData, ProductFilters, UpdateProductData } from '../types';
 import {
   createProduct,
   getProduct,
@@ -8,10 +8,10 @@ import {
   updateProduct,
 } from './products';
 
-export function useProducts(page = 1, limit = 20) {
+export function useProducts(page = 1, filters: ProductFilters = {}, limit = 20) {
   return useQuery({
-    queryKey: ['products', 'list', page, limit],
-    queryFn: ({ signal }) => getProducts(page, limit, signal),
+    queryKey: ['products', 'list', page, limit, filters],
+    queryFn: ({ signal }) => getProducts(page, limit, filters, signal),
   });
 }
 

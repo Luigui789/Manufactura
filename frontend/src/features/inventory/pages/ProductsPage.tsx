@@ -1,6 +1,8 @@
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import {
   Table,
   TableBody,
@@ -17,7 +19,10 @@ import { EditProductDialog } from '../components/products/EditProductDialog';
 import { ProductDetailDialog } from '../components/products/ProductDetailDialog';
 import { ProductStatusDialog } from '../components/products/ProductStatusDialog';
 import { PRODUCT_TYPE_LABELS, PRODUCT_UNIT_LABELS } from '../product-labels';
-import type { Product } from '../types';
+import { PRODUCT_TYPES } from '../schemas';
+import type { Product, ProductFilters } from '../types';
+
+type StatusFilter = 'all' | 'active' | 'inactive';
 
 export function ProductsPage() {
   const [page, setPage] = useState(1);
@@ -27,14 +32,34 @@ export function ProductsPage() {
   const [statusTarget, setStatusTarget] = useState<Product | null>(null);
   const [message, setMessage] = useState('');
 
+  const [status, setStatus] = useState<StatusFilter>('all');
+  const [type, setType] = useState<Product['type'] | ''>('');
+  const [searchInput, setSearchInput] = useState('');
+  const [search, setSearch] = useState('');
+
   const { data: session } = useSession();
   const canManage = session?.role === 'ADMIN' || session?.role === 'INVENTARIO';
 
-  const products = useProducts(page);
+  const filters: ProductFilters = {
+    ...(status !== 'all' ? { isActive: status === 'active' } : {}),
+    ...(type ? { type } : {}),
+    ...(search ? { search } : {}),
+  };
+  const hasFilters = status !== 'all' || type !== '' || search !== '';
+
+  const products = useProducts(page, filters);
 
   const totalPages = products.data
     ? Math.max(1, Math.ceil(products.data.meta.total / products.data.meta.limit))
     : 1;
+
+  const clearFilters = () => {
+    setStatus('all');
+    setType('');
+    setSearchInput('');
+    setSearch('');
+    setPage(1);
+  };
 
   return (
     <section className="space-y-5">
@@ -57,6 +82,75 @@ export function ProductsPage() {
           </Button>
         )}
       </div>
+
+      <form
+        role="search"
+        aria-label="Filtros de productos"
+        className="flex flex-wrap items-end gap-3"
+        onSubmit={(event) => {
+          event.preventDefault();
+          setSearch(searchInput.trim());
+          setPage(1);
+        }}
+      >
+        <div className="space-y-1">
+          <Label htmlFor="product-filter-search">Buscar producto</Label>
+          <Input
+            id="product-filter-search"
+            type="search"
+            placeholder="Código o nombre"
+            maxLength={100}
+            value={searchInput}
+            onChange={(event) => setSearchInput(event.target.value)}
+          />
+        </div>
+
+        <div className="space-y-1">
+          <Label htmlFor="product-filter-status">Filtrar por estado</Label>
+          <select
+            id="product-filter-status"
+            className="h-9 rounded-md border border-input bg-background px-3 text-sm"
+            value={status}
+            onChange={(event) => {
+              setStatus(event.target.value as StatusFilter);
+              setPage(1);
+            }}
+          >
+            <option value="all">Todos</option>
+            <option value="active">Solo activos</option>
+            <option value="inactive">Solo inactivos</option>
+          </select>
+        </div>
+
+        <div className="space-y-1">
+          <Label htmlFor="product-filter-type">Filtrar por tipo</Label>
+          <select
+            id="product-filter-type"
+            className="h-9 rounded-md border border-input bg-background px-3 text-sm"
+            value={type}
+            onChange={(event) => {
+              setType(event.target.value as Product['type'] | '');
+              setPage(1);
+            }}
+          >
+            <option value="">Todos los tipos</option>
+            {PRODUCT_TYPES.map((value) => (
+              <option key={value} value={value}>
+                {PRODUCT_TYPE_LABELS[value]}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <Button type="submit" variant="outline">
+          Buscar
+        </Button>
+        {(hasFilters || searchInput) && (
+          <Button type="button" variant="outline" onClick={clearFilters}>
+            Limpiar filtros
+          </Button>
+        )}
+      </form>
 
       {message && (
         <p role="status" className="rounded-lg border bg-background p-3 text-sm">
@@ -143,7 +237,9 @@ export function ProductsPage() {
               {products.data.data.length === 0 && (
                 <TableRow>
                   <TableCell colSpan={7} className="py-8 text-center text-muted-foreground">
-                    No hay productos en esta página.
+                    {hasFilters
+                      ? 'No hay productos que coincidan con los filtros.'
+                      : 'No hay productos en esta página.'}
                   </TableCell>
                 </TableRow>
               )}

@@ -1,6 +1,8 @@
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import {
   Table,
   TableBody,
@@ -12,6 +14,7 @@ import {
 import { ErrorNotice } from '@/components/ErrorNotice';
 import { useSession } from '@/features/auth/hooks/use-auth';
 import { useWarehouses } from '../../api/hooks';
+import type { WarehouseFilters } from '../../api/warehouses';
 import type { Warehouse } from '../../types';
 import {
   CreateWarehouseDialog,
@@ -20,11 +23,22 @@ import {
 } from './WarehouseDialogs';
 
 type Action = { type: 'create' } | { type: 'edit' | 'status'; warehouse: Warehouse };
+type StatusFilter = 'all' | 'active' | 'inactive';
 
 export function WarehousesList() {
   const { data: session } = useSession();
   const [page, setPage] = useState(1);
-  const warehouses = useWarehouses(page);
+  const [status, setStatus] = useState<StatusFilter>('all');
+  const [searchInput, setSearchInput] = useState('');
+  const [search, setSearch] = useState('');
+
+  const filters: WarehouseFilters = {
+    ...(status !== 'all' ? { isActive: status === 'active' } : {}),
+    ...(search ? { search } : {}),
+  };
+  const hasFilters = status !== 'all' || search !== '';
+
+  const warehouses = useWarehouses(page, filters);
   const [action, setAction] = useState<Action | null>(null);
   const [message, setMessage] = useState('');
 
@@ -51,6 +65,13 @@ export function WarehousesList() {
     setPage(nextPage);
   };
 
+  const clearFilters = () => {
+    setStatus('all');
+    setSearchInput('');
+    setSearch('');
+    setPage(1);
+  };
+
   return (
     <div className="space-y-4">
       {canManage && (
@@ -58,6 +79,55 @@ export function WarehousesList() {
           <Button onClick={() => openAction({ type: 'create' })}>Nuevo almacén</Button>
         </div>
       )}
+
+      <form
+        role="search"
+        aria-label="Filtros de almacenes"
+        className="flex flex-wrap items-end gap-3"
+        onSubmit={(event) => {
+          event.preventDefault();
+          setSearch(searchInput.trim());
+          setPage(1);
+        }}
+      >
+        <div className="space-y-1">
+          <Label htmlFor="warehouse-filter-search">Buscar almacén</Label>
+          <Input
+            id="warehouse-filter-search"
+            type="search"
+            placeholder="Código, nombre o ubicación"
+            maxLength={100}
+            value={searchInput}
+            onChange={(event) => setSearchInput(event.target.value)}
+          />
+        </div>
+
+        <div className="space-y-1">
+          <Label htmlFor="warehouse-filter-status">Filtrar por estado</Label>
+          <select
+            id="warehouse-filter-status"
+            className="h-9 rounded-md border border-input bg-background px-3 text-sm"
+            value={status}
+            onChange={(event) => {
+              setStatus(event.target.value as StatusFilter);
+              setPage(1);
+            }}
+          >
+            <option value="all">Todos</option>
+            <option value="active">Solo activos</option>
+            <option value="inactive">Solo inactivos</option>
+          </select>
+        </div>
+
+        <Button type="submit" variant="outline">
+          Buscar
+        </Button>
+        {(hasFilters || searchInput) && (
+          <Button type="button" variant="outline" onClick={clearFilters}>
+            Limpiar filtros
+          </Button>
+        )}
+      </form>
 
       {message && (
         <p role="status" className="rounded-lg border bg-background p-3 text-sm">
@@ -138,7 +208,9 @@ export function WarehousesList() {
                     colSpan={canManage ? 5 : 4}
                     className="py-8 text-center text-muted-foreground"
                   >
-                    No hay almacenes en esta página.
+                    {hasFilters
+                      ? 'No hay almacenes que coincidan con los filtros.'
+                      : 'No hay almacenes en esta página.'}
                   </TableCell>
                 </TableRow>
               )}

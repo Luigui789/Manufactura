@@ -6,12 +6,13 @@ import {
   setWarehouseStatus,
   updateWarehouse,
   type UpdateWarehouseData,
+  type WarehouseFilters,
 } from './warehouses';
 
-export const useWarehouses = (page = 1, limit = 20) => {
+export const useWarehouses = (page = 1, filters: WarehouseFilters = {}, limit = 20) => {
   return useQuery({
-    queryKey: ['warehouses', page, limit],
-    queryFn: ({ signal }) => getWarehouses(page, limit, signal),
+    queryKey: ['warehouses', page, limit, filters],
+    queryFn: ({ signal }) => getWarehouses(page, limit, filters, signal),
   });
 };
 

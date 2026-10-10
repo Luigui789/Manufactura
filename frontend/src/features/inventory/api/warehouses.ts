@@ -3,6 +3,11 @@ import type { CreateWarehouseData, Warehouse } from '../types';
 
 export type UpdateWarehouseData = Partial<Omit<CreateWarehouseData, 'isActive'>>;
 
+export type WarehouseFilters = {
+  isActive?: boolean;
+  search?: string;
+};
+
 export type WarehousesListResponse = {
   data: Warehouse[];
   meta: { page: number; limit: number; total: number };
@@ -13,9 +18,26 @@ type WarehouseResponse = { data: Warehouse; message: string };
 export const getWarehouses = (
   page = 1,
   limit = 20,
+  filters: WarehouseFilters = {},
   signal?: AbortSignal,
-): Promise<WarehousesListResponse> =>
-  apiFetch<WarehousesListResponse>(`/warehouses?page=${page}&limit=${limit}`, { signal });
+): Promise<WarehousesListResponse> => {
+  const params = new URLSearchParams({
+    page: String(page),
+    limit: String(limit),
+  });
+
+  if (filters.isActive !== undefined) {
+    params.set('isActive', String(filters.isActive));
+  }
+
+  const search = filters.search?.trim();
+
+  if (search) {
+    params.set('search', search);
+  }
+
+  return apiFetch<WarehousesListResponse>(`/warehouses?${params.toString()}`, { signal });
+};
 
 export const getWarehouse = async (id: string): Promise<Warehouse> => {
   const response = await apiFetch<WarehouseResponse>(`/warehouses/${id}`);
