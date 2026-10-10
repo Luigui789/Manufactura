@@ -737,6 +737,12 @@ ya existe un ADMIN activo o el correo, nunca modifica un usuario existente y aud
 valor `SUPPLIER` de `AuditEntityType`. Las órdenes, recepciones y el origen del lote de materia
 prima siguen reservados para `purchases`.
 
+`customers` se introduce antes de `sales`, con la tabla `customers` del modelo de §10 y el valor
+`CUSTOMER` de `AuditEntityType`. Las órdenes de venta y los despachos siguen reservados para
+`sales`. Esta migración es aditiva: conserva `suppliers`, los catálogos de Inventario, sus saldos,
+movimientos y auditoría. El retorno a la versión anterior de la aplicación conserva la tabla,
+el valor del enum y los datos de clientes; no requiere una eliminación de datos o de esquema.
+
 `auth_rbac` se introdujo entre Foundation y Compras con la etapa de autenticación. El ADR 007, ya
 aceptado, llama «migración 2» a la de Compras porque se redactó antes; ese texto designa la
 migración `purchases`, no un número de orden.

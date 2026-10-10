@@ -140,7 +140,7 @@ pendientes a la vez. Queda resuelto.
 | 1   | Matriz tipo → origen de `InventoryMovement` definida por migración          |
 | 2   | `AuditLog` admite `ANONYMOUS` y entidad nula solo en `LOGIN_FAILED`         |
 | 3   | `ProductionOrder.plannedDate` añadida como fecha de calendario              |
-| 4   | Datos maestros: productos, almacenes, proveedores                           | En curso: productos y almacenes integrados (PR #6); proveedores en actualización (PR #8) |
+| 4   | Datos maestros: productos, almacenes, proveedores y clientes                | En curso: PR #6 y #8 integrados; clientes en actualización (PR #9) |
 | 5   | Igualdad lote–producto garantizada con clave foránea compuesta              |
 | 6   | Origen único y obligatorio de cada lote                                     |
 | 7   | Política de calidad; bloqueo de consumo además de despacho                  |
@@ -577,13 +577,13 @@ concurrencia entre cambios de catálogo y ajustes.
 
 ## Etapa 4 — Datos maestros: Proveedores
 
-**Implementado y verificado localmente** en la rama `feature/suppliers` (PR #8, de Lure94). La
+**Integrado en `develop` mediante el PR #8 (merge `ab8a5a8`)** en la rama `feature/suppliers` (PR #8, de Lure94). La
 revisión del 2026-10-08 pidió cambios y el responsable del proyecto los aplicó en la misma rama.
 La reconstrucción del 2026-10-08 eliminó los cuatro commits de inventario que arrastraba.
 El 2026-10-09 se actualiza con `develop` después del merge del PR #6, conservando proveedores,
 productos, almacenes y la corrección de concurrencia con ajustes. Los commits de Lure94
-conservan su autoría. Al preparar esta actualización, la aprobación y la integración del PR #8
-siguen pendientes.
+conservan su autoría. El cierre remoto se completó el 2026-10-09, después de la aprobación
+de Luigui789 y la CI del commit `a503359`.
 
 - [x] Backend: listar (paginado), crear, consultar, editar y cambiar estado en `/api/suppliers`
 - [x] Modelo `Supplier` según `database.md` §10 y migración `suppliers`
@@ -594,8 +594,8 @@ siguen pendientes.
 - [x] Pruebas e2e y de frontend de proveedores
 - [x] `docs/api.md` §10, `docs/requirements.md`, `docs/database.md` y `docs/architecture.md`
 - [x] Recorrido completo en el navegador
-- [ ] Review
-- [ ] Integrated into develop
+- [x] Review (aprobación de Luigui789 sobre `a503359`)
+- [x] Integrated into develop (PR #8, merge `ab8a5a8`)
 
 ### Evidencia ejecutada de Proveedores
 
@@ -651,12 +651,96 @@ Las pruebas de rutas usan el árbol real de `AppRoutes` y HTTP simulado: abren c
 comprueban la API correspondiente, el menú de ADMIN y la restricción de proveedores para
 INVENTARIO y VENTAS. Los e2e usan la aplicación y PostgreSQL reales, con sus guards,
 transacciones, auditoría y bloqueos. La instancia temporal se detuvo al finalizar la verificación.
-La comprobación remota del nuevo commit en PostgreSQL 18 queda pendiente antes de aprobar
+La comprobación remota del nuevo commit en PostgreSQL 18 se completó antes de aprobar
 e integrar el PR #8. Vite conserva el aviso de tamaño del bundle; el build termina correctamente.
 
 ### Cuestiones abiertas
 
 - Filtros de listado (estado y búsqueda) cuando Compras los necesite al elegir proveedor.
+
+### Cierre remoto del PR #8 (2026-10-09)
+
+La [CI del PR](https://github.com/Luigui789/Manufactura/actions/runs/38016769320) y la
+[CI de develop](https://github.com/Luigui789/Manufactura/actions/runs/38016963705)
+aprobaron instalación congelada, Prisma, migraciones, seed, lint, formato, builds y las
+383 pruebas: 72 unitarias backend, 108 frontend y 203 e2e. Los registros de la ejecución
+posterior al merge confirman esos mismos totales en PostgreSQL 18.
+
+---
+
+## Etapa 4 — Datos maestros: Clientes
+
+**Implementado y verificado localmente** en la rama `feature/customers` (PR #9). El
+2026-10-09 se incorpora `develop` (`ab8a5a8`), después de integrar los PR #6 y #8. Se conservan
+productos, almacenes, proveedores y clientes, con sus migraciones, auditoría y permisos.
+Se reutilizan `common/catalog.dto.ts`, `AuditService`, bloqueo de fila y paginación.
+La nueva verificación remota y la integración del PR #9 quedan pendientes al preparar el commit.
+
+- [x] Backend: listar (paginado), crear, consultar, editar y cambiar estado en `/api/customers`
+- [x] Modelo `Customer` según `database.md` §10 y migración `customers`
+- [x] Consulta para roles autenticados; gestión solo para ADMIN y VENTAS
+- [x] Auditoría mediante `AuditService`, con lista permitida y en la misma transacción
+- [x] Bloqueo de fila y `409` para código duplicado o estado repetido
+- [x] Frontend: listado paginado, alta, edición parcial, activar/desactivar con confirmación
+- [x] Pruebas e2e y de frontend de clientes
+- [x] `docs/api.md` §11, `docs/requirements.md`, `docs/database.md` y `docs/architecture.md`
+- [x] Recorrido completo en el navegador
+- [ ] Review
+- [ ] Integrated into develop
+
+### Evidencia de Clientes del 2026-10-08
+
+| Comprobación                       | Resultado observado                                                                                                                                                                                                                                            |
+| ---------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `pnpm --filter backend test:e2e`   | 8 archivos, 81/81 contra una base temporal `_test` con la migración `customers`; `customers.e2e-spec.ts` 30/30                                                                                                                                                 |
+| `pnpm --filter backend test`       | 4 archivos, 35/35                                                                                                                                                                                                                                              |
+| `pnpm --filter frontend test`      | 4 archivos, 46/46; clientes 17 (página con HTTP simulado y esquema)                                                                                                                                                                                            |
+| `pnpm lint`, `format:check`, build | Aprobados; Vite mantiene el aviso conocido por el tamaño del bundle                                                                                                                                                                                            |
+| Migración en `ecosoap_erp`         | `prisma migrate deploy` aplicó `20261009034442_customers`                                                                                                                                                                                                      |
+| Navegador                          | Confirmado por el responsable con ADMIN: código en minúsculas guardado en mayúsculas, código duplicado rechazado en el diálogo, edición solo del teléfono, desactivación con confirmación y persistencia al recargar. Con COMPRAS, el menú no muestra Clientes |
+
+### Integración con las otras ramas de la Etapa 4
+
+La documentación conserva las secciones 9 (Inventario), 10 (Proveedores) y 11 (Clientes).
+Los diez conflictos se resuelven con los tres módulos de negocio registrados, las cuatro
+pantallas de catálogo, sus menús y guards, y ambos modelos `Supplier` y `Customer` con
+los valores `SUPPLIER` y `CUSTOMER` de `AuditEntityType`. Las migraciones compartidas
+se conservan sin modificaciones. El conflicto de `common/catalog.dto.ts` era solo su comentario;
+los decoradores y la validación del estado se mantienen idénticos.
+
+### Verificación local de la combinación (2026-10-09)
+
+La instalación limpia en `ecosoap_pr9_integration_test` aplicó las cuatro migraciones sin
+modificarlas y ejecutó el seed. PostgreSQL 16.9 se usó en una instancia temporal aislada.
+Después de resolver los conflictos aprobaron:
+
+- Backend unitario: 72/72 en cinco archivos.
+- Backend e2e: 233/233 en 17 archivos, incluidos 30 de clientes, 30 de proveedores y ocho
+  de concurrencia entre catálogo y ajustes.
+- Frontend: 128/128 en nueve archivos, con tres casos adicionales de rutas y permisos de clientes.
+- Total: 433 pruebas. Los subconjuntos anteriores ya están incluidos en ese total.
+- `pnpm lint`, `pnpm format:check`, `pnpm build` y `git diff --check`: aprobados.
+
+La primera ejecución del frontend, simultánea con otros checks, terminó con ocho timeouts de
+5 segundos en Inventario (120/128 aprobadas). Los archivos afectados son idénticos a los que
+pasaron la CI del PR #8. La suite completa se repitió con
+`pnpm --filter frontend test --no-file-parallelism`, sin otros checks, y pasó 128/128 con los
+mismos límites de tiempo. Esto apunta a contención de recursos local; no se modificaron la
+configuración de pruebas ni el código de Inventario. La CI debe pasar con el comando normal
+del workflow antes del merge.
+
+La actualización sobre datos existentes se probó por separado en `ecosoap_pr9_upgrade_test`:
+se aplicaron primero las migraciones de `develop` (`ab8a5a8`) y se cargaron roles, un usuario,
+producto, almacén, proveedor, saldo 5, su movimiento y auditoría. Tras aplicar `customers`,
+los snapshots completos de las ocho entidades fueron idénticos, incluidas fechas y valores.
+La nueva tabla permitió crear un cliente y un evento `CUSTOMER`; el saldo previo siguió en 5.
+Repetir `migrate deploy` no encontró migraciones pendientes. La instancia temporal se detuvo
+al finalizar. La base de trabajo no se modificó durante esta comprobación.
+
+La revisión comparó las implementaciones completas con sus ramas de origen: Inventario y
+Proveedores coinciden con `develop`; Clientes coincide con el PR #9 previo a esta actualización.
+El nuevo commit conserva el historial mediante merge. El cierre remoto queda pendiente al
+preparar esta evidencia; Vite mantiene su aviso conocido de tamaño de bundle.
 
 ---
 

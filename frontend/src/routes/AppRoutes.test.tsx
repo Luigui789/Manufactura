@@ -71,6 +71,7 @@ describe('Aceptación F1–F5', () => {
     expect(screen.getByText('Bienvenido, Administrador de prueba')).toBeTruthy();
     expect(screen.getByRole('link', { name: 'Usuarios' })).toBeTruthy();
     expect(screen.getByRole('link', { name: 'Proveedores' })).toBeTruthy();
+    expect(screen.getByRole('link', { name: 'Clientes' })).toBeTruthy();
     expect(screen.getByRole('link', { name: 'Productos' })).toBeTruthy();
     expect(screen.getByRole('link', { name: 'Almacenes' })).toBeTruthy();
   });
@@ -106,9 +107,10 @@ describe('Aceptación F1–F5', () => {
   });
 });
 
-describe('Integración de los catálogos de Compras e Inventario', () => {
+describe('Integración de los catálogos de Compras, Inventario y Ventas', () => {
   it.each([
     ['/purchases/suppliers', 'Gestión de Proveedores', 'suppliers', 'COMPRAS'],
+    ['/sales/customers', 'Gestión de Clientes', 'customers', 'VENTAS'],
     ['/inventory/products', 'Gestión de Productos', 'products', 'INVENTARIO'],
     ['/inventory/warehouses', 'Gestión de Almacenes', 'warehouses', 'INVENTARIO'],
   ] as const)(
@@ -140,6 +142,20 @@ describe('Integración de los catálogos de Compras e Inventario', () => {
       expect(screen.queryByRole('link', { name: 'Proveedores' })).toBeNull();
       expect(screen.getByRole('link', { name: 'Productos' })).toBeTruthy();
       expect(screen.getByRole('link', { name: 'Almacenes' })).toBeTruthy();
+    },
+  );
+
+  it.each(['COMPRAS', 'INVENTARIO'] as const)(
+    'conserva la restricción de clientes para %s sin ocultar Inventario',
+    (role) => {
+      mount('/sales/customers', { ...account, role });
+      expect(screen.getByRole('heading', { name: '403 · Acceso denegado' })).toBeTruthy();
+      expect(screen.queryByRole('link', { name: 'Clientes' })).toBeNull();
+      expect(screen.getByRole('link', { name: 'Productos' })).toBeTruthy();
+      expect(screen.getByRole('link', { name: 'Almacenes' })).toBeTruthy();
+      if (role === 'COMPRAS') {
+        expect(screen.getByRole('link', { name: 'Proveedores' })).toBeTruthy();
+      }
     },
   );
 });

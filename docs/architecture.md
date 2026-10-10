@@ -104,7 +104,8 @@ backend/src/
 │   ├── products/           módulo, controller, service, DTO y respuestas
 │   ├── warehouses/         módulo, controller, service, DTO y respuestas
 │   └── apply-adjustment.ts protocolo de ajustes Foundation
-└── purchases/           PurchasesModule → SuppliersModule (proveedores)
+├── purchases/           PurchasesModule → SuppliersModule (proveedores)
+└── sales/               SalesModule → CustomersModule (clientes)
 ```
 
 Foundation añade `backend/src/inventory/apply-adjustment.ts`: valida producto, almacén, usuario
@@ -114,7 +115,7 @@ auditoría en una transacción. Esta función conserva el protocolo técnico de 
 Aún no hay endpoints de existencias ni de movimientos. Las rutas de productos y almacenes
 administran datos maestros y no generan movimientos ni modifican saldos. No se crean módulos
 vacíos para los otros dominios. Compras empieza con `SuppliersModule`, que reutiliza los
-decoradores de validación de `common/catalog.dto.ts`.
+decoradores de validación de `common/catalog.dto.ts`, al igual que `CustomersModule` en Ventas.
 
 Dependencias: `UsersModule → AuthModule → AuditModule → PrismaModule`, sin ciclos.
 `AuthService` consulta con Prisma directamente. La cookie `HttpOnly` transporta el JWT; cada
@@ -255,7 +256,7 @@ frontend/src/
 
 Cada feature puede contener `components/`, `pages/`, `hooks/`, `services/`, `schemas/` y
 `types/`, o archivos equivalentes según su tamaño. Igual que en el backend, cada carpeta nace
-con su funcionalidad. `features/purchases/` contiene proveedores. `features/inventory/` contiene los
+con su funcionalidad. `features/purchases/` contiene proveedores y `features/sales/` clientes. `features/inventory/` contiene los
 catálogos de productos y almacenes; las futuras operaciones de stock ampliarán ese dominio.
 
 Ya se reutilizan `FormField`, `ErrorNotice` y los componentes de `components/ui/`. Otros

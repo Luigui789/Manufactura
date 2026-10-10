@@ -88,7 +88,7 @@ detecte sin interpretar el JSON.
 ## 5. Endpoints previstos
 
 Rutas que el sistema expondrá conforme avancen las etapas. Aún no existen. Productos y
-almacenes están implementados (§9), al igual que proveedores (§10).
+almacenes están implementados (§9), al igual que proveedores (§10) y clientes (§11).
 
 ```text
 /api/purchase-orders
@@ -97,7 +97,6 @@ almacenes están implementados (§9), al igual que proveedores (§10).
 /api/boms
 /api/production-orders
 /api/lots
-/api/customers
 /api/sales-orders
 ```
 
@@ -121,13 +120,13 @@ empresa:
 Cada módulo declara su tag al incorporarse para agrupar su documentación.
 
 Están implementados los tags `Health`, `Auth`, `Users`, `Products`, `Warehouses`
-y `Suppliers`.
+y `Suppliers`, junto con `Customers`.
 
 Los previstos para etapas posteriores son:
 
 ```text
 Purchases · Inventory
-Production · Lots · Quality · Customers · Sales
+Production · Lots · Quality · Sales
 ```
 
 ## 7. Autenticación y autorización
@@ -539,3 +538,67 @@ Acciones `CREATE`, `UPDATE`, `ENABLE` y `DISABLE` sobre la entidad `SUPPLIER`, e
 `email`, `phone`, `address`, `isActive`), y una edición registra solo los campos que cambiaron.
 El cambio y su evento comparten transacción; los cambios sobre un mismo proveedor se serializan
 con un bloqueo de fila. La desactivación es lógica: no hay `DELETE`.
+
+## 11. Ventas: clientes
+
+Implementado en la rama `feature/customers`. Cubre `RF-VEN-001` con el modelo `Customer` de
+`database.md` §10. Valida con los decoradores compartidos de `common/catalog.dto.ts`.
+
+### 11.1. Acceso
+
+- Consulta: cualquier rol autenticado (`ADMIN`, `COMPRAS`, `INVENTARIO`, `PRODUCCION`, `VENTAS`),
+  para que otros módulos puedan seleccionar o ver un cliente.
+- Creación, edición y cambio de estado: únicamente `ADMIN` y `VENTAS`.
+- Sin sesión válida: `401`. Sin permiso para modificar: `403`.
+
+### 11.2. Endpoints
+
+- `GET /api/customers?page=1&limit=20`: listado paginado por razón social; responde `200`.
+- `POST /api/customers`: crea un cliente; responde `201`.
+- `GET /api/customers/:id`: consulta el detalle; responde `200`.
+- `PATCH /api/customers/:id`: actualiza los datos enviados; responde `200`.
+- `PATCH /api/customers/:id/status`: activa o desactiva con `{ "isActive": boolean }`; responde `200`.
+
+Ejemplo de creación:
+
+```json
+{
+  "code": "CLI-SUPERNORTE",
+  "name": "Supermercados del Norte S.A.",
+  "taxId": "J0310000000001",
+  "email": "compras@supernorte.com.ni",
+  "phone": "+505 2222-0000",
+  "address": "Bello Horizonte, Managua"
+}
+```
+
+Validaciones:
+
+- `code`: obligatorio, de 3 a 50 caracteres; se recorta y convierte a mayúsculas; único, también
+  con distinta capitalización.
+- `name`: obligatorio, de 3 a 200 caracteres; se recorta.
+- `taxId` (hasta 50), `phone` (hasta 50) y `address` (hasta 255): opcionales; se recortan.
+- `email`: opcional, formato de correo, hasta 254 caracteres; se normaliza como `User.email`.
+- Los campos de contacto aceptan `null` para quedar sin dato; un texto vacío se rechaza.
+- `isActive` no se acepta en el alta ni en la edición general; el cliente se crea activo.
+
+La edición es parcial: debe incluir al menos un campo, y `code` y `name` no admiten `null`. El
+estado exige un booleano JSON real: `"false"`, `0` y `null` se rechazan con `400`.
+
+`CustomerResponse` incluye `id`, `code`, `name`, `taxId`, `email`, `phone`, `address`,
+`isActive`, `createdAt` y `updatedAt`. Los campos de contacto pueden ser `null`.
+
+### 11.3. Errores
+
+- `400`: datos inválidos, campos adicionales, edición vacía, UUID incorrecto o paginación fuera
+  de los límites.
+- `404`: cliente inexistente.
+- `409`: código duplicado o solicitud de un estado que el cliente ya tiene.
+
+### 11.4. Auditoría y transacciones
+
+Acciones `CREATE`, `UPDATE`, `ENABLE` y `DISABLE` sobre la entidad `CUSTOMER`, escritas mediante
+`AuditService` con `requestId`. Los snapshots usan una lista permitida (`code`, `name`, `taxId`,
+`email`, `phone`, `address`, `isActive`), y una edición registra solo los campos que cambiaron.
+El cambio y su evento comparten transacción; los cambios sobre un mismo cliente se serializan con
+un bloqueo de fila. La desactivación es lógica: no hay `DELETE`.

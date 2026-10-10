@@ -1,4 +1,4 @@
-// Decoradores y DTO compartidos por productos, almacenes y proveedores.
+// Decoradores y DTO compartidos por productos, almacenes, proveedores y clientes.
 import { ApiProperty } from '@nestjs/swagger';
 import { Transform } from 'class-transformer';
 import { IsBoolean } from 'class-validator';
