@@ -10,9 +10,9 @@
 ### Estado físico y diseño de la siguiente ronda
 
 En `develop` (`53b7402`) están versionadas las migraciones Foundation, auth, proveedores y
-clientes. En la rama A-1, `InventoryMovement.reason` ya admite `NULL` en Prisma y PostgreSQL;
-los ajustes siguen exigiendo un motivo tipificado. Los movimientos físicos todavía solo admiten
-ajustes.
+clientes. En A-1, `InventoryMovement.reason` sigue siendo obligatorio y las migraciones físicas
+solo admiten ajustes. Compras añadirá posteriormente la nulabilidad de `reason` junto con su origen
+empresarial verificable y las restricciones correspondientes.
 `Lot` aún no tiene columnas de origen empresarial. Órdenes, recepciones, BOM, ejecución y
 calidad siguen siendo **modelo planificado**, no tablas/endpoints existentes.
 
@@ -191,7 +191,7 @@ erDiagram
         uuid lot_id FK
         InventoryMovementType type
         decimal quantity
-        AdjustmentReason? reason
+        AdjustmentReason reason
         timestamptz occurred_at
         uuid performed_by_user_id FK
         string request_id
@@ -246,11 +246,11 @@ bloquear nunca un lote.
 la finalización de la producción o la recepción de la mercancía. Un campo llamado «producido» que
 además significara «recibido» haría ambiguas todas las consultas.
 
-**`InventoryMovement.reason`** admite `NULL` desde A-1 para dejar espacio a movimientos
-empresariales futuros. Los ajustes exigen un motivo tipificado tanto en la validación de la API
-como en la regla de base de datos; los movimientos no originados por ajustes lo dejan nulo. Una
-nota libre no basta como justificación: un motivo tipificado
-se puede filtrar, contar y auditar.
+**`InventoryMovement.reason`** es obligatorio en A-1: los únicos movimientos instalados son ajustes,
+y cada ajuste requiere un motivo tipificado tanto en la validación de la API como en la regla de
+base de datos. Compras añadirá posteriormente los movimientos empresariales que admitan `reason`
+nulo, junto con su FK de origen y la regla de integridad correspondiente. Una nota libre no basta
+como justificación: un motivo tipificado se puede filtrar, contar y auditar.
 
 ## 5. Matriz tipo → origen por migración
 
@@ -360,17 +360,21 @@ se conserva el ADR original sin modificarlo.
 | Intermedio y terminado | `ProductionOrder`     | Migración de Producción |
 
 Desde la migración de Compras, un `CHECK` de arco exclusivo exige que todo lote tenga exactamente un
-origen. **No deben existir lotes trazables operativos sin origen empresarial identificable.**
+origen. **No deben existir lotes trazables operativos sin origen empresarial identificable.** En A-1
+no hay endpoint ni flujo de negocio para crear lotes; `applyMovements` solo acepta un lote existente
+y falla si el identificador no existe. Las pruebas crean lotes directamente como fixtures. La FK
+de origen empresarial se incorporará cuando existan Compras y Producción; hasta entonces, la base
+Foundation no puede verificar ese origen.
 
 El ADR 013 aceptado concreta ese origen en `Lot.purchaseReceiptItemId` o
 `Lot.productionOrderId`, con FK y unicidad de cada origen. Compras habilita únicamente el
 primero; C-2 amplía a XOR preservando los datos recibidos. Inventario crea los lotes dentro
 del plan de recursos/transacción del llamador. A-1 no crea lotes operativos sin origen.
 
-Consecuencia que conviene tener presente: **durante la fundación no debe crearse ningún lote
-operativo**, porque todavía no existe ningún documento que pueda originarlo. Los únicos
-movimientos posibles son ajustes, y en la fundación solo deben aplicarse a productos sin
-trazabilidad. La carga inicial de inventario con lotes se hace cuando exista Compras.
+Consecuencia que conviene tener presente: **durante A-1 no debe crearse ningún lote operativo**,
+porque todavía no existe ningún documento que pueda originarlo. Los fixtures de prueba pueden crear
+lotes directamente para verificar reglas del ledger, pero esa vía no está expuesta como operación
+empresarial. La carga inicial operativa de inventario con lotes se hará cuando exista Compras.
 
 ## 7. Política de calidad y liberación de lotes
 

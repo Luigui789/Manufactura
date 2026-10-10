@@ -44,19 +44,20 @@ async function addStock(productId: string, warehouseId: string, quantity: string
   );
 }
 
-describe('StockQueryService.getAvailableQuantity', () => {
+describe('StockQueryService availability contracts', () => {
   it('uses the general balance for products without lot tracking', async () => {
     const product = await createInventoryProduct(kit.prisma);
     const warehouse = await createInventoryWarehouse(kit.prisma);
 
     await addStock(product.id, warehouse.id, '12.5');
 
-    expect((await stockQuery.getAvailableQuantity(product.id, warehouse.id)).toString()).toBe(
+    expect((await stockQuery.getOnHandQuantity(product.id, warehouse.id)).toString()).toBe('12.5');
+    expect((await stockQuery.getConsumableQuantity(product.id, warehouse.id)).toString()).toBe(
       '12.5',
     );
   });
 
-  it('counts only RELEASED lot ledger balances for tracked products', async () => {
+  it('separates all on-hand lot stock from RELEASED consumable stock without double counting', async () => {
     const product = await createInventoryProduct(kit.prisma, { isLotTracked: true });
     const warehouse = await createInventoryWarehouse(kit.prisma);
     const released = await createInventoryLot(kit.prisma, product.id, LotStatus.RELEASED);
@@ -67,7 +68,8 @@ describe('StockQueryService.getAvailableQuantity', () => {
     await addStock(product.id, warehouse.id, '5', quarantined.id);
     await addStock(product.id, warehouse.id, '3', rejected.id);
 
-    expect((await stockQuery.getAvailableQuantity(product.id, warehouse.id)).toString()).toBe('8');
+    expect((await stockQuery.getOnHandQuantity(product.id, warehouse.id)).toString()).toBe('16');
+    expect((await stockQuery.getConsumableQuantity(product.id, warehouse.id)).toString()).toBe('8');
     expect(
       (
         await kit.prisma.stockBalance.findUniqueOrThrow({
@@ -77,10 +79,11 @@ describe('StockQueryService.getAvailableQuantity', () => {
     ).toBe('16');
   });
 
-  it('returns zero when no balance or released lot movements exist', async () => {
+  it('returns zero for both contracts when no balance or released lot movements exist', async () => {
     const product = await createInventoryProduct(kit.prisma);
     const warehouse = await createInventoryWarehouse(kit.prisma);
 
-    expect((await stockQuery.getAvailableQuantity(product.id, warehouse.id)).toString()).toBe('0');
+    expect((await stockQuery.getOnHandQuantity(product.id, warehouse.id)).toString()).toBe('0');
+    expect((await stockQuery.getConsumableQuantity(product.id, warehouse.id)).toString()).toBe('0');
   });
 });

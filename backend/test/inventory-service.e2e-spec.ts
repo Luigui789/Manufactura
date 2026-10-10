@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import {
@@ -110,6 +111,38 @@ describe('InventoryService.applyMovements', () => {
     expect(movements).toHaveLength(2);
     expect(await stock(firstProduct.id, warehouse.id)).toBe('10.25');
     expect(await stock(secondProduct.id, warehouse.id)).toBe('20.5');
+  });
+
+  it('serializa la creación concurrente del primer saldo y conserva balance igual al ledger', async () => {
+    const product = await createInventoryProduct(kit.prisma);
+    const warehouse = await createInventoryWarehouse(kit.prisma);
+
+    await Promise.all([
+      apply([adjustment(product.id, warehouse.id, 'ADJUSTMENT_IN', '4')]),
+      apply([adjustment(product.id, warehouse.id, 'ADJUSTMENT_IN', '6')]),
+    ]);
+
+    expect(
+      await kit.prisma.stockBalance.count({
+        where: { productId: product.id, warehouseId: warehouse.id },
+      }),
+    ).toBe(1);
+    expect(await stock(product.id, warehouse.id)).toBe('10');
+  }, 15000);
+
+  it('rechaza un lote inexistente y no lo crea automáticamente', async () => {
+    const product = await createInventoryProduct(kit.prisma, { isLotTracked: true });
+    const warehouse = await createInventoryWarehouse(kit.prisma);
+    const missingLotId = randomUUID();
+
+    await expectDomainRejection(
+      apply([adjustment(product.id, warehouse.id, 'ADJUSTMENT_IN', '2', missingLotId)]),
+      InventoryErrorCode.REFERENCE_NOT_FOUND,
+    );
+
+    expect(await kit.prisma.lot.count({ where: { id: missingLotId } })).toBe(0);
+    expect(await kit.prisma.inventoryMovement.count({ where: { productId: product.id } })).toBe(0);
+    expect(await kit.prisma.stockBalance.count({ where: { productId: product.id } })).toBe(0);
   });
 
   it('rechaza una salida insuficiente sin persistir balance ni movimiento', async () => {

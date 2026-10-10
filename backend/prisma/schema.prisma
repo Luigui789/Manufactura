@@ -189,7 +189,7 @@ model InventoryMovement {
   lotId             String?               @map("lot_id") @db.Uuid
   type              InventoryMovementType
   quantity          Decimal               @db.Decimal(18, 4)
-  reason            AdjustmentReason?
+  reason            AdjustmentReason
   occurredAt        DateTime              @default(now()) @map("occurred_at") @db.Timestamptz(6)
   performedByUserId String                @map("performed_by_user_id") @db.Uuid
   requestId         String?               @map("request_id")
