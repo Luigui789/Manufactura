@@ -377,7 +377,7 @@ La desactivación conserva el registro y sus relaciones. No se ofrecen
 endpoints `DELETE` para productos ni almacenes. Cambiar el estado no
 modifica saldos ni genera movimientos de inventario.
 
-### 9.5. Respuestas y paginación
+### 9.5. Respuestas, paginación y filtros
 
 Los listados responden con:
 
@@ -392,20 +392,63 @@ Los listados responden con:
 }
 ```
 
+Parámetros de paginación de ambos catálogos:
+
 - `page`: entero desde 1; predeterminado 1.
 - `limit`: entero entre 1 y 100; predeterminado 20.
-- `total`: cantidad total de registros, incluidos activos e inactivos.
+- `meta.total`: cantidad total de registros que cumplen los filtros, antes de
+  aplicar la paginación. Sin filtros, incluye todos los registros activos e inactivos.
 - Productos: orden por nombre ascendente y, en caso de empate, por identificador.
 - Almacenes: orden por código ascendente.
-- Una página sin registros devuelve `data: []`.
+- Una página sin registros devuelve `data: []`, conservando el total filtrado.
+
+Filtros opcionales de `GET /api/products`:
+
+- `isActive`: admite únicamente `true` o `false` en la URL. Si se omite, se
+  incluyen ambos estados. `isActive=false` selecciona los productos inactivos.
+- `type`: admite `RAW_MATERIAL`, `INTERMEDIATE`, `FINISHED_GOOD` o `CONSUMABLE`.
+  Si se omite, se incluyen todos los tipos.
+- `search`: texto de 1 a 100 caracteres después de quitar espacios de los extremos.
+  Busca coincidencias parciales en el código o el nombre, sin distinguir mayúsculas
+  de minúsculas.
+
+Filtros opcionales de `GET /api/warehouses`:
+
+- `isActive`: mismas reglas que en productos.
+- `search`: mismas reglas de longitud y comparación; busca en código, nombre o
+  ubicación.
+- Almacenes no admite el filtro `type`.
+
+Los filtros se combinan: un registro debe cumplir todos los filtros enviados.
+Dentro de la búsqueda, basta con que coincida cualquiera de los campos indicados.
+La consulta de registros y el cálculo de `meta.total` usan los mismos filtros.
+
+Ejemplos:
+
+```text
+GET /api/products?page=1&limit=20&isActive=true&type=RAW_MATERIAL&search=aceite
+GET /api/products?page=1&limit=20&isActive=false
+GET /api/warehouses?page=1&limit=20&isActive=true&search=central
+GET /api/warehouses?page=2&limit=20&isActive=false
+```
+
+Valores como `isActive=yes`, `isActive=0`, `type=OTRO`, `search=` o una búsqueda
+compuesta solo por espacios devuelven `400`. Una búsqueda de más de 100 caracteres
+después de recortar los extremos también se rechaza.
+
+El frontend omite los filtros vacíos, recorta y codifica la búsqueda con
+`URLSearchParams`, y conserva explícitamente `isActive=false`. Los filtros forman
+parte de la clave de caché del listado. Al cambiar estado o tipo, o aplicar una
+búsqueda con el botón Buscar o Enter, se vuelve a la página 1. Al paginar se
+conservan los filtros; Limpiar filtros elimina todos los filtros y vuelve a la página 1.
 
 El detalle, la creación, la edición y el cambio de estado responden con
 `{ data: recurso, message: texto }`, siguiendo las convenciones generales.
 
 ### 9.6. Errores
 
-- `400`: datos inválidos, campos adicionales, edición vacía, UUID incorrecto
-  o paginación fuera de los límites.
+- `400`: datos inválidos, campos adicionales, edición vacía, UUID incorrecto,
+  filtros inválidos o paginación fuera de los límites.
 - `401`: sesión ausente o inválida.
 - `403`: rol sin permiso, cambio obligatorio de contraseña pendiente u otra
   restricción de los guards globales.

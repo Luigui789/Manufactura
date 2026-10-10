@@ -26,21 +26,21 @@ Una tabla, una migración o una prueba de Foundation **no** verifican por sí so
 
 ## Matriz de requisitos funcionales oficiales
 
-| ID         | Requisito                                                                                                                                                                                 | Origen    | Estado        | Implementación                                                                                                                                                                    | Evidencia                                                                                                                            |
-| ---------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------- | ------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
-| RF-COM-001 | Gestionar proveedores: registrar, consultar, actualizar y deshabilitar; con identificador, razón social/nombre, teléfono, correo, dirección y estado.                                     | `OFICIAL` | `Pending`     | Sin módulo Compras.                                                                                                                                                               | Entrega 1 §4.1.                                                                                                                      |
-| RF-COM-002 | Gestionar órdenes de compra de un proveedor con productos/materiales, cantidades, precios unitarios, fecha de emisión y estado.                                                           | `OFICIAL` | `Pending`     | Sin módulo Compras.                                                                                                                                                               | Entrega 1 §4.1.                                                                                                                      |
-| RF-COM-003 | Registrar la recepción total o parcial de una orden y generar los movimientos de entrada de inventario.                                                                                   | `OFICIAL` | `Pending`     | Foundation aporta el ledger, pero no existe recepción ni módulo Compras.                                                                                                          | Entrega 1 §4.1; pruebas de Foundation solo cubren ajustes.                                                                           |
-| RF-INV-001 | Gestionar productos y materias primas con código, nombre, categoría, unidad, tipo y estado.                                                                                               | `OFICIAL` | `Verified`    | API y frontend de productos en Inventario: crear, listar, consultar detalle, editar y activar/desactivar; permisos y auditoría transaccional. Integración en `develop` pendiente. | Entrega 1 §4.2; `products.e2e-spec.ts`: 25 pruebas; `ProductsPage.test.tsx`: 16 pruebas. Aprobadas en `feature/products-warehouses`. |
-| RF-INV-002 | Mantener existencias desde entradas y salidas de compras, producción, ventas y ajustes autorizados; cada movimiento registra producto, cantidad, tipo, fecha, usuario y operación origen. | `OFICIAL` | `In Progress` | `InventoryMovement`, `StockBalance` y ajustes Foundation; faltan los flujos de dominio y API.                                                                                     | Entrega 1 §4.2; `foundation.e2e-spec.ts` no cubre Compras/Producción/Ventas.                                                         |
-| RF-INV-003 | Identificar por código único los lotes de producción y consultar su producto, orden, materias primas consumidas y controles de calidad.                                                   | `OFICIAL` | `In Progress` | `Lot` y su integridad con movimiento existen; faltan Producción, consultas y calidad.                                                                                             | Entrega 1 §4.2; Foundation valida solo la base técnica.                                                                              |
-| RF-PRO-001 | Definir una BOM por producto manufacturado, con componentes, cantidades y unidades.                                                                                                       | `OFICIAL` | `Pending`     | Sin módulo Producción.                                                                                                                                                            | Entrega 1 §4.3.                                                                                                                      |
-| RF-PRO-002 | Crear, consultar y actualizar órdenes de producción con producto, cantidad, fecha de creación, estado y BOM asociada.                                                                     | `OFICIAL` | `Pending`     | Sin módulo Producción.                                                                                                                                                            | Entrega 1 §4.3.                                                                                                                      |
-| RF-PRO-003 | Antes de ejecutar, comprobar disponibilidad; al finalizar, consumir materiales, generar lote e incrementar el terminado mediante movimientos de inventario.                               | `OFICIAL` | `Pending`     | Foundation soporta movimientos/lotes, no la ejecución de producción.                                                                                                              | Entrega 1 §4.3.                                                                                                                      |
-| RF-PRO-004 | Registrar controles básicos de calidad por lote: resultado, observaciones, fecha, responsable y no conformidades.                                                                         | `OFICIAL` | `Pending`     | Sin módulo de calidad ni API.                                                                                                                                                     | Entrega 1 §4.3.                                                                                                                      |
-| RF-VEN-001 | Gestionar clientes: registrar, consultar, actualizar y deshabilitar, con nombre, contacto, dirección y estado.                                                                            | `OFICIAL` | `Pending`     | Sin módulo Ventas.                                                                                                                                                                | Entrega 1 §4.4.                                                                                                                      |
-| RF-VEN-002 | Gestionar órdenes de venta con cliente, productos, cantidades, precios, fecha y estado; comprobar disponibilidad antes de confirmar.                                                      | `OFICIAL` | `Pending`     | Sin módulo Ventas.                                                                                                                                                                | Entrega 1 §4.4.                                                                                                                      |
-| RF-VEN-003 | Registrar el despacho de una orden confirmada y generar la salida automática del inventario de terminado.                                                                                 | `OFICIAL` | `Pending`     | Foundation aporta el ledger, pero no existe despacho ni módulo Ventas.                                                                                                            | Entrega 1 §4.4.                                                                                                                      |
+| ID         | Requisito                                                                                                                                                                                 | Origen    | Estado        | Implementación                                                                                                                                         | Evidencia                                                                                                                                        |
+| ---------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------- | ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| RF-COM-001 | Gestionar proveedores: registrar, consultar, actualizar y deshabilitar; con identificador, razón social/nombre, teléfono, correo, dirección y estado.                                     | `OFICIAL` | `Pending`     | Sin módulo Compras.                                                                                                                                    | Entrega 1 §4.1.                                                                                                                                  |
+| RF-COM-002 | Gestionar órdenes de compra de un proveedor con productos/materiales, cantidades, precios unitarios, fecha de emisión y estado.                                                           | `OFICIAL` | `Pending`     | Sin módulo Compras.                                                                                                                                    | Entrega 1 §4.1.                                                                                                                                  |
+| RF-COM-003 | Registrar la recepción total o parcial de una orden y generar los movimientos de entrada de inventario.                                                                                   | `OFICIAL` | `Pending`     | Foundation aporta el ledger, pero no existe recepción ni módulo Compras.                                                                               | Entrega 1 §4.1; pruebas de Foundation solo cubren ajustes.                                                                                       |
+| RF-INV-001 | Gestionar productos y materias primas con código, nombre, categoría, unidad, tipo y estado.                                                                                               | `OFICIAL` | `Verified`    | API y frontend de productos: gestión, filtros, normalización de código, historial, permisos y auditoría. Verificado localmente; integración pendiente. | Entrega 1 §4.2; e2e de productos (25), historial (7), filtros (23); pantalla (18) y filtros frontend compartidos (20). Evidencia del 2026-10-09. |
+| RF-INV-002 | Mantener existencias desde entradas y salidas de compras, producción, ventas y ajustes autorizados; cada movimiento registra producto, cantidad, tipo, fecha, usuario y operación origen. | `OFICIAL` | `In Progress` | `InventoryMovement`, `StockBalance` y ajustes Foundation; faltan los flujos de dominio y API.                                                          | Entrega 1 §4.2; `foundation.e2e-spec.ts` no cubre Compras/Producción/Ventas.                                                                     |
+| RF-INV-003 | Identificar por código único los lotes de producción y consultar su producto, orden, materias primas consumidas y controles de calidad.                                                   | `OFICIAL` | `In Progress` | `Lot` y su integridad con movimiento existen; faltan Producción, consultas y calidad.                                                                  | Entrega 1 §4.2; Foundation valida solo la base técnica.                                                                                          |
+| RF-PRO-001 | Definir una BOM por producto manufacturado, con componentes, cantidades y unidades.                                                                                                       | `OFICIAL` | `Pending`     | Sin módulo Producción.                                                                                                                                 | Entrega 1 §4.3.                                                                                                                                  |
+| RF-PRO-002 | Crear, consultar y actualizar órdenes de producción con producto, cantidad, fecha de creación, estado y BOM asociada.                                                                     | `OFICIAL` | `Pending`     | Sin módulo Producción.                                                                                                                                 | Entrega 1 §4.3.                                                                                                                                  |
+| RF-PRO-003 | Antes de ejecutar, comprobar disponibilidad; al finalizar, consumir materiales, generar lote e incrementar el terminado mediante movimientos de inventario.                               | `OFICIAL` | `Pending`     | Foundation soporta movimientos/lotes, no la ejecución de producción.                                                                                   | Entrega 1 §4.3.                                                                                                                                  |
+| RF-PRO-004 | Registrar controles básicos de calidad por lote: resultado, observaciones, fecha, responsable y no conformidades.                                                                         | `OFICIAL` | `Pending`     | Sin módulo de calidad ni API.                                                                                                                          | Entrega 1 §4.3.                                                                                                                                  |
+| RF-VEN-001 | Gestionar clientes: registrar, consultar, actualizar y deshabilitar, con nombre, contacto, dirección y estado.                                                                            | `OFICIAL` | `Pending`     | Sin módulo Ventas.                                                                                                                                     | Entrega 1 §4.4.                                                                                                                                  |
+| RF-VEN-002 | Gestionar órdenes de venta con cliente, productos, cantidades, precios, fecha y estado; comprobar disponibilidad antes de confirmar.                                                      | `OFICIAL` | `Pending`     | Sin módulo Ventas.                                                                                                                                     | Entrega 1 §4.4.                                                                                                                                  |
+| RF-VEN-003 | Registrar el despacho de una orden confirmada y generar la salida automática del inventario de terminado.                                                                                 | `OFICIAL` | `Pending`     | Foundation aporta el ledger, pero no existe despacho ni módulo Ventas.                                                                                 | Entrega 1 §4.4.                                                                                                                                  |
 
 ### Correcciones de identificador respecto al catálogo anterior
 
@@ -55,7 +55,7 @@ Una tabla, una migración o una prueba de Foundation **no** verifican por sí so
 | ------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------- | ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
 | RNF-001 | Interfaz clara, consistente y fácil de aprender en menús, formularios, tablas, botones y confirmaciones.                                                                           | `OFICIAL` | `In Progress` | Login, layout por rol y usuarios integrados; pantallas de productos y almacenes verificadas en la rama de trabajo. Resto de interfaces de negocio pendiente.                                                                    | Frontend y navegador de Etapa 3; PR #3. Primera oleada: 16 pruebas de productos y 17 de almacenes. |
 | RNF-002 | Credenciales individuales, control por rol y permisos; contraseñas nunca en texto plano.                                                                                           | `OFICIAL` | `Integrated`  | Auth/RBAC backend y frontend, Argon2id y credenciales individuales.                                                                                                                                                             | 35 unitarias, 51 e2e y 29 frontend; navegador; Etapa 3.                                            |
-| RNF-003 | Operaciones habituales en menos de 3 s en condiciones normales; paginación, filtros y consultas optimizadas para grandes volúmenes.                                                | `OFICIAL` | `Pending`     | No hay medición de rendimiento del sistema completo.                                                                                                                                                                            | Entrega 1 §4.6.                                                                                    |
+| RNF-003 | Operaciones habituales en menos de 3 s en condiciones normales; paginación, filtros y consultas optimizadas para grandes volúmenes.                                                | `OFICIAL` | `In Progress` | Paginación y filtros de productos/almacenes implementados y probados. Pendientes las mediciones de latencia y rendimiento con grandes volúmenes.                                                                                | Entrega 1 §4.6; pruebas de filtros backend y frontend. No acreditan el objetivo de menos de 3 s.   |
 | RNF-004 | Integridad transaccional: una operación de existencias no deja movimientos parciales si falla.                                                                                     | `OFICIAL` | `In Progress` | Protocolo transaccional de ajustes Foundation; faltan compras, producción y ventas.                                                                                                                                             | Entrega 1 §4.6; Foundation e2e.                                                                    |
 | RNF-005 | Arquitectura modular para Compras, Inventario, Producción y Ventas, bajo acoplamiento y reglas compartidas centralizadas mediante API definida.                                    | `OFICIAL` | `In Progress` | Monolito modular con `InventoryModule`, `ProductsModule` y `WarehousesModule`. Módulos transaccionales de Compras, Producción y Ventas pendientes.                                                                              | Entrega 1 §4.6; `architecture.md`; módulos y API de productos y almacenes en la rama de trabajo.   |
 | RNF-006 | Disponibilidad mínima de 95 % durante la evaluación y horario operativo del proyecto.                                                                                              | `OFICIAL` | `Pending`     | Health check no demuestra disponibilidad medida.                                                                                                                                                                                | Entrega 1 §4.6.                                                                                    |
@@ -152,6 +152,13 @@ de Inventario.
   ADMIN e INVENTARIO, con autorización validada en backend.
 - Validaciones, paginación, estados de carga, errores y confirmaciones en
   las interfaces.
+- Filtros por estado, tipo y búsqueda en Productos; por estado y búsqueda en Almacenes.
+  El total se calcula con los filtros; la interfaz reinicia la página al cambiarlos.
+- Códigos de producto normalizados a mayúsculas al crear y editar.
+- Protección de unidad y tipo cuando hay movimientos, incluso con saldo actual cero.
+- Desactivación rechazada con `409` si hay cualquier saldo distinto de cero.
+- PATCH de edición limitado a los campos modificados y guardado deshabilitado sin cambios.
+- Pruebas de concurrencia para altas y cambios de estado de ambos catálogos.
 - Desactivación lógica, conservando los registros y sus relaciones.
 - Auditoría de creación, cambios de datos y estado dentro de la misma
   transacción que modifica el recurso. Se usan las acciones CREATE, UPDATE,
@@ -159,26 +166,56 @@ de Inventario.
 
 ### Evidencia automatizada
 
-Resultados locales reportados el 2026-10-07:
+Como evidencia histórica, el 2026-10-07 se reportaron 105 pruebas e2e del backend en
+9 archivos y 62 del frontend en 4 archivos. Entre ellas había 25 e2e de productos,
+29 de almacenes, 16 pruebas de la pantalla de Productos y 17 de Almacenes.
 
-- Backend de productos: 25 pruebas e2e aprobadas.
-- Backend de almacenes: 29 pruebas e2e aprobadas.
-- Suite completa e2e del backend: 105 pruebas aprobadas en 9 archivos,
-  ejecutadas contra `ecosoap_inventory_test`.
-- Frontend de productos: 16 pruebas aprobadas.
-- Frontend de almacenes: 17 pruebas aprobadas.
-- Suite completa del frontend: 62 pruebas aprobadas en 4 archivos.
+Después de las correcciones del PR #6, los resultados locales reportados el 2026-10-09
+para el código del commit `34e3eb2` son:
 
-Los resultados de productos y almacenes están incluidos en los totales de
-cada suite; no se suman nuevamente a esos totales.
+- Backend unitario: 72 pruebas aprobadas en 5 archivos.
+- Suite completa e2e del backend: 165 pruebas aprobadas en 14 archivos, ejecutadas
+  contra `ecosoap_inventory_test`.
+- Suite completa del frontend: 86 pruebas aprobadas en 5 archivos.
+- `pnpm lint` y `pnpm build`: aprobados para esa versión de código.
+- `pnpm format:check`: aprobado también después de copiar las actualizaciones de
+  documentación; toda edición posterior se comprueba de nuevo antes del commit.
+- Total: 323 pruebas aprobadas.
 
-Las pruebas del frontend simulan HTTP y comprueban las pantallas, formularios
-y hooks reales. Las pruebas e2e del backend comprueban los endpoints con
-autenticación, permisos, persistencia y auditoría, incluida la reversión de
-las operaciones cuando falla el registro de auditoría.
+Cobertura específica incluida en esos totales:
 
-La API está documentada en `docs/api.md`, sección 9, y mediante los decoradores
-Swagger de los controladores y DTO.
+- Productos: 25 e2e de API, validación, normalización del código, permisos y auditoría.
+- Almacenes: 29 e2e de API, validación, permisos y auditoría.
+- Historial de productos: 7 e2e de protección de unidad y tipo, con y sin saldo actual.
+- Reglas de existencias: 6 e2e de desactivación e historial.
+- Concurrencia: 6 e2e de altas y cambios de estado en ambos catálogos.
+- Filtros backend: 23 e2e de Productos y 18 de Almacenes, con valores inválidos y total filtrado.
+- Pantallas: 18 pruebas de Productos y 19 de Almacenes, incluido el PATCH parcial.
+- Filtros frontend: 20 pruebas de parámetros, cambios de página, combinación y limpieza.
+
+Los subconjuntos están incluidos en los totales de cada suite; no se suman nuevamente.
+Las pruebas del frontend simulan HTTP y ejercitan las páginas, formularios, hooks y caché
+reales. Los e2e del backend comprueban los endpoints con autenticación, permisos,
+persistencia y auditoría, incluida la reversión cuando falla el registro de auditoría.
+
+Los filtros y la paginación contribuyen a RNF-003, pero estas pruebas no acreditan
+el objetivo de respuesta en menos de 3 segundos ni el rendimiento con grandes volúmenes.
+Esas mediciones siguen pendientes.
+
+La API está documentada en `docs/api.md`, sección 9, y mediante los decoradores Swagger
+de los controladores y DTO. La actualización de la evidencia local no implica que los
+checks remotos hayan pasado ni que la feature esté integrada.
+
+### Evidencia manual del 2026-10-09
+
+El responsable confirmó el funcionamiento de los filtros de ambas pantallas: estado,
+búsqueda, combinación y limpieza, además de tipo en Productos. También confirmó el
+PATCH contra la API real: editar solo el nombre de un producto envía únicamente `name`,
+y editar solo la ubicación de un almacén envía únicamente `location`.
+
+Las capturas de Swagger muestran `page`, `limit`, `isActive`, `type` y `search` para
+Productos; `page`, `limit`, `isActive` y `search` para Almacenes. Esta evidencia acredita
+la visualización de los parámetros; los endpoints y sus reglas se ejercitan en los e2e.
 
 ### Límites y cierre pendiente
 
@@ -191,7 +228,9 @@ flujos estén implementados.
 Proveedores y clientes corresponden a las otras features de la primera oleada:
 `feature/suppliers` y `feature/customers`.
 
-El avance de la feature y sus comprobaciones se registran en `docs/progress.md`.
-El cierre de la entrega requiere completar las comprobaciones finales, revisar
-el recorrido completo en el navegador y Swagger, y verificar el PR hacia
-`develop` y sus checks. El estado `Verified` no implica integración.
+El avance y las comprobaciones se registran en `docs/progress.md`. Las correcciones del
+[PR #6](https://github.com/Luigui789/Manufactura/pull/6) tienen validación automatizada local
+y comprobación manual confirmada por el responsable. Quedan pendientes el cierre documental
+(formato, revisión del diff y commit), la publicación de los commits acumulados y la
+verificación de los checks y la nueva revisión del PR hacia `develop`.
+El estado `Verified` no implica integración.
