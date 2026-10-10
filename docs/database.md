@@ -261,12 +261,12 @@ porque renunciaría a la integridad referencial.
 La solución es que **cada migración declare qué tipos acepta y cuál es su origen obligatorio**, y
 reemplace la restricción `CHECK` anterior por la ampliada.
 
-| Migración                    | Tipos permitidos                                 | Origen obligatorio            | Columna añadida            |
-| ---------------------------- | ------------------------------------------------ | ----------------------------- | -------------------------- |
+| Migración                    | Tipos permitidos                                 | Origen obligatorio                     | Columna añadida            |
+| ---------------------------- | ------------------------------------------------ | -------------------------------------- | -------------------------- |
 | Foundation (actual)          | `ADJUSTMENT_IN`, `ADJUSTMENT_OUT`                | ninguno; `reason` requerido en ajustes | —                          |
 | Compras (planificada)        | \+ `PURCHASE_RECEIPT`                            | `purchaseReceiptItemId`; `reason` nulo | `purchase_receipt_item_id` |
-| Producción C-2 (planificada) | \+ `PRODUCTION_CONSUMPTION`, `PRODUCTION_OUTPUT` | `productionOrderId`           | `production_order_id`      |
-| Ventas (fuera de esta ronda) | \+ `SALE_DISPATCH`                               | `dispatchItemId`              | `dispatch_item_id`         |
+| Producción C-2 (planificada) | \+ `PRODUCTION_CONSUMPTION`, `PRODUCTION_OUTPUT` | `productionOrderId`                    | `production_order_id`      |
+| Ventas (fuera de esta ronda) | \+ `SALE_DISPATCH`                               | `dispatchItemId`                       | `dispatch_item_id`         |
 
 La restricción de la fundación es, literalmente:
 
