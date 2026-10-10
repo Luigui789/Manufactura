@@ -5,7 +5,7 @@ Este documento refleja el estado **real** del proyecto.
 Una casilla marcada significa que la comprobación se ejecutó y se vio el resultado. No se marca
 nada por parecer correcto, por estar escrito ni por estar a punto de terminarse.
 
-Última actualización: 2026-10-09.
+Última actualización: 2026-10-10.
 
 ## Estados del trabajo
 
@@ -838,6 +838,28 @@ solo documenta la política y no cambia permisos ni reglas remotas.
 ---
 
 ## Etapas siguientes
+
+### Ronda Inventario, Compras y Producción — planificada / pendiente
+
+El 2026-10-10 se redacta el PR0 de documentación en `docs/next-development-round`, desde
+`develop` (`53b7402`, con Docker integrado). La
+[especificación de la ronda](specs/2026-10-10-inventory-purchases-production-design.md)
+define reparto, contratos, transacciones, migraciones, pruebas y dependencias.
+En la revisión local del mismo día, los ADR 011–014 quedan `Aceptado` conceptualmente por
+aprobación del responsable. Se aclaran el bloqueo futuro de `isLotTracked` con cualquier
+movimiento (incluso con saldo cero), la cuarentena solo cuando se requiere inspección y las
+políticas de alcance todavía propuestas. Los ADR 001–010 no se modifican.
+Este registro no acredita implementación ni prueba de los RF de la ronda.
+
+Orden recomendado: PR0 → Inventario A-1 → Compras → Inventario A-2 → Producción C-1 →
+Producción C-2. Compras y A-2 pueden intercambiarse después de A-1, conservando las restricciones
+de lotes/origen. C-1 puede desarrollarse en paralelo. Antes de C-2 deben estar disponibles A-1,
+Compras y el contrato necesario de Inventario, además de C-1; A-2 completo no es obligatorio.
+Producción queda a cargo del responsable del proyecto; falta asignar nominalmente los otros
+dos responsables y coordinar Prisma.
+
+El trabajo de PR0 queda revisado localmente, sin commit ni push. Inventario,
+Compras y Producción conservan sus estados pendientes/parciales y la evidencia histórica.
 
 | Etapa | Contenido                                                    | Estado                                                       |
 | ----- | ------------------------------------------------------------ | ------------------------------------------------------------ |
