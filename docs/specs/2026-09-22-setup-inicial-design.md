@@ -50,6 +50,11 @@ archivo de bloqueo versionado es `pnpm-lock.yaml`; `package-lock.json` y `yarn.l
 
 ### Decisión B — Docker Compose contiene únicamente PostgreSQL
 
+**Decisión histórica de la Etapa 1.** Desde el trabajo de Docker del 2026-10-09,
+el entorno de desarrollo incorpora también backend y frontend con Compose Watch.
+El procedimiento vigente se describe en [../docker.md](../docker.md); el flujo con
+pnpm en el host permanece disponible.
+
 Conforme a §36 del prompt maestro. Frontend y backend se ejecutan localmente mediante pnpm.
 Dockerizar el backend se pospone: el hot-reload dentro de un contenedor en Windows es lento y
 frágil, y no aporta nada a esta etapa.

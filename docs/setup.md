@@ -1,5 +1,13 @@
 # Puesta en marcha — EcoSoap ERP
 
+**Para el equipo, el arranque recomendado es con Docker:** PostgreSQL, backend y
+frontend se levantan con `docker compose up --build --watch`, sin instalar Node
+ni pnpm en la computadora. Sigue [la guía de Docker](docker.md) para configurar
+`.env`, aplicar el seed inicial y crear el primer administrador.
+
+Las secciones siguientes conservan el flujo con Node/pnpm en el host y únicamente
+PostgreSQL en Docker. Usa uno de los dos modos a la vez para evitar choques de puertos.
+
 ## 1. Requisitos
 
 | Herramienta    | Versión             | Comprobar con            |
@@ -105,7 +113,7 @@ pnpm --filter backend prisma:generate
 El cliente se genera en `backend/src/generated/prisma`, que está en `.gitignore`: es código
 derivado del esquema y cada integrante lo regenera en su máquina.
 
-`schema.prisma` y las migraciones contienen Foundation y `auth_rbac`. Aplica las migraciones existentes:
+`schema.prisma` y las migraciones contienen Foundation, `auth_rbac`, proveedores y clientes. Aplica las migraciones existentes:
 
 ```bash
 pnpm --filter backend exec prisma migrate deploy
@@ -238,14 +246,14 @@ y el merge siguen la política del equipo; este workflow no modifica reglas de p
 
 ## 9. Problemas frecuentes
 
-| Síntoma                                      | Causa y solución                                                                            |
-| -------------------------------------------- | ------------------------------------------------------------------------------------------- |
-| `Error 28000: no existe el rol "ecosoap"`    | Estás conectando a un PostgreSQL nativo, no al contenedor. Ver sección 4.                   |
-| `EADDRINUSE :::3000`                         | Ya hay un backend corriendo. Ciérralo antes de arrancar otro.                               |
-| Contenedor en bucle de reinicio, `unhealthy` | Volumen con estructura de una versión anterior. `docker compose down -v` y arriba de nuevo. |
-| `Ignored build scripts: prisma...`           | Falta aprobar el script en `onlyBuiltDependencies` de `pnpm-workspace.yaml`.                |
-| Errores `EPERM`/`EBUSY` al instalar          | El repositorio está dentro de una carpeta sincronizada. Muévelo fuera.                      |
-| «No se pudo conectar con el servidor»        | El backend no está corriendo, o `VITE_API_URL` apunta a otro puerto.                        |
+| Síntoma                                      | Causa y solución                                                                                                                     |
+| -------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| `Error 28000: no existe el rol "ecosoap"`    | Estás conectando a un PostgreSQL nativo, no al contenedor. Ver sección 4.                                                            |
+| `EADDRINUSE :::3000`                         | Ya hay un backend corriendo. Ciérralo antes de arrancar otro.                                                                        |
+| Contenedor en bucle de reinicio, `unhealthy` | Revisa `docker compose logs postgres` y la versión/ruta del volumen. Conserva los datos; no uses `down -v` como solución automática. |
+| `Ignored build scripts: prisma...`           | Falta aprobar el script en `onlyBuiltDependencies` de `pnpm-workspace.yaml`.                                                         |
+| Errores `EPERM`/`EBUSY` al instalar          | El repositorio está dentro de una carpeta sincronizada. Muévelo fuera.                                                               |
+| «No se pudo conectar con el servidor»        | El backend no está corriendo, o `VITE_API_URL` apunta a otro puerto.                                                                 |
 
 ## 10. Flujo de trabajo
 

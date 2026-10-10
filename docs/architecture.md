@@ -36,7 +36,9 @@ justifica y añadirían complejidad operativa que no aporta valor académico.
 Manufactura/
 ├── package.json            privado; scripts de desarrollo y calidad
 ├── pnpm-workspace.yaml     declara frontend y backend
-├── docker-compose.yml      solo PostgreSQL
+├── docker-compose.yml      desarrollo: PostgreSQL, backend y frontend
+├── Dockerfile              targets backend-dev y frontend-dev; Node 22 + pnpm
+├── docker/                 entrada del backend con conexión interna a PostgreSQL
 ├── .env.example            referencia única de variables
 ├── CLAUDE.md               identidad, reglas y Task Router
 ├── docs/
@@ -50,6 +52,14 @@ pnpm) y la configuración compartida de formato.
 
 No existe `packages/shared`. Se creará solo si aparece una necesidad real de compartir tipos o
 contratos, no de forma preventiva.
+
+El entorno de desarrollo ejecuta las tres piezas en Compose, con dependencias Linux
+instaladas desde el lockfile y sincronización del código mediante Compose Watch.
+PostgreSQL conserva el volumen `ecosoap-postgres-data`; el backend espera su healthcheck
+y aplica migraciones con `migrate deploy`. El seed y el primer administrador son
+operaciones iniciales explícitas. El frontend espera la salud de la API y solo recibe
+variables públicas. El flujo con pnpm en el host sigue disponible.
+El procedimiento del equipo está en [docker.md](docker.md).
 
 ## 3. Patrón del backend
 

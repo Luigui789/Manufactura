@@ -43,15 +43,17 @@ Detalle completo en [`docs/architecture.md`](docs/architecture.md).
 
 ## Requisitos
 
-| Herramienta    | Versión         |
-| -------------- | --------------- |
-| Node.js        | >= 22.12        |
-| pnpm           | 10.30.3         |
-| Docker Desktop | con Compose v2+ |
+| Herramienta    | Versión                                |
+| -------------- | -------------------------------------- |
+| Git            | Versión reciente                       |
+| Docker Desktop | Contenedores Linux y Compose >= 2.32.2 |
+
+Node 22.16.0 y pnpm 10.30.3 se ejecutan dentro de Docker. Si eliges el flujo
+alternativo en el host, necesitas Node >= 22.12 y pnpm 10.30.3.
 
 **pnpm es el gestor oficial del proyecto.** No uses `npm install`, `yarn` ni `bun`; el único
-lockfile versionado es `pnpm-lock.yaml`. La versión está fijada en `packageManager`, así que basta
-con `corepack enable` para que todos trabajemos con la misma.
+lockfile versionado es `pnpm-lock.yaml`. Docker prepara la versión fijada en
+`packageManager`; en el flujo del host se habilita con `corepack enable`.
 
 > **No clones el repositorio dentro de OneDrive** ni en ninguna carpeta con sincronización
 > automática: `node_modules` de pnpm usa enlaces simbólicos que esa sincronización corrompe.
@@ -61,8 +63,7 @@ con `corepack enable` para que todos trabajemos con la misma.
 ```bash
 git clone https://github.com/Luigui789/Manufactura.git
 cd Manufactura
-corepack enable
-pnpm install
+git switch develop
 ```
 
 ## Variables de entorno
@@ -81,24 +82,33 @@ Genera `JWT_SECRET` aleatorio de al menos 32 caracteres y reemplaza el marcador 
 (que falla la validación a propósito):
 
 ```bash
-node -e "console.log(require('node:crypto').randomBytes(48).toString('base64url'))"
+docker run --rm node:22.16.0-bookworm-slim node -e "console.log(require('node:crypto').randomBytes(48).toString('base64url'))"
 ```
 
-No lo compartas ni lo prefijes con `VITE_`. Los pasos completos están en `docs/setup.md`.
+No lo compartas ni lo prefijes con `VITE_`. Los pasos completos están en
+[`docs/docker.md`](docs/docker.md), incluidos PowerShell y el primer administrador.
 
 ## Docker
 
 ```bash
-pnpm db:up       # levanta PostgreSQL
-pnpm db:down     # lo detiene
-pnpm db:logs     # sigue sus registros
+docker compose up --build --watch  # PostgreSQL, API y frontend con recarga de código
 ```
 
-En esta etapa Docker Compose contiene únicamente PostgreSQL; el backend y el frontend se ejecutan
-localmente. El contenedor publica el puerto **5433** para no chocar con instalaciones nativas de
-PostgreSQL que suelen ocupar el 5432.
+En otra terminal, aplica el seed una sola vez por base nueva y crea el primer
+administrador siguiendo la [guía de Docker](docs/docker.md):
 
-## Ejecución
+```bash
+docker compose run --rm --no-deps backend pnpm db:seed
+```
+
+PostgreSQL publica el puerto **5433** para no chocar con instalaciones nativas.
+`docker compose down` detiene y elimina los contenedores conservando los datos.
+
+## Ejecución alternativa con pnpm en el host
+
+Sigue [`docs/setup.md`](docs/setup.md) para instalar Node/pnpm, generar Prisma y
+aplicar las migraciones. `pnpm db:up` levanta solamente PostgreSQL; no combines
+este modo con la API/frontend de Docker en los mismos puertos.
 
 ```bash
 pnpm dev                          # backend y frontend en paralelo
