@@ -744,6 +744,64 @@ preparar esta evidencia; Vite mantiene su aviso conocido de tamaño de bundle.
 
 ---
 
+## Cierre de datos maestros — 2026-10-09
+
+Los tres PR se integraron por merge en `develop`, preservando el historial de las
+ramas. La CI del commit resultante se verificó después de cada integración:
+
+| PR                                                    | Funcionalidad         | Merge     | CI posterior                                                                               |
+| ----------------------------------------------------- | --------------------- | --------- | ------------------------------------------------------------------------------------------ |
+| [#6](https://github.com/Luigui789/Manufactura/pull/6) | Productos y almacenes | `332e499` | [331 pruebas y calidad](https://github.com/Luigui789/Manufactura/actions/runs/38015405667) |
+| [#8](https://github.com/Luigui789/Manufactura/pull/8) | Proveedores           | `ab8a5a8` | [383 pruebas y calidad](https://github.com/Luigui789/Manufactura/actions/runs/38016963705) |
+| [#9](https://github.com/Luigui789/Manufactura/pull/9) | Clientes              | `90c74a0` | [433 pruebas y calidad](https://github.com/Luigui789/Manufactura/actions/runs/38018610225) |
+
+El último resultado incluye 72 unitarias backend, 128 frontend y 233 e2e con
+PostgreSQL 18. Los PR #6 y #8 recibieron aprobación de Luigui789; el #9 pertenece
+al líder y siguió la política vigente de revisar diff/checks antes del merge propio.
+Las ramas de feature se borraron después de comprobar que todos sus commits estaban
+contenidos en `develop`. Los registros previos describen las verificaciones durante
+la preparación de cada PR; esta sección documenta su cierre remoto.
+
+## Desarrollo completo con Docker — 2026-10-09
+
+Rama `codex/docker-dev`, creada desde `develop` (`90c74a0`). Integra los servicios de
+desarrollo del backend y frontend en el Compose existente, conserva el volumen de
+PostgreSQL y mantiene disponible el flujo con pnpm en el host. No modifica código de
+negocio, dependencias, esquema ni migraciones compartidas.
+
+La guía [docker.md](docker.md) describe el arranque, seed y primer administrador.
+Compose Watch sincroniza código y reconstruye ante cambios de dependencias o Prisma.
+El backend valida el entorno y ejecuta `migrate deploy` antes de Nest Watch; el seed
+es explícito. Las imágenes no reciben `.env`, y el frontend solo recibe variables
+públicas. Se añade el check `Docker development` para construir y verificar el stack,
+además del check existente `Quality and tests`.
+
+Verificación local completada en Docker Desktop con contenedores Linux, Node
+22.16.0, pnpm 10.30.3 y PostgreSQL 18:
+
+- Construcción de ambas imágenes con lockfile congelado, cuatro migraciones
+  compartidas aplicadas y los tres servicios saludables.
+- Lint y builds de backend/frontend correctos; 433 pruebas existentes aprobadas
+  dentro de Docker: 72 unitarias backend, 128 frontend y 233 e2e.
+- Seed y primer administrador mediante los CLI existentes, más comprobación HTTP
+  de frontend, salud, CORS, cookies, autenticación de los cuatro catálogos y logout.
+- Compose Watch comprobado con ediciones reales desde Windows en backend y
+  frontend. Los archivos originales se restauraron después de la prueba. El
+  backend incluye `procps`, necesario para que Nest Watch termine los procesos
+  hijos antes de recargar y evite dejar una API anterior ocupando el puerto.
+- Recreación de los tres contenedores con el mismo volumen de prueba: las doce
+  tablas conservaron todos sus valores, incluido un almacén personalizado. Los
+  snapshots antes/después tienen el mismo SHA-256:
+  `32709ae943fc7bd25ea63b468ae8e490699a3c5845befe0d848fd4ce9db7eb23`.
+- El `.env` local, código de aplicación, dependencias, esquema y migraciones
+  permanecen sin cambios; la verificación usó bases y volumen separados.
+
+Este registro corresponde a la verificación local previa al PR. El nuevo check
+`Docker development` está implementado y su comprobación se ejecutó localmente;
+su resultado remoto debe comprobarse en el PR antes de integrar.
+
+---
+
 ## Desviaciones de proceso
 
 Los dos primeros pull requests se integraron sin la revisión que exigía el flujo de esas etapas. Esa
@@ -781,17 +839,17 @@ solo documenta la política y no cambia permisos ni reglas remotas.
 
 ## Etapas siguientes
 
-| Etapa | Contenido                                         | Estado                                                                              |
-| ----- | ------------------------------------------------- | ----------------------------------------------------------------------------------- |
-| 3     | Autenticación JWT y RBAC                          | Integrada en `develop` (PR #3)                                                      |
-| 4     | Datos maestros: productos, almacenes, proveedores | PR #6: correcciones verificadas localmente; nueva revisión e integración pendientes |
-| 5     | Compras y recepción                               | Pendiente                                                                           |
-| 6     | Inventario y movimientos                          | Pendiente                                                                           |
-| 7     | BOM y producción                                  | Pendiente                                                                           |
-| 8     | Lotes, trazabilidad y calidad                     | Pendiente                                                                           |
-| 9     | Clientes, ventas y despacho                       | Pendiente                                                                           |
-| 10    | Dashboard y reportes básicos                      | Pendiente                                                                           |
-| 11    | Simulación ISA-95                                 | Pendiente                                                                           |
+| Etapa | Contenido                                                    | Estado                                                       |
+| ----- | ------------------------------------------------------------ | ------------------------------------------------------------ |
+| 3     | Autenticación JWT y RBAC                                     | Integrada en `develop` (PR #3)                               |
+| 4     | Datos maestros: productos, almacenes, proveedores y clientes | Integrados en `develop` (PR #6, #8 y #9), CI con 433 pruebas |
+| 5     | Compras y recepción                                          | Pendiente                                                    |
+| 6     | Inventario y movimientos                                     | Pendiente                                                    |
+| 7     | BOM y producción                                             | Pendiente                                                    |
+| 8     | Lotes, trazabilidad y calidad                                | Pendiente                                                    |
+| 9     | Clientes, ventas y despacho                                  | Pendiente                                                    |
+| 10    | Dashboard y reportes básicos                                 | Pendiente                                                    |
+| 11    | Simulación ISA-95                                            | Pendiente                                                    |
 
 `develop` se integra en `main` cuando haya un bloque funcional completo —configuración, modelo de
 datos, autenticación y datos maestros—, no al terminar cada etapa.

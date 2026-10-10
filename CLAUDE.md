@@ -135,6 +135,7 @@ Tres integrantes. Ramas: `main` (estable) → `develop` (integración) → `feat
 | Endpoints, contratos, Swagger           | `docs/api.md`                                      |
 | Saber qué requisito cubre algo          | `docs/requirements.md`                             |
 | Levantar el entorno, problemas de setup | `docs/setup.md`                                    |
+| Desarrollo completo con Docker          | `docs/docker.md`                                   |
 | Auditoría y trazabilidad                | `docs/audit.md`                                    |
 | Por qué se decidió algo                 | `docs/decisions/`                                  |
 | Qué está hecho y verificado             | `docs/progress.md`                                 |
