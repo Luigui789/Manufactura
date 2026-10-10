@@ -383,7 +383,7 @@ Todo cambio de existencias sigue este protocolo, sin excepciones:
 
 ```text
 BEGIN
-  1. validar la operación empresarial y los estados implicados
+  1. bloquear producto y luego almacén (FOR SHARE); validar operación y estados
   2. obtener o crear la fila de StockBalance del par (producto, almacén)
   3. bloquear esa fila            SELECT ... FOR UPDATE
   4. validar la existencia general
@@ -394,6 +394,14 @@ BEGIN
   9. crear AuditLog
 COMMIT
 ```
+
+`applyAdjustment` toma `FOR SHARE` sobre producto y almacén antes de leer sus
+estados. Estos bloqueos se mantienen hasta terminar la transacción y compiten
+con el `FOR NO KEY UPDATE` de las ediciones y desactivaciones del catálogo.
+Después de una espera se leen los valores vigentes: un catálogo desactivado
+rechaza el ajuste, y un ajuste confirmado bloquea la desactivación con saldo
+o el cambio de unidad/tipo con historial. Dos ajustes pueden compartir estos
+bloqueos; el saldo sigue serializándose con `FOR UPDATE`.
 
 ### Creación de la primera fila
 
@@ -585,14 +593,44 @@ Prisma no modela `CHECK`; se añaden como SQL dentro de la migración correspond
 
 ### Reglas que `CHECK` no puede expresar
 
-Una restricción `CHECK` no puede consultar otra tabla. Estas reglas viven en el servicio y tienen
-prueba propia:
+Una restricción `CHECK` no puede consultar otra tabla. La capa de servicios
+debe garantizar las reglas que dependen de otras entidades:
 
 - Coherencia entre `Product.isLotTracked` y la presencia de `lotId`.
 - Bloqueo de consumo y despacho según `Lot.status`.
 - Prohibición de cambiar `isLotTracked` con movimientos existentes.
+- Prohibición de cambiar `Product.unit` o `Product.type` cuando el producto
+  tenga algún `InventoryMovement`, aunque sus saldos actuales sean cero.
+- Prohibición de desactivar un producto si tiene algún `StockBalance.quantity`
+  distinto de cero en cualquiera de sus almacenes.
+- Prohibición de desactivar un almacén si tiene algún `StockBalance.quantity`
+  distinto de cero para cualquiera de sus productos.
 - Inmutabilidad de una `Bom` ya usada por una orden.
 - Tope de cantidad recibida o despachada frente a la ordenada.
+
+En `feature/products-warehouses`, las restricciones de unidad, tipo y
+desactivación están implementadas en `ProductsService` y `WarehousesService`.
+Se comprueban dentro de la transacción, después de bloquear la fila del
+catálogo y antes de modificarla.
+
+Si alguna de estas restricciones impide la operación, la API devuelve `409`,
+conserva los valores del recurso y no registra un evento `UPDATE` o `DISABLE`
+para la operación rechazada.
+
+Para desactivar se exige saldo cero en cada balance asociado; no basta con
+comprobar un único almacén o producto. Se permite desactivar cuando no hay
+balances o cuando todos están en cero, aunque existan movimientos históricos.
+La reactivación no exige saldo cero. Estas operaciones no alteran saldos ni
+crean movimientos.
+
+Las pruebas de estas reglas de catálogo están en
+`backend/test/products-history.e2e-spec.ts` y
+`backend/test/catalog-stock-rules.e2e-spec.ts`. La coordinación con ajustes,
+en ambos órdenes de confirmación, se prueba en
+`backend/test/catalog-adjustments-concurrency.e2e-spec.ts`.
+
+Las reglas de BOM y de cantidades recibidas o despachadas corresponden a los
+módulos transaccionales pendientes de implementación.
 
 ### Disparadores
 

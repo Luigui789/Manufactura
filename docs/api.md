@@ -90,10 +90,15 @@ detecte sin interpretar el JSON.
 Rutas que el sistema expondrá conforme avancen las etapas. Aún no existen.
 
 ```text
-/api/suppliers            /api/purchase-orders
-/api/products             /api/inventory            /api/inventory/movements
-/api/boms                 /api/production-orders    /api/lots
-/api/customers            /api/sales-orders
+/api/suppliers
+/api/purchase-orders
+/api/inventory
+/api/inventory/movements
+/api/boms
+/api/production-orders
+/api/lots
+/api/customers
+/api/sales-orders
 ```
 
 ### Acciones de negocio
@@ -113,11 +118,15 @@ empresa:
 
 ## 6. Tags de Swagger
 
-Cada módulo declara su tag al incorporarse, de modo que la documentación quede agrupada por
-dominio. Actualmente existen `Health`, `Auth` y `Users`; los previstos son:
+Cada módulo declara su tag al incorporarse para agrupar su documentación.
+
+En esta rama están implementados los tags `Health`, `Auth`, `Users`, `Products`
+y `Warehouses`.
+
+Los previstos para etapas posteriores son:
 
 ```text
-Suppliers · Purchases · Products · Inventory
+Suppliers · Purchases · Inventory
 Production · Lots · Quality · Customers · Sales
 ```
 
@@ -184,3 +193,286 @@ probar las rutas; no se pega un JWT en el formulario de autorización.
 
 Los listados administrativos se paginan desde el backend. No se devuelven miles de registros de
 una vez para que el frontend los filtre.
+
+## 9. Inventario: productos y almacenes
+
+Implementado en la rama `feature/products-warehouses`. Los catálogos pertenecen
+al dominio de Inventario y reutilizan los modelos `Product` y `Warehouse`.
+
+La gestión de productos cubre `RF-INV-001`. Estas operaciones administran datos
+maestros y no modifican existencias ni generan movimientos de inventario.
+
+### 9.1. Acceso
+
+Todas las rutas requieren una sesión válida y haber completado cualquier cambio
+de contraseña obligatorio.
+
+- Consulta: `ADMIN`, `INVENTARIO`, `COMPRAS`, `PRODUCCION` y `VENTAS`.
+- Creación, edición y cambio de estado: únicamente `ADMIN` e `INVENTARIO`.
+- Sin sesión válida: `401`.
+- Sin permiso para modificar: `403`.
+
+Se reutilizan la cookie `ecosoap_session`, JWT y los guards y políticas del
+proyecto. El backend consulta el rol del usuario en la base de datos.
+
+Swagger agrupa los endpoints bajo `Products` y `Warehouses`, con autenticación
+por cookie. Se puede iniciar sesión desde `/api/docs` para probarlos.
+
+### 9.2. Endpoints de productos
+
+- `GET /api/products?page=1&limit=20`: listado paginado; responde `200`.
+- `POST /api/products`: crea un producto; responde `201`.
+- `GET /api/products/:id`: consulta el detalle; responde `200`.
+- `PATCH /api/products/:id`: actualiza los datos; responde `200`.
+- `PATCH /api/products/:id/status`: activa o desactiva; responde `200`.
+
+Ejemplo de creación:
+
+```json
+{
+  "code": "MP-ACEITE-01",
+  "name": "Aceite usado recolectado",
+  "category": "Aceites",
+  "type": "RAW_MATERIAL",
+  "unit": "LITER"
+}
+```
+
+Los cinco campos son obligatorios al crear:
+
+- `code`: texto de 1 a 50 caracteres; único.
+- `name`: texto de 1 a 200 caracteres.
+- `category`: texto de 1 a 100 caracteres, independiente del tipo.
+- `type`: uno de los valores del enum `ProductType`.
+- `unit`: uno de los valores del enum `UnitOfMeasure`.
+
+Código, nombre y categoría se recortan en los extremos. Además, el código del
+producto se convierte a mayúsculas al crear y editar, igual que el de almacenes.
+Por ejemplo, `" mp-aceite-01 "` se guarda como `"MP-ACEITE-01"`. Si el código
+normalizado ya pertenece a otro producto, la operación devuelve `409`.
+
+Tipos admitidos:
+
+- `RAW_MATERIAL`: materia prima.
+- `INTERMEDIATE`: producto intermedio.
+- `FINISHED_GOOD`: producto terminado.
+- `CONSUMABLE`: consumible, conservado del modelo existente.
+
+Unidades admitidas: `UNIT`, `GRAM`, `KILOGRAM`, `MILLILITER` y `LITER`.
+
+El producto se crea activo. `isActive`, `isLotTracked` y
+`requiresQualityInspection` no se aceptan en el cuerpo de creación ni en la
+edición general. Los dos últimos conservan sus valores predeterminados del
+modelo al crear.
+
+La edición permite enviar cualquiera de los cinco campos del alta, con las
+mismas validaciones. Debe incluir al menos un campo; `{}` y los valores `null`
+se rechazan. Los campos omitidos conservan su valor.
+
+Si el producto tiene al menos un movimiento de inventario, cambiar `unit` o
+`type` devuelve `409`, incluso si sus existencias actuales son cero. Enviar el
+mismo valor de unidad o tipo no se considera un cambio. Código, nombre y
+categoría siguen siendo editables. Si se intenta un cambio bloqueado junto con
+otros campos, se rechaza toda la edición y no se registra un evento `UPDATE`.
+
+El formulario de productos construye el PATCH con `dirtyFields` y envía solo
+los campos modificados. Guardar queda deshabilitado si no hay cambios, también
+cuando se restauran todos los valores originales.
+
+Ejemplo de edición parcial:
+
+```json
+{
+  "name": "Aceite usado recolectado para proceso",
+  "category": "Aceites recuperados"
+}
+```
+
+`ProductResponse` incluye `id`, `code`, `name`, `category`, `type`, `unit`,
+`isLotTracked`, `requiresQualityInspection`, `isActive`, `createdAt` y
+`updatedAt`. El identificador es UUID y las fechas se serializan como texto
+ISO 8601.
+
+### 9.3. Endpoints de almacenes
+
+- `GET /api/warehouses?page=1&limit=20`: listado paginado; responde `200`.
+- `POST /api/warehouses`: crea un almacén; responde `201`.
+- `GET /api/warehouses/:id`: consulta el detalle; responde `200`.
+- `PATCH /api/warehouses/:id`: actualiza los datos; responde `200`.
+- `PATCH /api/warehouses/:id/status`: activa o desactiva; responde `200`.
+
+Ejemplo de creación:
+
+```json
+{
+  "code": "ALM-CENTRAL",
+  "name": "Almacén Central",
+  "location": "Nave Norte, Pasillo A",
+  "isActive": true
+}
+```
+
+Validaciones del alta:
+
+- `code`: obligatorio, de 3 a 50 caracteres; se recorta y convierte a mayúsculas.
+- `name`: obligatorio, de 3 a 100 caracteres; se recorta.
+- `location`: obligatoria, de 1 a 255 caracteres; se recorta.
+- `isActive`: booleano opcional; si se omite, se usa `true`.
+
+El código es único. Intentar usar el código de otro almacén con distinta
+capitalización también produce un conflicto, porque se normaliza a mayúsculas.
+
+La edición acepta `code`, `name` y `location` de forma parcial, con las mismas
+validaciones. Debe incluir al menos un campo y no admite `null` ni `isActive`.
+Los campos omitidos conservan su valor. El estado se modifica mediante `/status`.
+
+El formulario de almacenes construye el PATCH con `dirtyFields` y envía solo
+los campos modificados. Confirmar queda deshabilitado si no hay cambios, también
+cuando se restauran todos los valores originales.
+
+Ejemplo de edición parcial:
+
+```json
+{
+  "location": "Nave Sur, Pasillo B"
+}
+```
+
+`WarehouseResponse` incluye `id`, `code`, `name`, `location`, `isActive`,
+`createdAt` y `updatedAt`. El identificador es UUID y las fechas se serializan
+como texto ISO 8601.
+
+### 9.4. Estados y conservación de datos
+
+Los dos endpoints `PATCH /:id/status` reciben exclusivamente:
+
+```json
+{
+  "isActive": false
+}
+```
+
+Para reactivar se envía `true`. Se exigen booleanos JSON reales: `"false"`,
+`0` y `null` se rechazan con `400`.
+
+Solicitar el estado que el recurso ya tiene devuelve `409`.
+
+La desactivación exige que no existan saldos distintos de cero:
+
+- Producto: se comprueban sus saldos en todos los almacenes. Si cualquiera
+  tiene `quantity != 0`, se devuelve `409`.
+- Almacén: se comprueban los saldos de todos sus productos. Si cualquiera
+  tiene `quantity != 0`, se devuelve `409`.
+
+La comprobación se realiza dentro de la transacción, después de bloquear
+la fila del producto o almacén y antes de actualizar su estado. Cuando se
+rechaza la operación, el recurso conserva sus valores y no se registra
+un evento `DISABLE`.
+
+Si todos los saldos son cero, se permite desactivar, aunque existan filas
+de `StockBalance` o movimientos históricos. También se permite cuando
+el recurso no tiene saldos registrados. La reactivación no exige saldo cero.
+
+La desactivación conserva el registro y sus relaciones. No se ofrecen
+endpoints `DELETE` para productos ni almacenes. Cambiar el estado no
+modifica saldos ni genera movimientos de inventario.
+
+### 9.5. Respuestas, paginación y filtros
+
+Los listados responden con:
+
+```json
+{
+  "data": [],
+  "meta": {
+    "page": 1,
+    "limit": 20,
+    "total": 0
+  }
+}
+```
+
+Parámetros de paginación de ambos catálogos:
+
+- `page`: entero desde 1; predeterminado 1.
+- `limit`: entero entre 1 y 100; predeterminado 20.
+- `meta.total`: cantidad total de registros que cumplen los filtros, antes de
+  aplicar la paginación. Sin filtros, incluye todos los registros activos e inactivos.
+- Productos: orden por nombre ascendente y, en caso de empate, por identificador.
+- Almacenes: orden por código ascendente.
+- Una página sin registros devuelve `data: []`, conservando el total filtrado.
+
+Filtros opcionales de `GET /api/products`:
+
+- `isActive`: admite únicamente `true` o `false` en la URL. Si se omite, se
+  incluyen ambos estados. `isActive=false` selecciona los productos inactivos.
+- `type`: admite `RAW_MATERIAL`, `INTERMEDIATE`, `FINISHED_GOOD` o `CONSUMABLE`.
+  Si se omite, se incluyen todos los tipos.
+- `search`: texto de 1 a 100 caracteres después de quitar espacios de los extremos.
+  Busca coincidencias parciales en el código o el nombre, sin distinguir mayúsculas
+  de minúsculas.
+
+Filtros opcionales de `GET /api/warehouses`:
+
+- `isActive`: mismas reglas que en productos.
+- `search`: mismas reglas de longitud y comparación; busca en código, nombre o
+  ubicación.
+- Almacenes no admite el filtro `type`.
+
+Los filtros se combinan: un registro debe cumplir todos los filtros enviados.
+Dentro de la búsqueda, basta con que coincida cualquiera de los campos indicados.
+La consulta de registros y el cálculo de `meta.total` usan los mismos filtros.
+
+Ejemplos:
+
+```text
+GET /api/products?page=1&limit=20&isActive=true&type=RAW_MATERIAL&search=aceite
+GET /api/products?page=1&limit=20&isActive=false
+GET /api/warehouses?page=1&limit=20&isActive=true&search=central
+GET /api/warehouses?page=2&limit=20&isActive=false
+```
+
+Valores como `isActive=yes`, `isActive=0`, `type=OTRO`, `search=` o una búsqueda
+compuesta solo por espacios devuelven `400`. Una búsqueda de más de 100 caracteres
+después de recortar los extremos también se rechaza.
+
+El frontend omite los filtros vacíos, recorta y codifica la búsqueda con
+`URLSearchParams`, y conserva explícitamente `isActive=false`. Los filtros forman
+parte de la clave de caché del listado. Al cambiar estado o tipo, o aplicar una
+búsqueda con el botón Buscar o Enter, se vuelve a la página 1. Al paginar se
+conservan los filtros; Limpiar filtros elimina todos los filtros y vuelve a la página 1.
+
+El detalle, la creación, la edición y el cambio de estado responden con
+`{ data: recurso, message: texto }`, siguiendo las convenciones generales.
+
+### 9.6. Errores
+
+- `400`: datos inválidos, campos adicionales, edición vacía, UUID incorrecto,
+  filtros inválidos o paginación fuera de los límites.
+- `401`: sesión ausente o inválida.
+- `403`: rol sin permiso, cambio obligatorio de contraseña pendiente u otra
+  restricción de los guards globales.
+- `404`: producto o almacén inexistente.
+- `409`: código duplicado, solicitud de un estado que el recurso ya tiene,
+  cambio de `unit` o `type` de un producto con movimientos de inventario,
+  o intento de desactivar un producto o almacén con existencias distintas de cero.
+- `500`: fallo interno, incluido un fallo al registrar la auditoría.
+
+### 9.7. Auditoría y transacciones
+
+Se utilizan las convenciones existentes: acciones `CREATE`, `UPDATE`, `ENABLE`
+y `DISABLE`, junto con la entidad `PRODUCT` o `WAREHOUSE`.
+
+Los eventos identifican al usuario mediante `actorType: USER` y `actorUserId`,
+y se correlacionan con la petición mediante `requestId`.
+
+- Creación: registra los valores iniciales del catálogo.
+- Edición: registra los valores anteriores y nuevos únicamente de los campos
+  que cambiaron.
+- Activación y desactivación: registran el cambio de `isActive`.
+- En almacenes, los cambios de `location` también quedan auditados.
+- Una edición que conserva todos los valores no genera un evento `UPDATE`.
+
+El cambio del recurso y su evento se guardan dentro de la misma transacción.
+Si falla la auditoría, ambos se revierten. Los cambios sobre un mismo recurso
+se serializan mediante un bloqueo de fila dentro de la transacción.
