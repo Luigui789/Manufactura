@@ -10,7 +10,9 @@
 ### Estado físico y diseño de la siguiente ronda
 
 En `develop` (`53b7402`) están versionadas las migraciones Foundation, auth, proveedores y
-clientes. Los movimientos físicos solo admiten ajustes y tienen `reason` obligatorio.
+clientes. En la rama A-1, `InventoryMovement.reason` ya admite `NULL` en Prisma y PostgreSQL;
+los ajustes siguen exigiendo un motivo tipificado. Los movimientos físicos todavía solo admiten
+ajustes.
 `Lot` aún no tiene columnas de origen empresarial. Órdenes, recepciones, BOM, ejecución y
 calidad siguen siendo **modelo planificado**, no tablas/endpoints existentes.
 
@@ -189,7 +191,7 @@ erDiagram
         uuid lot_id FK
         InventoryMovementType type
         decimal quantity
-        AdjustmentReason reason
+        AdjustmentReason? reason
         timestamptz occurred_at
         uuid performed_by_user_id FK
         string request_id
@@ -244,9 +246,10 @@ bloquear nunca un lote.
 la finalización de la producción o la recepción de la mercancía. Un campo llamado «producido» que
 además significara «recibido» haría ambiguas todas las consultas.
 
-**`InventoryMovement.reason`** actualmente es obligatorio porque solo existen ajustes.
-Compras planifica hacerlo nullable: obligatorio en ajustes y nulo en los tipos empresariales
-que su migración habilite. Una nota libre no basta como justificación: un motivo tipificado
+**`InventoryMovement.reason`** admite `NULL` desde A-1 para dejar espacio a movimientos
+empresariales futuros. Los ajustes exigen un motivo tipificado tanto en la validación de la API
+como en la regla de base de datos; los movimientos no originados por ajustes lo dejan nulo. Una
+nota libre no basta como justificación: un motivo tipificado
 se puede filtrar, contar y auditar.
 
 ## 5. Matriz tipo → origen por migración
@@ -260,8 +263,8 @@ reemplace la restricción `CHECK` anterior por la ampliada.
 
 | Migración                    | Tipos permitidos                                 | Origen obligatorio            | Columna añadida            |
 | ---------------------------- | ------------------------------------------------ | ----------------------------- | -------------------------- |
-| Foundation (actual)          | `ADJUSTMENT_IN`, `ADJUSTMENT_OUT`                | ninguno; `reason` obligatorio | —                          |
-| Compras (planificada)        | \+ `PURCHASE_RECEIPT`                            | `purchaseReceiptItemId`       | `purchase_receipt_item_id` |
+| Foundation (actual)          | `ADJUSTMENT_IN`, `ADJUSTMENT_OUT`                | ninguno; `reason` requerido en ajustes | —                          |
+| Compras (planificada)        | \+ `PURCHASE_RECEIPT`                            | `purchaseReceiptItemId`; `reason` nulo | `purchase_receipt_item_id` |
 | Producción C-2 (planificada) | \+ `PRODUCTION_CONSUMPTION`, `PRODUCTION_OUTPUT` | `productionOrderId`           | `production_order_id`      |
 | Ventas (fuera de esta ronda) | \+ `SALE_DISPATCH`                               | `dispatchItemId`              | `dispatch_item_id`         |
 
