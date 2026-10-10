@@ -8,16 +8,17 @@ import { AuthModule } from './auth/auth.module.js';
 import { RequestContextMiddleware } from './common/request-context/request-context.js';
 import { validateEnv } from './config/env.validation.js';
 import { HealthModule } from './health/health.module.js';
+import { InventoryModule } from './inventory/inventory.module.js';
 import { PrismaModule } from './prisma/prisma.module.js';
-import { UsersModule } from './users/users.module.js';
 import { PurchasesModule } from './purchases/purchases.module.js';
+import { UsersModule } from './users/users.module.js';
 
 /**
  * Solo existen los modulos que hacen algo real en esta etapa.
  *
- * Los dominios de negocio (Compras, Inventario, Produccion, Ventas) estan
- * descritos en docs/architecture.md y se materializaran cuando empiece su
- * funcionalidad: ComprasModule nacera con la rama feature/purchases, no antes.
+ * Compras contiene proveedores e Inventario contiene productos y almacenes.
+ * Produccion y Ventas estan descritos en docs/architecture.md y se
+ * materializaran cuando empiece su funcionalidad.
  */
 @Module({
   imports: [
@@ -35,6 +36,7 @@ import { PurchasesModule } from './purchases/purchases.module.js';
     AuthModule,
     UsersModule,
     HealthModule,
+    InventoryModule,
     PurchasesModule,
   ],
   providers: [

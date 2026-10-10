@@ -13,18 +13,35 @@ import { NotFoundPage } from './NotFoundPage';
 import SuppliersPage from '@/features/purchases/pages/SuppliersPage';
 
 const UsersPage = lazy(() =>
-  import('@/features/users/pages/UsersPage').then((module) => ({ default: module.UsersPage })),
+  import('@/features/users/pages/UsersPage').then((module) => ({
+    default: module.UsersPage,
+  })),
+);
+
+const WarehousesPage = lazy(() =>
+  import('@/features/inventory/pages/WarehousesPage').then((module) => ({
+    default: module.WarehousesPage,
+  })),
+);
+
+const ProductsPage = lazy(() =>
+  import('@/features/inventory/pages/ProductsPage').then((module) => ({
+    default: module.ProductsPage,
+  })),
 );
 
 export function AppRoutes() {
   return (
     <Routes>
       <Route path="/login" element={<LoginPage />} />
+
       <Route element={<RequireAuth />}>
         <Route path="/account/password" element={<ChangePasswordPage />} />
+
         <Route element={<RequirePasswordCurrent />}>
           <Route element={<AppLayout />}>
             <Route index element={<HomePage />} />
+
             <Route element={<RequireRole roles={['ADMIN']} />}>
               <Route
                 path="/users"
@@ -38,6 +55,25 @@ export function AppRoutes() {
             <Route element={<RequireRole roles={['ADMIN', 'COMPRAS']} />}>
               <Route path="/purchases/suppliers" element={<SuppliersPage />} />
             </Route>
+
+            <Route
+              path="/inventory/products"
+              element={
+                <Suspense fallback={<p role="status">Cargando productos…</p>}>
+                  <ProductsPage />
+                </Suspense>
+              }
+            />
+
+            <Route
+              path="/inventory/warehouses"
+              element={
+                <Suspense fallback={<p role="status">Cargando almacenes…</p>}>
+                  <WarehousesPage />
+                </Suspense>
+              }
+            />
+
             <Route path="*" element={<NotFoundPage />} />
           </Route>
         </Route>

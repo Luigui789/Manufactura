@@ -5,7 +5,7 @@ Este documento refleja el estado **real** del proyecto.
 Una casilla marcada significa que la comprobación se ejecutó y se vio el resultado. No se marca
 nada por parecer correcto, por estar escrito ni por estar a punto de terminarse.
 
-Última actualización: 2026-10-08.
+Última actualización: 2026-10-09.
 
 ## Estados del trabajo
 
@@ -140,7 +140,7 @@ pendientes a la vez. Queda resuelto.
 | 1   | Matriz tipo → origen de `InventoryMovement` definida por migración          |
 | 2   | `AuditLog` admite `ANONYMOUS` y entidad nula solo en `LOGIN_FAILED`         |
 | 3   | `ProductionOrder.plannedDate` añadida como fecha de calendario              |
-| 4   | `BomItem` sin unidad propia; congelación de la versión de BOM usada         |
+| 4   | Datos maestros: productos, almacenes, proveedores                           | En curso: productos y almacenes integrados (PR #6); proveedores en actualización (PR #8) |
 | 5   | Igualdad lote–producto garantizada con clave foránea compuesta              |
 | 6   | Origen único y obligatorio de cada lote                                     |
 | 7   | Política de calidad; bloqueo de consumo además de despacho                  |
@@ -206,7 +206,8 @@ los datos que necesite antes de recrear esa base; no se resetea ninguna base aut
 2. **Brechas de Foundation cerradas.** `Product.category` se añadió como texto obligatorio de hasta
    100 caracteres, separado de `ProductType`; `Warehouse.location` se añadió como texto obligatorio
    de hasta 255 caracteres. Se actualizaron migración, seed y pruebas, y se verificó en PostgreSQL
-   18.6 desde base vacía. Los CRUD empresariales siguen pendientes.
+   18.6 desde base vacía. Los CRUD empresariales seguían pendientes al cerrar Foundation; el
+   avance posterior de productos y almacenes se registra en la Etapa 4.
 3. **Requisitos propuestos por el equipo.** La política de lotes, `requestId`, snapshots de
    auditoría, JWT, versionado de BOM y otras extensiones quedan explícitamente como
    `PROPUESTO`; véase [`requirements.md`](requirements.md).
@@ -290,7 +291,7 @@ El PR #3 fue fusionado por Luigui789 a las `2026-10-02T04:50:42Z`
 `24bd515b5e8400cb5dbe1b81501d924c78da02e1`. La revisión de diff y checks satisface la política
 vigente para sus PR propios; no se afirma una aprobación externa inexistente. Se actualizó
 `develop` local mediante fast-forward. La Etapa 4 permanecía pendiente al cerrar esta integración
-el 2026-10-01; el avance de proveedores se registra en la sección siguiente.
+el 2026-10-01; su avance posterior se registra en la sección siguiente.
 
 | Comprobación final de Etapa 3 | Resultado observado                                                                                                                                                                                                   |
 | ----------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -326,13 +327,263 @@ auditoría. Los archivos locales de fixtures y sus credenciales no se versionan.
 
 ---
 
+## Etapa 4 — Datos maestros: Productos y Almacenes
+
+**Integrados en `develop` mediante el PR #6**, con las correcciones verificadas en la rama
+`feature/products-warehouses`, asociada al [PR #6](https://github.com/Luigui789/Manufactura/pull/6)
+hacia `develop`. El CRUD inicial se comprobó también en navegador el 2026-10-08. Las siete
+correcciones de revisión cuentan con pruebas automatizadas aprobadas el 2026-10-09. El
+responsable confirmó ese día la comprobación manual de filtros y PATCH parcial, y aportó
+capturas de los parámetros en Swagger. El cierre remoto se completó el 2026-10-09. Esta sección cubre solo
+Productos y Almacenes (`RF-INV-001`); Proveedores y Clientes se desarrollan en
+`feature/suppliers` y `feature/customers`.
+
+- [x] Backend de Productos: listar (paginado), crear, consultar, editar y cambiar estado
+- [x] Backend de Almacenes: listar (paginado), crear, consultar, editar y cambiar estado
+- [x] Tipos de producto: materia prima, intermedio y terminado, además de consumible del modelo
+- [x] Frontend de Productos y Almacenes: listado paginado, crear, editar, activar/desactivar
+- [x] Detalle de producto en pantalla
+- [x] Entradas de menú y rutas de Productos y Almacenes
+- [x] Consulta para roles autenticados; gestión solo para ADMIN e INVENTARIO
+- [x] Desactivación lógica, sin endpoints de borrado físico
+- [x] Auditoría dentro de la misma transacción que el cambio
+- [x] Pruebas e2e de Productos y Almacenes
+- [x] Pruebas de frontend de Productos y Almacenes
+- [x] `docs/api.md` y `docs/requirements.md` actualizados
+- [x] Verificación automatizada local: lint, formato, build y las tres suites (2026-10-09)
+- [x] Recorrido inicial en navegador y visualización de los diez endpoints en Swagger (2026-10-08)
+- [x] Correcciones del PR #6 implementadas y cubiertas por pruebas automatizadas
+- [x] Verificación manual de filtros y PATCH parcial contra la API real, confirmada por el responsable (2026-10-09)
+- [x] Checks del PR sobre el último commit publicado (`4d2c796`)
+- [x] Nueva aprobación de las correcciones del PR #6 por Luigui789
+- [x] Integrated into develop (PR #6, merge `332e499`)
+
+### Evidencia ejecutada de Productos y Almacenes
+
+Resultados finales reportados el 2026-10-08: lint, formato y compilación aprobados, junto con
+las tres suites completas. Las pruebas e2e se ejecutaron contra la base dedicada
+`ecosoap_inventory_test`. En total se aprobaron 239 pruebas: 72 unitarias del backend,
+105 e2e del backend y 62 del frontend.
+
+| Comprobación                      | Resultado observado                                                                                                                                                                                           |
+| --------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `pnpm --filter backend test`      | 5 archivos, 72/72, incluidas 37 pruebas de validación de Almacenes                                                                                                                                            |
+| `pnpm --filter backend test:e2e`  | 9 archivos, 105/105 (productos 25, almacenes 29)                                                                                                                                                              |
+| `pnpm --filter frontend test`     | 4 archivos, 62/62 (productos 16, almacenes 17)                                                                                                                                                                |
+| `pnpm lint` y `pnpm format:check` | Aprobados en la comprobación final del 2026-10-08.                                                                                                                                                            |
+| `pnpm build`                      | Backend y frontend compilan. Vite mantiene el aviso conocido por el tamaño del bundle inicial.                                                                                                                |
+| Cambios en `backend/prisma`       | Comparación de los cuatro archivos con la referencia local `origin/develop` (`b3f90a1`), el 2026-10-08: sin diferencias, incluida Foundation. No se actualizó la referencia remota durante esta comprobación. |
+
+Las pruebas del frontend simulan HTTP y ejercitan las páginas, formularios y hooks reales. Las
+pruebas e2e del backend comprueban persistencia, autenticación, permisos y auditoría. Estos
+resultados locales no acreditan por sí solos un pase de CI ni una integración.
+
+### Revisión de archivos del 2026-10-08
+
+Se revisaron los controladores, servicios, DTO, módulos, cliente HTTP, hooks, formularios,
+páginas, navegación, pruebas y documentación de productos y almacenes. Las rutas y los campos
+coinciden con la API documentada; las modificaciones requieren ADMIN o INVENTARIO, y el
+registro de auditoría comparte transacción con la operación.
+
+La comprobación de formato de `docs/api.md`, `docs/requirements.md` y `docs/progress.md` pasó.
+Esta revisión de archivos se complementó posteriormente con los resultados de ejecución y
+las comprobaciones manuales registrados a continuación. No se acredita todavía un pase de CI
+ni una integración remota.
+
+### Verificación final del 2026-10-08
+
+Después de la revisión de archivos se completaron las comprobaciones finales:
+
+- `pnpm lint`, `pnpm format:check` y `pnpm build`: aprobados.
+- Backend unitario: 72 pruebas aprobadas en 5 archivos.
+- Backend e2e: 105 pruebas aprobadas en 9 archivos, contra `ecosoap_inventory_test`.
+- Frontend: 62 pruebas aprobadas en 4 archivos.
+- Productos, recorrido manual confirmado por el responsable: login, entrada al listado,
+  creación de `PRUEBA-FINAL-01`, consulta del detalle, edición, cancelación de desactivación,
+  desactivación y reactivación. Se comprobó la persistencia de los cambios al recargar.
+- Almacenes, recorrido manual confirmado por el responsable: creación de `ALM-FINAL-01`,
+  consulta del listado, edición de ubicación, cancelación de desactivación, desactivación y
+  reactivación. Se comprobó la persistencia de los cambios al recargar.
+- Permisos en navegador: comprobación confirmada con un rol de consulta, que permite ver
+  productos y almacenes y consultar el detalle del producto, sin mostrar acciones de modificación.
+  Los rechazos de modificaciones para COMPRAS, PRODUCCION y VENTAS también están cubiertos por e2e.
+- Swagger: captura de `/api/docs` con los cinco endpoints de Products y los cinco de Warehouses,
+  sus descripciones e indicadores de autenticación. Esta comprobación acredita su visualización;
+  las operaciones de la API fueron ejercitadas por las pruebas e2e.
+
+El fallo previo de e2e por roles ausentes se resolvió configurando la conexión a la base de
+pruebas y ejecutando el seed antes de repetir la suite. La nueva ejecución terminó con las
+105 pruebas aprobadas. Los mensajes de fallos simulados de auditoría y de rutas sin política
+corresponden a escenarios negativos de las pruebas; no hubo pruebas fallidas en el cierre.
+
+Las variables de entorno de pruebas se establecen en una terminal dedicada. Al restaurar o
+abrir una terminal se debe comprobar de nuevo la conexión antes de ejecutar el seed o los e2e.
+
+Al cerrar la comprobación inicial del 2026-10-08 quedaron pendientes la apertura del PR,
+la revisión del diff, CI y la integración. Posteriormente se abrió el PR #6 y se recibieron
+correcciones; el avance y los pendientes actuales se detallan a continuación.
+
+### Correcciones del PR #6 — comprobaciones locales del 2026-10-09
+
+El [PR #6](https://github.com/Luigui789/Manufactura/pull/6) corresponde a
+`feature/products-warehouses` hacia `develop`. Las correcciones se acumulan en commits
+locales para publicarlas juntas después de completar el cierre. La versión de código
+comprobada tiene como último commit local `34e3eb2`; la actualización de esta documentación
+es posterior a las ejecuciones descritas.
+
+Las siete correcciones están implementadas:
+
+1. Cambiar `unit` o `type` devuelve `409` si el producto tiene movimientos, incluso si su
+   saldo actual volvió a cero. Los demás campos se pueden editar.
+2. Los códigos de producto se recortan y normalizan a mayúsculas al crear y editar;
+   un código normalizado duplicado devuelve `409`.
+3. Los formularios de edición de ambos catálogos envían únicamente los campos modificados.
+   Guardar queda deshabilitado si no hay cambios o si se revierten.
+4. Se corrigieron el título duplicado y el bloque de rutas de la API, y la descripción
+   de la arquitectura. La API también documenta las guardas de historial, existencias y filtros.
+5. Las pruebas de concurrencia cubren altas con el mismo código y activaciones/desactivaciones
+   simultáneas en ambos catálogos, con una sola operación efectiva y su auditoría.
+6. Desactivar un producto o almacén con cualquier saldo distinto de cero devuelve `409`,
+   sin cambiar el recurso ni registrar `DISABLE`. Con todos los saldos a cero se permite.
+7. Productos tiene filtros por estado, tipo y búsqueda por código/nombre; Almacenes, por
+   estado y búsqueda por código/nombre/ubicación. El total refleja los filtros. El frontend
+   conserva `false`, omite búsquedas vacías, incluye filtros en la caché, los conserva al
+   paginar y vuelve a la primera página al cambiarlos o limpiarlos.
+
+Resultados observados en las salidas de terminal del responsable, el 2026-10-09
+(America/Managua):
+
+- `pnpm lint`: aprobado en backend y frontend.
+- `pnpm format:check`: aprobado también después de copiar las actualizaciones de
+  `docs/api.md`, `docs/progress.md` y `docs/requirements.md`. Toda edición posterior de
+  documentación se comprueba de nuevo antes del commit.
+- `pnpm build`: backend y frontend aprobados. Continúa el aviso conocido de Vite por
+  el tamaño del bundle inicial; la compilación terminó correctamente.
+- `pnpm --filter backend test`: 72/72 pruebas en 5 archivos, ejecución de las 18:44:57.
+- `pnpm --filter backend test:e2e`: 165/165 pruebas en 14 archivos, ejecución de las 18:45:23,
+  contra `ecosoap_inventory_test`.
+- `pnpm --filter frontend test`: 86/86 pruebas en 5 archivos, ejecución de las 18:28:52.
+- Total de las tres suites: 323 pruebas aprobadas, sin sumar nuevamente sus subconjuntos.
+
+Dentro de esas suites se incluyen 25 e2e de productos, 29 de almacenes, 7 de historial,
+6 de reglas de existencias, 6 de concurrencia, 23 de filtros de productos y 18 de filtros
+de almacenes. En frontend se incluyen 18 pruebas de Productos, 19 de Almacenes y
+20 de filtros compartidos, además de las pruebas de rutas y cliente HTTP.
+
+Los mensajes de fallo simulado de auditoría y de ruta sin política corresponden a escenarios
+negativos esperados: no hubo pruebas fallidas. Las variables de conexión de pruebas se
+configuraron en una terminal dedicada; la aplicación de desarrollo debe iniciarse en otra.
+
+Después de `git fetch origin`, `git log --oneline HEAD..origin/develop` no mostró commits:
+el código local contiene los commits de la referencia de `develop` consultada ese día.
+Esto no acredita una integración de esta feature en `develop`.
+
+Comprobación manual final confirmada por el responsable el 2026-10-09:
+
+- Productos: filtros de activos/inactivos, tipo y búsqueda; combinación y limpieza de filtros.
+- Almacenes: filtros de activos/inactivos y búsqueda por código, nombre o ubicación; limpieza.
+- PATCH real desde el navegador: al cambiar solo el nombre del producto se envía únicamente
+  `name`; al cambiar solo la ubicación del almacén se envía únicamente `location`.
+- Swagger: las capturas muestran `page`, `limit`, `isActive`, `type` y `search` en Productos;
+  `page`, `limit`, `isActive` y `search` en Almacenes. Acreditan la visualización de los parámetros.
+
+Esta evidencia manual procede de la confirmación del responsable y de las capturas aportadas.
+La conservación de filtros al paginar y el retorno a la primera página están cubiertos además
+por las pruebas automatizadas de filtros.
+
+### Corrección de concurrencia con ajustes (2026-10-09)
+
+`applyAdjustment` toma `FOR SHARE` sobre producto y almacén, en ese orden y antes
+de validar, para coordinarse con las ediciones y desactivaciones del catálogo.
+Los ajustes siguen compartiendo esos bloqueos y serializan el saldo con
+`FOR UPDATE`; la escritura de movimiento, saldo y auditoría permanece atómica.
+
+La suite `catalog-adjustments-concurrency.e2e-spec.ts` añade ocho escenarios:
+desactivar producto, desactivar almacén y cambiar unidad o tipo, con cada
+operación confirmando primero. Comprueba bloqueos reales de PostgreSQL,
+validación después de la espera, saldo reconciliado con el ledger y auditoría.
+Las ocho pruebas fallaron antes del cambio y pasaron después.
+
+Comprobación local en una instancia temporal de PostgreSQL 16.9, con migraciones
+y seed aplicados desde cero a `ecosoap_catalog_fix_test`:
+
+| Comprobación                  | Resultado observado                                                      |
+| ----------------------------- | ------------------------------------------------------------------------ |
+| Regresiones y suites cercanas | 32/32: concurrencia con ajustes, reglas de stock, historial y Foundation |
+| Backend unitario              | 72/72                                                                    |
+| Backend e2e completo          | 173/173, incluidas las ocho regresiones nuevas                           |
+| Frontend                      | 86/86                                                                    |
+| Calidad                       | Lint, formato y build aprobados                                          |
+
+Son 331 pruebas en total. La base de trabajo no se utilizó. La publicación,
+la CI del nuevo commit y la integración se mantienen pendientes.
+
+Pendientes para cerrar las correcciones:
+
+- [ ] Comprobar formato de los documentos finales, revisar el diff y guardar los cambios
+      pendientes en commits locales.
+- [ ] Publicar los commits acumulados en un único push.
+- [ ] Verificar `Quality and tests` sobre el último commit publicado y solicitar nueva revisión
+      del PR; si está en borrador, marcarlo como listo para revisión.
+- [ ] Integrar en `develop` tras cumplir la política de revisión del equipo.
+
+Las comprobaciones manuales del 2026-10-08 corresponden al CRUD inicial; las de filtros,
+PATCH parcial y parámetros de Swagger se registran por separado el 2026-10-09. Estos
+resultados locales no sustituyen los checks remotos del PR.
+
+### Trabajo posterior acordado en la revisión
+
+Estos puntos quedan fuera del cierre de este PR:
+
+- Al inicio de la Etapa 5, convertir `applyAdjustment` en un `InventoryService` inyectable
+  para que los módulos posteriores reutilicen el protocolo de inventario.
+- El futuro servicio de movimientos debe conservar el `FOR SHARE` sobre producto y
+  almacén que ya toma `applyAdjustment` para coordinarse con las guardas de cambios
+  de unidad/tipo y desactivación.
+- Valorar una precondición de edición con `updatedAt` para rechazar con `409` cambios
+  concurrentes sobre el mismo campo.
+- Valorar un `CHECK` de código normalizado en la base mediante una migración nueva,
+  coordinada con el equipo. La migración Foundation compartida no se modifica.
+
+### Decisiones y cuestiones abiertas
+
+1. **Endpoint de estado.** Productos y almacenes usan `PATCH /:id/status`, conforme a la guía
+   del feature y a `docs/api.md`, sección 9. Usuarios conserva sus acciones
+   `POST /users/:id/enable` y `/disable`; esta feature no cambia ese contrato.
+2. **Nombres de auditoría.** Se usan las acciones `CREATE`, `UPDATE`, `ENABLE` y `DISABLE` y las
+   entidades `PRODUCT` y `WAREHOUSE`, según la convención existente. Los nombres de ejemplo de
+   la guía (`PRODUCT_CREATED`, etc.) no se crearon.
+3. **Aviso de tamaño del bundle.** Vite sigue avisando de un bundle inicial superior a 500 kB; es
+   deuda conocida y el build termina correctamente.
+
+### Límites de esta feature
+
+No se implementan movimientos de inventario, ajustes manuales de stock, recepciones, órdenes de
+producción, BOM, ventas ni despachos. La infraestructura de Foundation para esos flujos ya
+existía y no implica que sus módulos transaccionales estén terminados. La migración Foundation
+compartida permanece sin modificaciones.
+
+---
+
+### Cierre remoto del PR #6 (2026-10-09)
+
+El commit `4d2c796` recibió aprobación de Luigui789 después de pasar la
+[CI del PR](https://github.com/Luigui789/Manufactura/actions/runs/38015214216).
+El merge `332e499` pasó nuevamente la
+[CI de develop](https://github.com/Luigui789/Manufactura/actions/runs/38015405667):
+72 unitarias backend, 86 frontend y 173 e2e (331 en total), además de lint, formato,
+builds, migraciones y seed en PostgreSQL 18. La cobertura incluye los ocho casos de
+concurrencia entre cambios de catálogo y ajustes.
+
 ## Etapa 4 — Datos maestros: Proveedores
 
 **Implementado y verificado localmente** en la rama `feature/suppliers` (PR #8, de Lure94). La
 revisión del 2026-10-08 pidió cambios y el responsable del proyecto los aplicó en la misma rama.
-La rama se reconstruyó sobre `develop` sin los cuatro commits de inventario que arrastraba, de
-modo que se integra con independencia de `feature/products-warehouses` (PR #6). Los commits de
-Lure94 conservan su autoría.
+La reconstrucción del 2026-10-08 eliminó los cuatro commits de inventario que arrastraba.
+El 2026-10-09 se actualiza con `develop` después del merge del PR #6, conservando proveedores,
+productos, almacenes y la corrección de concurrencia con ajustes. Los commits de Lure94
+conservan su autoría. Al preparar esta actualización, la aprobación y la integración del PR #8
+siguen pendientes.
 
 - [x] Backend: listar (paginado), crear, consultar, editar y cambiar estado en `/api/suppliers`
 - [x] Modelo `Supplier` según `database.md` §10 y migración `suppliers`
@@ -374,11 +625,37 @@ Lure94 conservan su autoría.
 Las pruebas unitarias con Prisma simulado se sustituyeron por `suppliers.e2e-spec.ts`, porque no
 detectaban ninguno de estos fallos.
 
+### Actualización con develop y verificación local (2026-10-09)
+
+Se incorporó `develop` (`332e499`) mediante merge, conservando el historial de ambos PR.
+Los siete conflictos se resolvieron manteniendo `InventoryModule` y `PurchasesModule`, las
+rutas y el menú de los tres catálogos, y la documentación de sus contratos y requisitos.
+La migración compartida de proveedores se conserva sin cambios.
+
+Los decoradores y el DTO de estado de productos, almacenes y proveedores se unificaron en
+`common/catalog.dto.ts`; se eliminó la copia de Inventario. Se comprobó que el código de los
+validadores es idéntico y que los cambios en Inventario solo sustituyen sus imports. La lógica
+de proveedores, las pantallas de Inventario y `apply-adjustment.ts` se conservaron.
+
+La base aislada `ecosoap_pr8_integration_test`, en PostgreSQL 16.9, recibió las tres migraciones
+desde cero y el seed. Las comprobaciones locales después de la consolidación aprobaron:
+
+- Backend unitario: 72/72 en cinco archivos, incluidos los 37 casos de DTO de almacenes.
+- Frontend: 108/108 en siete archivos, incluidos cinco casos nuevos de rutas y permisos.
+- Backend e2e: 203/203 en 16 archivos, incluidos 30 de proveedores y ocho de concurrencia
+  entre catálogo y ajustes.
+- Total: 383 pruebas. Los subconjuntos anteriores ya están incluidos en ese total.
+- `pnpm lint`, `pnpm format:check`, `pnpm build` y `git diff --check`: aprobados.
+
+Las pruebas de rutas usan el árbol real de `AppRoutes` y HTTP simulado: abren cada catálogo,
+comprueban la API correspondiente, el menú de ADMIN y la restricción de proveedores para
+INVENTARIO y VENTAS. Los e2e usan la aplicación y PostgreSQL reales, con sus guards,
+transacciones, auditoría y bloqueos. La instancia temporal se detuvo al finalizar la verificación.
+La comprobación remota del nuevo commit en PostgreSQL 18 queda pendiente antes de aprobar
+e integrar el PR #8. Vite conserva el aviso de tamaño del bundle; el build termina correctamente.
+
 ### Cuestiones abiertas
 
-- Los decoradores de catálogo viven en `common/catalog.dto.ts`. El PR #6 trae una copia en
-  `inventory/catalog.dto.ts`; al integrarlo, productos y almacenes deben importar la de `common/` y
-  borrar la suya.
 - Filtros de listado (estado y búsqueda) cuando Compras los necesite al elegir proveedor.
 
 ---
@@ -396,9 +673,10 @@ revisión no se reconstruye ni se completa de forma retroactiva: queda registrad
 ### Política vigente desde 2026-10-01
 
 Se añade `.github/workflows/ci.yml`: `Quality and tests` ejecuta en Linux la misma cadena de
-lint, formato, builds y 115 pruebas contra PostgreSQL 18 efímero (`ecosoap_ci_test`). Las Actions
-están fijadas por SHA; el secreto de sesión se genera por ejecución. El resultado remoto se
-verifica en el PR antes de integrar; la existencia del workflow por sí sola no acredita un pase.
+lint, formato, builds y las suites contra PostgreSQL 18 efímero (`ecosoap_ci_test`). El cierre de
+la Etapa 3 registró 115 pruebas; los resultados de la rama actual se documentan por separado. Las
+Actions están fijadas por SHA; el secreto de sesión se genera por ejecución. El resultado remoto
+se verifica en el PR antes de integrar; la existencia del workflow por sí sola no acredita un pase.
 
 Por autorización del responsable del proyecto, los cambios siempre se integran mediante PR hacia
 `develop`. Luigui789 puede fusionar sus propios PR una vez verificados el diff y los checks
@@ -419,17 +697,17 @@ solo documenta la política y no cambia permisos ni reglas remotas.
 
 ## Etapas siguientes
 
-| Etapa | Contenido                                         | Estado                                                                                              |
-| ----- | ------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
-| 3     | Autenticación JWT y RBAC                          | Integrada en `develop` (PR #3)                                                                      |
-| 4     | Datos maestros: productos, almacenes, proveedores | En curso: proveedores verificados en `feature/suppliers` (PR #8); productos y almacenes en revisión |
-| 5     | Compras y recepción                               | Pendiente                                                                                           |
-| 6     | Inventario y movimientos                          | Pendiente                                                                                           |
-| 7     | BOM y producción                                  | Pendiente                                                                                           |
-| 8     | Lotes, trazabilidad y calidad                     | Pendiente                                                                                           |
-| 9     | Clientes, ventas y despacho                       | Pendiente                                                                                           |
-| 10    | Dashboard y reportes básicos                      | Pendiente                                                                                           |
-| 11    | Simulación ISA-95                                 | Pendiente                                                                                           |
+| Etapa | Contenido                                         | Estado                                                                              |
+| ----- | ------------------------------------------------- | ----------------------------------------------------------------------------------- |
+| 3     | Autenticación JWT y RBAC                          | Integrada en `develop` (PR #3)                                                      |
+| 4     | Datos maestros: productos, almacenes, proveedores | PR #6: correcciones verificadas localmente; nueva revisión e integración pendientes |
+| 5     | Compras y recepción                               | Pendiente                                                                           |
+| 6     | Inventario y movimientos                          | Pendiente                                                                           |
+| 7     | BOM y producción                                  | Pendiente                                                                           |
+| 8     | Lotes, trazabilidad y calidad                     | Pendiente                                                                           |
+| 9     | Clientes, ventas y despacho                       | Pendiente                                                                           |
+| 10    | Dashboard y reportes básicos                      | Pendiente                                                                           |
+| 11    | Simulación ISA-95                                 | Pendiente                                                                           |
 
 `develop` se integra en `main` cuando haya un bloque funcional completo —configuración, modelo de
 datos, autenticación y datos maestros—, no al terminar cada etapa.

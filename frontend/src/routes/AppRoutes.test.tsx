@@ -70,6 +70,9 @@ describe('Aceptación F1–F5', () => {
     mount();
     expect(screen.getByText('Bienvenido, Administrador de prueba')).toBeTruthy();
     expect(screen.getByRole('link', { name: 'Usuarios' })).toBeTruthy();
+    expect(screen.getByRole('link', { name: 'Proveedores' })).toBeTruthy();
+    expect(screen.getByRole('link', { name: 'Productos' })).toBeTruthy();
+    expect(screen.getByRole('link', { name: 'Almacenes' })).toBeTruthy();
   });
   it.each(['COMPRAS', 'PRODUCCION', 'INVENTARIO', 'VENTAS'] as const)(
     'F4: %s no ve Usuarios ni accede por URL',
@@ -101,6 +104,44 @@ describe('Aceptación F1–F5', () => {
     expect(screen.getByRole('status').textContent).toBe('Cargando sesión…');
     expect(screen.queryByRole('navigation')).toBeNull();
   });
+});
+
+describe('Integración de los catálogos de Compras e Inventario', () => {
+  it.each([
+    ['/purchases/suppliers', 'Gestión de Proveedores', 'suppliers', 'COMPRAS'],
+    ['/inventory/products', 'Gestión de Productos', 'products', 'INVENTARIO'],
+    ['/inventory/warehouses', 'Gestión de Almacenes', 'warehouses', 'INVENTARIO'],
+  ] as const)(
+    'abre %s y consulta su API con el rol responsable',
+    async (path, heading, endpoint, role) => {
+      const fetch = vi
+        .fn()
+        .mockResolvedValue(response({ data: [], meta: { page: 1, limit: 20, total: 0 } }));
+      vi.stubGlobal('fetch', fetch);
+      mount(path, { ...account, role });
+
+      expect(await screen.findByRole('heading', { name: heading })).toBeTruthy();
+      expect(screen.getByRole('link', { name: 'Productos' })).toBeTruthy();
+      expect(screen.getByRole('link', { name: 'Almacenes' })).toBeTruthy();
+      await waitFor(() =>
+        expect(fetch).toHaveBeenCalledWith(
+          expect.stringContaining(`/api/${endpoint}?`),
+          expect.objectContaining({ credentials: 'include' }),
+        ),
+      );
+    },
+  );
+
+  it.each(['INVENTARIO', 'VENTAS'] as const)(
+    'conserva la restricción de proveedores para %s sin ocultar Inventario',
+    (role) => {
+      mount('/purchases/suppliers', { ...account, role });
+      expect(screen.getByRole('heading', { name: '403 · Acceso denegado' })).toBeTruthy();
+      expect(screen.queryByRole('link', { name: 'Proveedores' })).toBeNull();
+      expect(screen.getByRole('link', { name: 'Productos' })).toBeTruthy();
+      expect(screen.getByRole('link', { name: 'Almacenes' })).toBeTruthy();
+    },
+  );
 });
 
 describe('Formularios y sesión', () => {

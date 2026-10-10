@@ -33,6 +33,16 @@ export async function applyAdjustment(prisma: PrismaClient, input: AdjustmentInp
   }
 
   return prisma.$transaction(async (tx) => {
+    // Orden compartido: producto → almacén → saldo. FOR SHARE permite ajustes
+    // concurrentes, pero espera las ediciones y desactivaciones del catálogo.
+    // Las validaciones leen los valores vigentes después de adquirir los bloqueos.
+    await tx.$queryRaw`SELECT id FROM products
+      WHERE id = ${input.productId}::uuid
+      FOR SHARE`;
+    await tx.$queryRaw`SELECT id FROM warehouses
+      WHERE id = ${input.warehouseId}::uuid
+      FOR SHARE`;
+
     // Una transacción usa una sola conexión: emitir las consultas en secuencia
     // evita solaparlas en el driver PostgreSQL.
     const product = await tx.product.findUnique({ where: { id: input.productId } });

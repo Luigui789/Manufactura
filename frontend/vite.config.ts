@@ -2,24 +2,30 @@ import path from 'node:path';
 
 import tailwindcss from '@tailwindcss/vite';
 import react from '@vitejs/plugin-react';
-import { defineConfig } from 'vite';
+import { defineConfig, loadEnv } from 'vite';
 
-export default defineConfig({
-  plugins: [react(), tailwindcss()],
+export default defineConfig(({ mode }) => {
+  const envDir = path.resolve(import.meta.dirname, '..');
+  const env = loadEnv(mode, envDir, 'FRONTEND_URL');
 
-  // El .env vive en la raiz del monorepo para que exista una sola fuente de
-  // verdad compartida por docker-compose, el backend y el frontend. Vite solo
-  // inyecta en el bundle las variables con prefijo VITE_, de modo que
-  // DATABASE_URL y la contrasena de PostgreSQL nunca llegan al navegador.
-  envDir: path.resolve(import.meta.dirname, '..'),
+  const frontendUrl = new URL(env.FRONTEND_URL || 'http://localhost:5173');
+  const port = Number(frontendUrl.port || (frontendUrl.protocol === 'https:' ? '443' : '80'));
 
-  resolve: {
-    alias: {
-      '@': path.resolve(import.meta.dirname, 'src'),
+  return {
+    plugins: [react(), tailwindcss()],
+    envDir,
+    clearScreen: false,
+
+    resolve: {
+      alias: {
+        '@': path.resolve(import.meta.dirname, 'src'),
+      },
     },
-  },
 
-  server: {
-    port: 5173,
-  },
+    server: {
+      host: 'localhost',
+      port,
+      strictPort: true,
+    },
+  };
 });
