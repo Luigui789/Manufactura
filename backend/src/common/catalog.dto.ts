@@ -1,5 +1,4 @@
-// Decoradores y DTO compartidos por los catálogos de datos maestros (proveedores, y
-// productos y almacenes cuando se integren).
+// Decoradores y DTO compartidos por productos, almacenes, proveedores y clientes.
 import { ApiProperty } from '@nestjs/swagger';
 import { Transform } from 'class-transformer';
 import { IsBoolean } from 'class-validator';
