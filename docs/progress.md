@@ -491,6 +491,33 @@ Esta evidencia manual procede de la confirmación del responsable y de las captu
 La conservación de filtros al paginar y el retorno a la primera página están cubiertos además
 por las pruebas automatizadas de filtros.
 
+### Corrección de concurrencia con ajustes (2026-10-09)
+
+`applyAdjustment` toma `FOR SHARE` sobre producto y almacén, en ese orden y antes
+de validar, para coordinarse con las ediciones y desactivaciones del catálogo.
+Los ajustes siguen compartiendo esos bloqueos y serializan el saldo con
+`FOR UPDATE`; la escritura de movimiento, saldo y auditoría permanece atómica.
+
+La suite `catalog-adjustments-concurrency.e2e-spec.ts` añade ocho escenarios:
+desactivar producto, desactivar almacén y cambiar unidad o tipo, con cada
+operación confirmando primero. Comprueba bloqueos reales de PostgreSQL,
+validación después de la espera, saldo reconciliado con el ledger y auditoría.
+Las ocho pruebas fallaron antes del cambio y pasaron después.
+
+Comprobación local en una instancia temporal de PostgreSQL 16.9, con migraciones
+y seed aplicados desde cero a `ecosoap_catalog_fix_test`:
+
+| Comprobación                  | Resultado observado                                                      |
+| ----------------------------- | ------------------------------------------------------------------------ |
+| Regresiones y suites cercanas | 32/32: concurrencia con ajustes, reglas de stock, historial y Foundation |
+| Backend unitario              | 72/72                                                                    |
+| Backend e2e completo          | 173/173, incluidas las ocho regresiones nuevas                           |
+| Frontend                      | 86/86                                                                    |
+| Calidad                       | Lint, formato y build aprobados                                          |
+
+Son 331 pruebas en total. La base de trabajo no se utilizó. La publicación,
+la CI del nuevo commit y la integración se mantienen pendientes.
+
 Pendientes para cerrar las correcciones:
 
 - [ ] Comprobar formato de los documentos finales, revisar el diff y guardar los cambios
@@ -510,8 +537,9 @@ Estos puntos quedan fuera del cierre de este PR:
 
 - Al inicio de la Etapa 5, convertir `applyAdjustment` en un `InventoryService` inyectable
   para que los módulos posteriores reutilicen el protocolo de inventario.
-- El futuro servicio de movimientos debe tomar `FOR SHARE` sobre producto y almacén
-  para coordinarse con las guardas de cambios de unidad/tipo y desactivación.
+- El futuro servicio de movimientos debe conservar el `FOR SHARE` sobre producto y
+  almacén que ya toma `applyAdjustment` para coordinarse con las guardas de cambios
+  de unidad/tipo y desactivación.
 - Valorar una precondición de edición con `updatedAt` para rechazar con `409` cambios
   concurrentes sobre el mismo campo.
 - Valorar un `CHECK` de código normalizado en la base mediante una migración nueva,
