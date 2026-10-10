@@ -17,6 +17,7 @@ export type AuditEvent = {
   actor: AuditActor;
   action: AuditAction;
   entity?: { type: AuditEntityType; id: string };
+  requestId?: string | null;
   previousValues?: Record<string, unknown>;
   newValues?: Record<string, unknown>;
 };
@@ -49,7 +50,7 @@ export class AuditService {
         entityId: event.entity?.id ?? null,
         previousValues: event.previousValues as Prisma.InputJsonObject | undefined,
         newValues: event.newValues as Prisma.InputJsonObject | undefined,
-        requestId: context?.requestId ?? null,
+        requestId: context?.requestId ?? event.requestId ?? null,
         ipAddress: context?.ipAddress ?? null,
       },
     });
