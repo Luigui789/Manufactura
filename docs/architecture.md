@@ -91,11 +91,12 @@ Los módulos integrados en `develop` mediante el PR #3 son:
 | `UsersModule`  | Administración de cuentas, bootstrap y protección del último ADMIN      |
 | `AuditModule`  | Auditoría atómica, snapshots por lista permitida y contexto de petición |
 
-En la rama `feature/products-warehouses`, `AppModule` también importa
+En `develop`, tras los PR #6, #8 y #9, `AppModule` también importa
 `InventoryModule`, que agrupa `ProductsModule` y `WarehousesModule`. Estos módulos
 exponen los catálogos de productos, materias primas y almacenes mediante los
-endpoints documentados en [`api.md`](api.md), sección 9. Su integración en
-`develop` se registra por separado en [`progress.md`](progress.md).
+endpoints documentados en [`api.md`](api.md), sección 9. También están integrados
+`PurchasesModule → SuppliersModule` y `SalesModule → CustomersModule`.
+El cierre de los tres catálogos se registra en [`progress.md`](progress.md).
 
 ```text
 backend/src/
@@ -151,8 +152,8 @@ Las reglas y los contratos completos se mantienen en [`api.md`](api.md).
 
 ## 5. Arquitectura futura del backend
 
-Esta es la estructura que el backend adoptará conforme avancen las etapas. Sirve como contrato de
-hacia dónde va el proyecto, no como algo que deba existir ya en disco. Los catálogos
+Esta estructura orienta la implementación conforme avancen las etapas; nombres de archivos y
+subdivisiones de carpetas son ajustables, no decisiones arquitectónicas obligatorias. Los catálogos
 `inventory/products/` e `inventory/warehouses/` ya existen en esta rama; las demás
 funcionalidades de Inventario se incorporarán en etapas posteriores.
 
@@ -162,7 +163,7 @@ backend/src/
 ├── users/                usuarios
 ├── roles/                RBAC
 │
-├── compras/
+├── purchases/
 │   ├── suppliers/        proveedores
 │   └── purchase-orders/  órdenes de compra y recepción
 │
@@ -173,12 +174,12 @@ backend/src/
 │   ├── movements/        movimientos de inventario
 │   └── lots/             lotes
 │
-├── produccion/
-│   ├── bom/              lista de materiales
-│   ├── production-orders/ órdenes de producción y consumo
+├── production/
+│   ├── boms/             fórmulas y versiones
+│   ├── orders/           órdenes de producción y consumo
 │   └── quality/          control de calidad
 │
-├── ventas/
+├── sales/
 │   ├── customers/        clientes
 │   └── sales-orders/     órdenes de venta y despacho
 │
@@ -187,8 +188,8 @@ backend/src/
 └── prisma/
 ```
 
-Cada módulo se crea junto a su rama de trabajo. Ejemplo: `ComprasModule` nace en
-`feature/purchases`, no antes.
+Cada funcionalidad se crea junto a su rama de trabajo. `PurchasesModule` ya contiene proveedores;
+`feature/purchases` lo amplía con órdenes/recepciones. `ProductionModule` nace con C-1.
 
 ## 6. Estado actual del frontend
 
@@ -205,14 +206,16 @@ frontend/src/
 └── features/
     ├── auth/            sesión, formularios y protección de rutas
     ├── users/           administración de usuarios
-    └── inventory/       productos, materias primas y almacenes
-        ├── api/         cliente de catálogos y hooks de TanStack Query
-        ├── components/  formularios, diálogos y listado de almacenes
-        ├── pages/       ProductsPage, WarehousesPage y sus pruebas
-        ├── schemas.ts   validaciones con Zod
-        ├── types.ts     tipos de recursos y de formularios
-        ├── product-labels.ts etiquetas de tipos y unidades
-        └── only-dirty.ts selección de campos modificados para PATCH
+    ├── inventory/       productos, materias primas y almacenes
+    │   ├── api/         cliente de catálogos y hooks de TanStack Query
+    │   ├── components/  formularios, diálogos y listado de almacenes
+    │   ├── pages/       ProductsPage, WarehousesPage y sus pruebas
+    │   ├── schemas.ts   validaciones con Zod
+    │   ├── types.ts     tipos de recursos y de formularios
+    │   ├── product-labels.ts etiquetas de tipos y unidades
+    │   └── only-dirty.ts selección de campos modificados para PATCH
+    ├── purchases/       proveedores; API, hooks, formularios y página
+    └── sales/           clientes; API, hooks, formularios y página
 ```
 
 La pantalla temporal de Etapa 1 se eliminó. La sesión vive exclusivamente en la consulta
@@ -279,6 +282,39 @@ store global. Usuario y sesión también son estado del servidor en TanStack Que
 solo controla formularios, diálogos, mensajes y página seleccionada.
 
 ## 8. Flujo de negocio transversal
+
+### Contrato de la siguiente ronda — aceptado, pendiente de implementación
+
+El [diseño de Inventario, Compras y Producción](specs/2026-10-10-inventory-purchases-production-design.md)
+planifica las entregas A-1, Compras, A-2, C-1 y C-2. Sus ADR 011–014 están `Aceptado`;
+estas interfaces y funcionalidades todavía no existen en el backend.
+
+```text
+Purchases ──┐
+            ├──→ InventoryService.applyMovements(tx, command)
+Production ─┘           ├──→ InventoryMovement
+                        ├──→ StockBalance
+                        └──→ creación/transición de lotes con origen
+```
+
+Inventario es el único escritor de stock, conforme al ADR 004. El contrato planificado de A-1 recibe la
+transacción del caso de uso llamador y todas sus líneas; Compras/Producción coordinan sus
+documentos y `AuditService` en esa misma transacción. Calidad pertenece a Producción y solicita
+a Inventario la transición del lote junto con la inspección. Inventario exporta el contrato y
+no importa los servicios de Compras/Producción. La numeración común reserva todos los tipos/años
+necesarios antes de bloquear productos, según el orden global aceptado en ADR 012.
+Compras, Producción y Ventas no escriben directamente movimientos/saldos. Inventario participa
+en la transacción del llamador sin commits ni rollbacks independientes.
+
+Producción será un módulo nuevo dentro del monolito, con C-1 para fórmulas/versiones y
+borradores, y C-2 para ejecución/calidad/trazabilidad. Reutiliza productos, almacenes, permisos,
+cliente HTTP y auditoría. Su consulta de disponibilidad delega en Inventario. START no reserva
+ni consume; COMPLETE revalida y registra consumos/output/lote atómicamente.
+
+Las carpetas, ownership y endpoints **previstos** están en la especificación. Los nombres de
+archivos/componentes frontend son guía ajustable. Tipos comprables, RBAC de recepciones y Calidad
+para lotes de Compra siguen siendo políticas de alcance propuestas. `api.md` conserva los
+contratos implementados y se ampliará en los PR funcionales.
 
 Esta sección describe el diseño previsto para los módulos transaccionales posteriores.
 El valor del sistema está en que los cuatro módulos compartan el mismo inventario:

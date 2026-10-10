@@ -7,6 +7,18 @@
 
 ## 1. Alcance
 
+### Estado físico y diseño de la siguiente ronda
+
+En `develop` (`53b7402`) están versionadas las migraciones Foundation, auth, proveedores y
+clientes. Los movimientos físicos solo admiten ajustes y tienen `reason` obligatorio.
+`Lot` aún no tiene columnas de origen empresarial. Órdenes, recepciones, BOM, ejecución y
+calidad siguen siendo **modelo planificado**, no tablas/endpoints existentes.
+
+El [diseño de Inventario, Compras y Producción](specs/2026-10-10-inventory-purchases-production-design.md)
+consolida la siguiente ronda. Sus ADR 011–014 están `Aceptado` conceptualmente tras la revisión
+local del 2026-10-10. Esta página describe su modelo planificado; la aceptación no acredita
+migraciones aplicadas ni funcionalidad implementada. Las políticas de alcance siguen separadas.
+
 Define el **modelo conceptual completo** de los cuatro dominios, aunque su implementación física
 sea incremental. `InventoryMovement` es el punto donde convergen Compras, Producción y Ventas:
 diseñarlo conociendo un solo dominio obligaría a rehacerlo al llegar el siguiente.
@@ -44,14 +56,14 @@ Decisiones que lo sostienen:
 
 No son el mismo tipo de dato y mezclarlos causa errores en el cambio de día.
 
-| Campo                                       | Tipo          | Razón                                        |
-| ------------------------------------------- | ------------- | -------------------------------------------- |
-| `occurredAt`, `createdAt`, `updatedAt`      | `timestamptz` | Momentos exactos en la línea del tiempo      |
-| `receivedAt`, `dispatchedAt`, `inspectedAt` | `timestamptz` | Momentos exactos                             |
-| `startedAt`, `completedAt`, `originatedAt`  | `timestamptz` | Momentos exactos                             |
-| `ProductionOrder.plannedDate`               | `date`        | La planificación es por día, no por instante |
-| `PurchaseOrder.expectedDate`                | `date`        | La fecha esperada de entrega es un día       |
-| `Lot.expiresAt`                             | `date`        | El vencimiento es un día, no una hora        |
+| Campo                                       | Tipo          | Razón                                                                                      |
+| ------------------------------------------- | ------------- | ------------------------------------------------------------------------------------------ |
+| `occurredAt`, `createdAt`, `updatedAt`      | `timestamptz` | Momentos exactos en la línea del tiempo                                                    |
+| `receivedAt`, `dispatchedAt`, `inspectedAt` | `timestamptz` | Momentos exactos                                                                           |
+| `startedAt`, `completedAt`, `originatedAt`  | `timestamptz` | Momentos exactos                                                                           |
+| Planificación de `ProductionOrder`          | Por decidir   | `plannedDate` como `date` frente a inicio/fin como `timestamptz`; decisión abierta de C-1. |
+| `PurchaseOrder.expectedDate`                | `date`        | La fecha esperada de entrega es un día                                                     |
+| `Lot.expiresAt`                             | `date`        | El vencimiento es un día, no una hora                                                      |
 
 ### Zona horaria empresarial
 
@@ -95,13 +107,13 @@ motivo. Si aparece un caso real que no encaje, se amplía el enum.
 Aprobar y rechazar calidad tendrán acciones propias (`QUALITY_APPROVE`, `QUALITY_REJECT`) en la
 migración de Producción, en lugar de reutilizar `CONFIRM` y `CANCEL`.
 
-### Por dominio
+### Por dominio — planificado, todavía no implementado
 
 ```text
 PurchaseOrderStatus   DRAFT · CONFIRMED · PARTIALLY_RECEIVED · RECEIVED · CANCELLED
-ProductionOrderStatus DRAFT · CONFIRMED · IN_PROGRESS · COMPLETED · CANCELLED
+ProductionOrderStatus DRAFT · IN_PROGRESS · COMPLETED · CANCELLED
 SalesOrderStatus      DRAFT · CONFIRMED · PARTIALLY_DISPATCHED · DISPATCHED · CANCELLED
-QualityStatus         PENDING · APPROVED · REJECTED
+QualityStatus         APPROVED · REJECTED
 ```
 
 `AuditEntityType`, `AuditAction`, `InventoryMovementType` y `DocumentType` se amplían solo cuando la
@@ -232,8 +244,10 @@ bloquear nunca un lote.
 la finalización de la producción o la recepción de la mercancía. Un campo llamado «producido» que
 además significara «recibido» haría ambiguas todas las consultas.
 
-**`InventoryMovement.reason`** es obligatorio en los ajustes y nulo en el resto. Una nota libre no
-basta como justificación: un motivo tipificado se puede filtrar, contar y auditar.
+**`InventoryMovement.reason`** actualmente es obligatorio porque solo existen ajustes.
+Compras planifica hacerlo nullable: obligatorio en ajustes y nulo en los tipos empresariales
+que su migración habilite. Una nota libre no basta como justificación: un motivo tipificado
+se puede filtrar, contar y auditar.
 
 ## 5. Matriz tipo → origen por migración
 
@@ -244,12 +258,12 @@ porque renunciaría a la integridad referencial.
 La solución es que **cada migración declare qué tipos acepta y cuál es su origen obligatorio**, y
 reemplace la restricción `CHECK` anterior por la ampliada.
 
-| Migración    | Tipos permitidos                                 | Origen obligatorio            | Columna añadida            |
-| ------------ | ------------------------------------------------ | ----------------------------- | -------------------------- |
-| 1 Fundación  | `ADJUSTMENT_IN`, `ADJUSTMENT_OUT`                | ninguno; `reason` obligatorio | —                          |
-| 2 Compras    | \+ `PURCHASE_RECEIPT`                            | `purchaseReceiptItemId`       | `purchase_receipt_item_id` |
-| 3 Producción | \+ `PRODUCTION_CONSUMPTION`, `PRODUCTION_OUTPUT` | `productionOrderId`           | `production_order_id`      |
-| 4 Ventas     | \+ `SALE_DISPATCH`                               | `dispatchItemId`              | `dispatch_item_id`         |
+| Migración                    | Tipos permitidos                                 | Origen obligatorio            | Columna añadida            |
+| ---------------------------- | ------------------------------------------------ | ----------------------------- | -------------------------- |
+| Foundation (actual)          | `ADJUSTMENT_IN`, `ADJUSTMENT_OUT`                | ninguno; `reason` obligatorio | —                          |
+| Compras (planificada)        | \+ `PURCHASE_RECEIPT`                            | `purchaseReceiptItemId`       | `purchase_receipt_item_id` |
+| Producción C-2 (planificada) | \+ `PRODUCTION_CONSUMPTION`, `PRODUCTION_OUTPUT` | `productionOrderId`           | `production_order_id`      |
+| Ventas (fuera de esta ronda) | \+ `SALE_DISPATCH`                               | `dispatchItemId`              | `dispatch_item_id`         |
 
 La restricción de la fundación es, literalmente:
 
@@ -278,6 +292,11 @@ CHECK (
 
 y así sucesivamente. Cada migración amplía tanto el enum como la restricción, y nunca deja un tipo
 habilitado cuyo origen no pueda comprobarse.
+
+Cada tipo empresarial admite únicamente su FK de origen; las demás son nulas. La recepción
+genera un movimiento positivo por línea, con unicidad de `purchaseReceiptItemId` en el movimiento.
+Inventario convierte la magnitud positiva del comando al signo persistido del tipo.
+El origen genérico del contrato interno siempre se representa mediante FKs físicas concretas.
 
 ## 6. Invariantes de integridad
 
@@ -316,13 +335,19 @@ servicio de inventario y en sus pruebas. Es una limitación real de PostgreSQL, 
 
 ### Cambio de `isLotTracked`
 
-**Prohibido** mientras el producto tenga movimientos o existencia distinta de cero. Activar la
-bandera dejaría existencias previas sin lote atribuible; desactivarla rompería cadenas de
-trazabilidad ya construidas.
+**Actual:** `Product.isLotTracked` existe en Foundation, pero los DTO y el servicio de Productos
+no exponen su edición. No existe todavía un flujo de configuración ni una guarda de historial
+para editar esta bandera; el bloqueo actual de unidad/tipo no demuestra esa funcionalidad.
 
-Cambiarla exige un procedimiento explícito, documentado y auditado: llevar la existencia a cero
-mediante ajustes justificados, cambiar la bandera y volver a cargar el inventario con lotes. No
-hay atajo, y el backend rechaza el cambio directo.
+**Planificado para A-2:** si el producto tiene **cualquier `InventoryMovement`**, se rechaza
+cambiar `isLotTracked`, aunque su saldo sea cero. La validación se serializará con las escrituras
+de inventario para que un movimiento concurrente no pueda eludirla. Sin historial podrá cambiarse
+mediante el flujo autorizado y auditado de configuración.
+
+La descripción anterior sugería vaciar el saldo mediante ajustes, cambiar la bandera y recargar.
+Los ajustes no borran el ledger: saldo cero no elimina historial ni habilita el cambio en esta
+ronda. Ese procedimiento histórico del ADR 007 no está implementado ni se habilita aquí;
+se conserva el ADR original sin modificarlo.
 
 ### Origen único del lote
 
@@ -334,12 +359,24 @@ hay atajo, y el backend rechaza el cambio directo.
 Desde la migración de Compras, un `CHECK` de arco exclusivo exige que todo lote tenga exactamente un
 origen. **No deben existir lotes trazables operativos sin origen empresarial identificable.**
 
+El ADR 013 aceptado concreta ese origen en `Lot.purchaseReceiptItemId` o
+`Lot.productionOrderId`, con FK y unicidad de cada origen. Compras habilita únicamente el
+primero; C-2 amplía a XOR preservando los datos recibidos. Inventario crea los lotes dentro
+del plan de recursos/transacción del llamador. A-1 no crea lotes operativos sin origen.
+
 Consecuencia que conviene tener presente: **durante la fundación no debe crearse ningún lote
 operativo**, porque todavía no existe ningún documento que pueda originarlo. Los únicos
 movimientos posibles son ajustes, y en la fundación solo deben aplicarse a productos sin
 trazabilidad. La carga inicial de inventario con lotes se hace cuando exista Compras.
 
 ## 7. Política de calidad y liberación de lotes
+
+Los estados y la bandera de Producto existen en Foundation; `QualityInspection` y su flujo
+todavía no existen. El alcance mínimo propuesto de C-2 inspecciona lotes producidos; extenderlo
+a lotes recibidos queda por acordar y no es una obligación arquitectónica de los ADR aprobados.
+La ausencia de inspección implica cuarentena solo cuando el producto la requiere. Un lote de
+Compra que la requiera permanece bloqueado hasta disponer del flujo autorizado, sin liberación
+automática por estar fuera del alcance mínimo.
 
 > La Entrega 1 exige controles de calidad por lote, incluyendo resultado y no conformidades, pero
 > no prescribe esta política de liberación. Los estados exactos, `requiresQualityInspection` y el
@@ -374,12 +411,13 @@ El ajuste de salida permanece permitido en todos los estados porque es precisame
 dar de baja material rechazado.
 
 Un lote puede tener varias inspecciones si se permite reinspección. **El estado vigente del lote
-es `Lot.status`**, no el resultado de la última inspección: la inspección propone, el servicio de
-calidad aplica el cambio dentro de una transacción. Así no hay dos fuentes de verdad.
+es `Lot.status`**, no el resultado de la última inspección: en el flujo planificado Calidad
+registrará la inspección y solicitará a Inventario la transición dentro de la misma transacción.
+Así no habrá dos fuentes de verdad; la reinspección permanece por definir.
 
 ## 8. Protocolo transaccional de inventario
 
-Todo cambio de existencias sigue este protocolo, sin excepciones:
+El protocolo **actual de ajustes Foundation** es:
 
 ```text
 BEGIN
@@ -406,8 +444,9 @@ bloqueos; el saldo sigue serializándose con `FOR UPDATE`.
 ### Creación de la primera fila
 
 El paso 2 tiene una condición de carrera propia: dos operaciones simultáneas sobre un producto sin
-balance previo intentarían insertar la misma fila. Se resuelve con un `upsert` atómico sobre
-`(product_id, warehouse_id)`, protegido por su índice único, seguido del `SELECT ... FOR UPDATE`.
+balance previo intentarían insertar la misma fila. Se resuelve con
+`INSERT ... ON CONFLICT (product_id, warehouse_id) DO NOTHING`, mediante
+`createMany(skipDuplicates)`, seguido del `SELECT ... FOR UPDATE`.
 Nunca con «comprobar si existe y luego insertar», que es exactamente la carrera que se quiere
 evitar. La prueba concurrente de Foundation verifica esta ruta.
 
@@ -425,6 +464,22 @@ una espera a la otra en lugar de bloquearse mutuamente.
 Se calcula sumando los movimientos del lote **dentro del mismo bloqueo** del paso 3. Como todos
 los movimientos del par `(producto, almacén)` se serializan sobre esa fila, el resultado es
 consistente sin necesidad de una tabla `LotBalance`.
+
+### Ampliación global aceptada, pendiente de implementación en A-1, Compras y C-2
+
+El ADR 012 establece una transacción del caso de uso llamador y este orden de grupos:
+documento empresarial → `document_sequences` → `products` → `warehouses` →
+`stock_balances` → `lots`. Dentro de cada grupo se usa un orden estable: documentos por tipo/ID,
+catálogos/lotes por ID, contadores por `(documentType, year)` y balances por
+`(productId, warehouseId)`, preservando el ADR 004.
+
+Se recopilan previamente todos los productos, almacenes, saldos, lotes y números necesarios.
+Las secuencias de recepción y lotes se reservan juntas antes de productos. Inventario recibe
+todas las líneas y crea los lotes con origen después de adquirir los recursos; crear un lote
+aislado antes de bloquear los componentes completos puede invertir el orden.
+Calidad coordina saldos y lote con ese mismo protocolo. Las validaciones se repiten después
+de esperar, y documentos/movimientos/saldos/lotes/auditoría se confirman o revierten juntos.
+La implementación y la prueba de este protocolo global todavía están pendientes.
 
 ## 9. Reconciliación
 
@@ -450,6 +505,9 @@ la ejecutan las pruebas.
 
 ## 10. Modelo conceptual completo
 
+Propuesta de la siguiente ronda: proveedores/clientes y Foundation ya existen; los documentos
+transaccionales, BOM/versiones, OP e inspecciones de este diagrama todavía no están implementados.
+
 ```mermaid
 erDiagram
     SUPPLIERS ||--o{ PURCHASE_ORDERS : "surte"
@@ -460,10 +518,11 @@ erDiagram
     PURCHASE_RECEIPT_ITEMS ||--o| LOTS : "origina"
     PURCHASE_RECEIPT_ITEMS ||--|| INVENTORY_MOVEMENTS : "provoca"
 
-    PRODUCTS ||--o{ BOMS : "se fabrica segun"
-    BOMS ||--|{ BOM_ITEMS : "detalla"
+    PRODUCTS ||--o| BILLS_OF_MATERIAL : "se fabrica segun"
+    BILLS_OF_MATERIAL ||--|{ BOM_VERSIONS : "versiona"
+    BOM_VERSIONS ||--|{ BOM_ITEMS : "detalla"
     PRODUCTS ||--o{ BOM_ITEMS : "participa como componente"
-    BOMS ||--o{ PRODUCTION_ORDERS : "congela version en"
+    BOM_VERSIONS ||--o{ PRODUCTION_ORDERS : "congela version en"
     PRODUCTION_ORDERS ||--o{ INVENTORY_MOVEMENTS : "consume y produce"
     PRODUCTION_ORDERS ||--o| LOTS : "origina"
     LOTS ||--o{ QUALITY_INSPECTIONS : "se inspecciona en"
@@ -483,13 +542,13 @@ erDiagram
 
 ### Compras — migración `purchases`
 
-| Entidad               | Papel       | Campos relevantes                                                                            |
-| --------------------- | ----------- | -------------------------------------------------------------------------------------------- |
-| `Supplier`            | Raíz        | `code` UK, `name`, `taxId?`, `email?`, `phone?`, `address?`, `isActive`                      |
-| `PurchaseOrder`       | Raíz        | `number` UK, `supplierId`, `status`, `orderedAt`, `expectedDate?` (date), `createdByUserId`  |
-| `PurchaseOrderItem`   | Dependiente | `purchaseOrderId`, `productId`, `quantityOrdered`, `unitPrice`, `lineTotal`                  |
-| `PurchaseReceipt`     | Raíz        | `number` UK, `purchaseOrderId`, `receivedAt`, `receivedByUserId`, `notes?`                   |
-| `PurchaseReceiptItem` | Dependiente | `purchaseReceiptId`, `purchaseOrderItemId`, `productId`, `warehouseId`, `lotId?`, `quantity` |
+| Entidad               | Papel       | Campos relevantes                                                                                                                      |
+| --------------------- | ----------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| `Supplier`            | Raíz        | `code` UK, `name`, `taxId?`, `email?`, `phone?`, `address?`, `isActive`                                                                |
+| `PurchaseOrder`       | Raíz        | `number` UK, `supplierId`, `status`, `orderedAt`, `expectedDate?` (date), `createdByUserId`                                            |
+| `PurchaseOrderItem`   | Dependiente | `purchaseOrderId`, `productId`, `quantityOrdered`, `unitPrice`, `lineTotal`                                                            |
+| `PurchaseReceipt`     | Raíz        | `number` UK, `purchaseOrderId`, `receivedAt`, `receivedByUserId`, `notes?`                                                             |
+| `PurchaseReceiptItem` | Dependiente | `purchaseReceiptId`, `purchaseOrderItemId`, `productId`, `warehouseId`, `quantity`; lote por relación inversa desde su origen en `Lot` |
 
 **`quantityReceived` no se almacena.** Es la suma de las líneas de recepción de esa línea de
 orden, y almacenarla crearía un tercer dato derivado que puede desincronizarse. Se deriva; si el
@@ -499,28 +558,47 @@ que `StockBalance` y quedaría registrado en un ADR.
 Una línea de recepción representa una combinación concreta de producto, almacén y, cuando aplica,
 lote. Repartir una entrega entre dos lotes exige dos líneas y produce dos movimientos.
 
-### Producción — migración `production`
+Se conserva una sola identidad de origen del lote desde `Lot.purchaseReceiptItemId`, sin
+otro `PurchaseReceiptItem.lotId` editable. Estados de compra previstos: `DRAFT`, `CONFIRMED`,
+`PARTIALLY_RECEIVED`, `RECEIVED`, `CANCELLED`. Confirmar no modifica stock; solo la recepción
+crea entradas. El bloqueo de la OC serializa recepciones y evita exceder la cantidad ordenada.
 
-| Entidad             | Papel       | Campos relevantes                                                                                                                                                        |
-| ------------------- | ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `Bom`               | Raíz        | `productId`, `version`, `quantityBase`, `isActive`, `notes?` — único `(productId, version)`                                                                              |
-| `BomItem`           | Dependiente | `bomId`, `componentProductId`, `quantity`                                                                                                                                |
-| `ProductionOrder`   | Raíz        | `number` UK, `productId`, `bomId`, `warehouseId`, `quantityPlanned`, `quantityProduced`, `plannedDate` (date), `status`, `startedAt?`, `completedAt?`, `createdByUserId` |
-| `QualityInspection` | Raíz        | `lotId`, `status`, `observations?`, `inspectedAt`, `inspectedByUserId`                                                                                                   |
+### Producción — migraciones planificadas C-1 y C-2
+
+| Entidad             | Papel       | Campos relevantes                                                                                                                                                                    |
+| ------------------- | ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `BillOfMaterial`    | Raíz        | `productId` único, `name`, `isActive`; fórmula de un producto manufacturable                                                                                                         |
+| `BomVersion`        | Dependiente | `bomId`, `version`, `outputQuantity`, `isActive`, `createdByUserId`; único `(bomId, version)`                                                                                        |
+| `BomItem`           | Dependiente | `bomVersionId`, `componentProductId`, `quantity`; componente único por versión                                                                                                       |
+| `ProductionOrder`   | Raíz        | `number` UK, `productId`, `bomVersionId`, `warehouseId`, `quantityPlanned`, `quantityProduced`, `status`, `startedAt?`, `completedAt?`, `createdByUserId`; planificación por decidir |
+| `QualityInspection` | Raíz        | `lotId`, `status` (`APPROVED`/`REJECTED`), `observations?`, `nonconformities?`, `inspectedAt`, `inspectedByUserId`                                                                   |
 
 **`BomItem` no tiene columna de unidad.** La cantidad se expresa en la unidad base del componente,
 que ya está en `Product.unit`. Una unidad propia implicaría conversiones que el proyecto declara
 inexistentes, y una conversión implícita y no implementada es peor que ninguna.
 
-**`plannedDate` es fecha de calendario**, no instante: la producción se planifica por día. Es una
-extensión `PROPUESTO` (`P-PRO-005` en [`requirements.md`](requirements.md)); RF-PRO-002 solo
-exige fecha de creación.
+**Planificación de OP: decisión abierta.** El diseño anterior proponía `plannedDate` como
+fecha de calendario; el chat propone `plannedStartAt` y `plannedEndAt` como instantes.
+Se elegirá un modelo antes de implementar C-1, manteniendo UTC para instantes y
+`America/Managua` para calendario. P-PRO-005 sigue `PROPUESTO`; RF-PRO-002 exige creación,
+no esas fechas de planificación.
 
-**Congelación de la versión de BOM.** `ProductionOrder.bomId` apunta a la versión exacta usada.
-Una `Bom` referenciada por alguna orden **no puede modificarse**: las correcciones crean una
-versión nueva y desactivan la anterior. La regla vive en el backend porque exige consultar otra
-tabla, y tiene prueba propia. Es la extensión `P-PRO-001`, no una exigencia académica literal.
+**Congelación de la versión de BOM.** `ProductionOrder.bomVersionId` apunta a la versión exacta
+usada. Una `BomVersion` referenciada por alguna orden **no puede modificarse**: las correcciones
+crean una versión nueva. Solo una versión está activa por fórmula; activación y uso se serializan.
+La inmutabilidad protege contenido/cantidad base/componentes; activar o desactivar para nuevas
+OP conserva ese contenido y las referencias históricas.
+La regla debe implementarse y probarse en el backend porque exige consultar otra
+tabla. Es la extensión `P-PRO-001`, aceptada como decisión en ADR 014, no una exigencia académica literal.
 Sin ella, editar una fórmula reescribiría la historia de lo que realmente se fabricó.
+
+Estados de OP aceptados en ADR 014: `DRAFT`, `IN_PROGRESS`, `COMPLETED`, `CANCELLED`, sin `CONFIRMED`.
+El producto fabricado exige `isLotTracked = true`. Una OP usa un almacén para consumo y output.
+START valida disponibilidad sin consumir/reservar; COMPLETE consume según `quantityPlanned`
+y produce `quantityProduced`, con `0 < quantityProduced <= quantityPlanned`, dentro de una
+transacción con un único lote de output y auditoría. Calidad registrará `APPROVED`/`REJECTED`;
+cuando se requiera inspección, la espera se representa con lote `QUARANTINED`. Sin ese requisito
+el lote nace `RELEASED`. Son decisiones aceptadas en ADR 014, todavía sin schema físico de Producción.
 
 ### Ventas — migración `sales`
 
@@ -564,7 +642,9 @@ suppliers.code · customers.code
 purchase_orders.number · purchase_receipts.number
 production_orders.number · sales_orders.number · dispatches.number
 stock_balances (product_id, warehouse_id)
-boms (product_id, version)
+bills_of_material (product_id) -- planificado
+bom_versions (bom_id, version) -- planificado
+bom_items (bom_version_id, component_product_id) -- planificado
 document_sequences (document_type, year)
 lots (id, product_id)          -- habilita la clave foránea compuesta
 ```
@@ -598,14 +678,15 @@ debe garantizar las reglas que dependen de otras entidades:
 
 - Coherencia entre `Product.isLotTracked` y la presencia de `lotId`.
 - Bloqueo de consumo y despacho según `Lot.status`.
-- Prohibición de cambiar `isLotTracked` con movimientos existentes.
+- Prohibición de cambiar `isLotTracked` con cualquier movimiento existente, incluso con saldo
+  cero (planificada para A-2; aún sin flujo de edición).
 - Prohibición de cambiar `Product.unit` o `Product.type` cuando el producto
   tenga algún `InventoryMovement`, aunque sus saldos actuales sean cero.
 - Prohibición de desactivar un producto si tiene algún `StockBalance.quantity`
   distinto de cero en cualquiera de sus almacenes.
 - Prohibición de desactivar un almacén si tiene algún `StockBalance.quantity`
   distinto de cero para cualquiera de sus productos.
-- Inmutabilidad de una `Bom` ya usada por una orden.
+- Inmutabilidad de una `BomVersion` ya usada por una orden (planificada).
 - Tope de cantidad recibida o despachada frente a la ordenada.
 
 En `feature/products-warehouses`, las restricciones de unidad, tipo y
@@ -725,13 +806,16 @@ ya existe un ADMIN activo o el correo, nunca modifica un usuario existente y aud
 
 ## 14. Plan de migraciones
 
-| #   | Nombre                | Contenido                                                                                                                                                                            |
-| --- | --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| 1   | `database_foundation` | `Role`, `User`, `Product`, `Warehouse`, `Lot`, `StockBalance`, `InventoryMovement`, `AuditLog`, `DocumentSequence`, enums de fundación, `CHECK` de ajustes, disparadores append-only |
-| 2   | `auth_rbac`           | `users.token_version`, `users.must_change_password`, `CHECK` de correo normalizado, acciones `CHANGE_ROLE`, `CHANGE_PASSWORD` y `RESET_PASSWORD`                                     |
-| 3   | `purchases`           | Entidades de Compras; origen del lote de materia prima; amplía enum y `CHECK` de origen                                                                                              |
-| 4   | `production`          | `Bom`, `BomItem`, `ProductionOrder`, `QualityInspection`; origen del lote de salida                                                                                                  |
-| 5   | `sales`               | `Customer`, `SalesOrder`, `SalesOrderItem`, `Dispatch`, `DispatchItem`                                                                                                               |
+| #         | Nombre                        | Contenido                                                                                                                                                                            |
+| --------- | ----------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| 1         | `database_foundation`         | `Role`, `User`, `Product`, `Warehouse`, `Lot`, `StockBalance`, `InventoryMovement`, `AuditLog`, `DocumentSequence`, enums de fundación, `CHECK` de ajustes, disparadores append-only |
+| 2         | `auth_rbac`                   | `users.token_version`, `users.must_change_password`, `CHECK` de correo normalizado, acciones `CHANGE_ROLE`, `CHANGE_PASSWORD` y `RESET_PASSWORD`                                     |
+| 3         | `suppliers` (actual)          | Proveedores y `AuditEntityType.SUPPLIER`                                                                                                                                             |
+| 4         | `customers` (actual)          | Clientes y `AuditEntityType.CUSTOMER`                                                                                                                                                |
+| Posterior | `purchases` (planificada)     | Documentos de Compras; origen de lote recibido; `reason` nullable; enum y CHECK/FK de origen                                                                                         |
+| Posterior | Producción C-1 (planificada)  | `BillOfMaterial`, `BomVersion`, `BomItem`, `ProductionOrder`; sin tipos de ejecución                                                                                                 |
+| Posterior | Producción C-2 (planificada)  | Consumos/output con origen OP, lote producido y `QualityInspection`; preserva origen de Compras                                                                                      |
+| Posterior | `sales` (fuera de esta ronda) | `SalesOrder`, `SalesOrderItem`, `Dispatch`, `DispatchItem`; reutiliza `Customer`                                                                                                     |
 
 `suppliers` se introduce antes de `purchases`, con la tabla `suppliers` del modelo de §10 y el
 valor `SUPPLIER` de `AuditEntityType`. Las órdenes, recepciones y el origen del lote de materia
