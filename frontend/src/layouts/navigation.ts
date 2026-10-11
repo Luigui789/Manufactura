@@ -7,6 +7,7 @@ export const navigation: {
 }[] = [
   { to: '/', label: 'Inicio', roles: ROLE_CODES },
   { to: '/production/boms', label: 'Fórmulas', roles: ROLE_CODES },
+  { to: '/production/orders', label: 'Producción', roles: ROLE_CODES },
   { to: '/users', label: 'Usuarios', roles: ['ADMIN'] },
   {
     to: '/sales/customers',

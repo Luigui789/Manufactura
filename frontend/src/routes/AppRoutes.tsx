@@ -27,6 +27,22 @@ const UsersPage = lazy(() =>
   })),
 );
 
+const OrdersPage = lazy(() =>
+  import('@/features/production/pages/OrdersPage').then((module) => ({
+    default: module.OrdersPage,
+  })),
+);
+const NewOrderPage = lazy(() =>
+  import('@/features/production/pages/NewOrderPage').then((module) => ({
+    default: module.NewOrderPage,
+  })),
+);
+const OrderDetailPage = lazy(() =>
+  import('@/features/production/pages/OrderDetailPage').then((module) => ({
+    default: module.OrderDetailPage,
+  })),
+);
+
 const WarehousesPage = lazy(() =>
   import('@/features/inventory/pages/WarehousesPage').then((module) => ({
     default: module.WarehousesPage,
@@ -87,6 +103,32 @@ export function AppRoutes() {
             />
 
             <Route path="*" element={<NotFoundPage />} />
+            <Route
+              path="/production/orders"
+              element={
+                <Suspense fallback={<p role="status">Cargando producción…</p>}>
+                  <OrdersPage />
+                </Suspense>
+              }
+            />
+            <Route element={<RequireRole roles={['ADMIN', 'PRODUCCION']} />}>
+              <Route
+                path="/production/orders/new"
+                element={
+                  <Suspense fallback={<p role="status">Cargando formulario…</p>}>
+                    <NewOrderPage />
+                  </Suspense>
+                }
+              />
+            </Route>
+            <Route
+              path="/production/orders/:id"
+              element={
+                <Suspense fallback={<p role="status">Cargando orden…</p>}>
+                  <OrderDetailPage />
+                </Suspense>
+              }
+            />
             <Route
               path="/production/boms"
               element={
