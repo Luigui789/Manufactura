@@ -70,6 +70,7 @@ enum AuditAction {
   CHANGE_ROLE
   CHANGE_PASSWORD
   RESET_PASSWORD
+  CANCEL_PRODUCTION
 }
 
 enum AuditEntityType {
@@ -83,10 +84,19 @@ enum AuditEntityType {
   CUSTOMER
   BILL_OF_MATERIAL
   BOM_VERSION
+  PRODUCTION_ORDER
 }
 
 enum DocumentType {
   LOT
+  OP
+}
+
+enum ProductionOrderStatus {
+  DRAFT
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
 }
 
 model Role {
@@ -116,6 +126,7 @@ model User {
   movements          InventoryMovement[]
   auditLogs          AuditLog[]
   bomVersions        BomVersion[]
+  productionOrders   ProductionOrder[]
 
   @@map("users")
 }
@@ -137,6 +148,7 @@ model Product {
   movements                 InventoryMovement[]
   billOfMaterial            BillOfMaterial?
   bomComponents             BomItem[]
+  productionOrders          ProductionOrder[]
 
   @@index([type])
   @@index([isActive])
@@ -159,16 +171,17 @@ model BillOfMaterial {
 }
 
 model BomVersion {
-  id              String         @id @default(uuid(7)) @db.Uuid
-  bomId           String         @map("bom_id") @db.Uuid
-  version         Int
-  outputQuantity  Decimal        @map("output_quantity") @db.Decimal(18, 4)
-  isActive        Boolean        @default(false) @map("is_active")
-  createdAt       DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
-  createdByUserId String         @map("created_by_user_id") @db.Uuid
-  bom             BillOfMaterial @relation(fields: [bomId], references: [id], onDelete: Restrict)
-  createdBy       User           @relation(fields: [createdByUserId], references: [id], onDelete: Restrict)
-  items           BomItem[]
+  id               String            @id @default(uuid(7)) @db.Uuid
+  bomId            String            @map("bom_id") @db.Uuid
+  version          Int
+  outputQuantity   Decimal           @map("output_quantity") @db.Decimal(18, 4)
+  isActive         Boolean           @default(false) @map("is_active")
+  createdAt        DateTime          @default(now()) @map("created_at") @db.Timestamptz(6)
+  createdByUserId  String            @map("created_by_user_id") @db.Uuid
+  bom              BillOfMaterial    @relation(fields: [bomId], references: [id], onDelete: Restrict)
+  createdBy        User              @relation(fields: [createdByUserId], references: [id], onDelete: Restrict)
+  items            BomItem[]
+  productionOrders ProductionOrder[]
 
   // Una sola versión activa por BOM: índice parcial de la migración C-1.
   @@unique([bomId, version])
@@ -188,17 +201,46 @@ model BomItem {
 }
 
 model Warehouse {
-  id        String              @id @default(uuid(7)) @db.Uuid
-  code      String              @unique
-  name      String
-  location  String              @db.VarChar(255)
-  isActive  Boolean             @default(true) @map("is_active")
-  createdAt DateTime            @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt DateTime            @updatedAt @map("updated_at") @db.Timestamptz(6)
-  balances  StockBalance[]
-  movements InventoryMovement[]
+  id               String              @id @default(uuid(7)) @db.Uuid
+  code             String              @unique
+  name             String
+  location         String              @db.VarChar(255)
+  isActive         Boolean             @default(true) @map("is_active")
+  createdAt        DateTime            @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt        DateTime            @updatedAt @map("updated_at") @db.Timestamptz(6)
+  balances         StockBalance[]
+  movements        InventoryMovement[]
+  productionOrders ProductionOrder[]
 
   @@map("warehouses")
+}
+
+model ProductionOrder {
+  id               String                @id @default(uuid(7)) @db.Uuid
+  number           String                @unique @db.VarChar(32)
+  productId        String                @map("product_id") @db.Uuid
+  bomVersionId     String                @map("bom_version_id") @db.Uuid
+  warehouseId      String                @map("warehouse_id") @db.Uuid
+  quantityPlanned  Decimal               @map("quantity_planned") @db.Decimal(18, 4)
+  quantityProduced Decimal               @default(0) @map("quantity_produced") @db.Decimal(18, 4)
+  status           ProductionOrderStatus @default(DRAFT)
+  plannedStartAt   DateTime?             @map("planned_start_at") @db.Timestamptz(6)
+  plannedEndAt     DateTime?             @map("planned_end_at") @db.Timestamptz(6)
+  startedAt        DateTime?             @map("started_at") @db.Timestamptz(6)
+  completedAt      DateTime?             @map("completed_at") @db.Timestamptz(6)
+  createdByUserId  String                @map("created_by_user_id") @db.Uuid
+  createdAt        DateTime              @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt        DateTime              @updatedAt @map("updated_at") @db.Timestamptz(6)
+  product          Product               @relation(fields: [productId], references: [id], onDelete: Restrict)
+  bomVersion       BomVersion            @relation(fields: [bomVersionId], references: [id], onDelete: Restrict)
+  warehouse        Warehouse             @relation(fields: [warehouseId], references: [id], onDelete: Restrict)
+  createdBy        User                  @relation(fields: [createdByUserId], references: [id], onDelete: Restrict)
+
+  @@index([status, createdAt])
+  @@index([productId])
+  @@index([warehouseId])
+  @@index([bomVersionId])
+  @@map("production_orders")
 }
 
 model Lot {
