@@ -7,5 +7,6 @@ import { BomsService } from './boms.service.js';
   imports: [AuditModule],
   controllers: [BomsController],
   providers: [BomsService, BomCalculatorService],
+  exports: [BomCalculatorService],
 })
 export class BomsModule {}
