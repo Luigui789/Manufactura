@@ -858,8 +858,14 @@ Compras y el contrato necesario de Inventario, además de C-1; A-2 completo no e
 Producción queda a cargo del responsable del proyecto; falta asignar nominalmente los otros
 dos responsables y coordinar Prisma.
 
-El trabajo de PR0 queda revisado localmente, sin commit ni push. Inventario,
-Compras y Producción conservan sus estados pendientes/parciales y la evidencia histórica.
+PR0 se integró mediante PR #11 en `develop` (`37e2548`). Inventory A-1 queda a cargo
+de smorsikda; el responsable del proyecto continúa Producción en `feature/production-core`,
+creada en un worktree separado desde esa base.
+
+El [primer bloque local de Producción C-1](production-c1-status.md) implementa fórmulas,
+versiones y cálculo con API, UI y pruebas. C-1 completo sigue parcial: faltan órdenes DRAFT
+y disponibilidad contra el contrato definitivo de Inventory A-1. No se inicia C-2.
+Los cambios locales todavía no acreditan integración en `develop`.
 
 | Etapa | Contenido                                                    | Estado                                                       |
 | ----- | ------------------------------------------------------------ | ------------------------------------------------------------ |
@@ -867,7 +873,7 @@ Compras y Producción conservan sus estados pendientes/parciales y la evidencia 
 | 4     | Datos maestros: productos, almacenes, proveedores y clientes | Integrados en `develop` (PR #6, #8 y #9), CI con 433 pruebas |
 | 5     | Compras y recepción                                          | Pendiente                                                    |
 | 6     | Inventario y movimientos                                     | Pendiente                                                    |
-| 7     | BOM y producción                                             | Pendiente                                                    |
+| 7     | BOM y producción                                             | Parcial local: BOM, versiones y cálculo; OP pendiente        |
 | 8     | Lotes, trazabilidad y calidad                                | Pendiente                                                    |
 | 9     | Clientes, ventas y despacho                                  | Pendiente                                                    |
 | 10    | Dashboard y reportes básicos                                 | Pendiente                                                    |

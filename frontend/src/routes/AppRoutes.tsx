@@ -12,6 +12,14 @@ import { HomePage } from './HomePage';
 import { NotFoundPage } from './NotFoundPage';
 import CustomersPage from '@/features/sales/pages/CustomersPage';
 import SuppliersPage from '@/features/purchases/pages/SuppliersPage';
+const BomsPage = lazy(() =>
+  import('@/features/production/pages/BomsPage').then((module) => ({ default: module.BomsPage })),
+);
+const BomDetailPage = lazy(() =>
+  import('@/features/production/pages/BomDetailPage').then((module) => ({
+    default: module.BomDetailPage,
+  })),
+);
 
 const UsersPage = lazy(() =>
   import('@/features/users/pages/UsersPage').then((module) => ({
@@ -79,6 +87,22 @@ export function AppRoutes() {
             />
 
             <Route path="*" element={<NotFoundPage />} />
+            <Route
+              path="/production/boms"
+              element={
+                <Suspense fallback={<p role="status">Cargando fórmulas…</p>}>
+                  <BomsPage />
+                </Suspense>
+              }
+            />
+            <Route
+              path="/production/boms/:id"
+              element={
+                <Suspense fallback={<p role="status">Cargando fórmula…</p>}>
+                  <BomDetailPage />
+                </Suspense>
+              }
+            />
           </Route>
         </Route>
       </Route>
