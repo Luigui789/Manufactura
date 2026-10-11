@@ -362,14 +362,18 @@ se conserva el ADR original sin modificarlo.
 Desde la migración de Compras, un `CHECK` de arco exclusivo exige que todo lote tenga exactamente un
 origen. **No deben existir lotes trazables operativos sin origen empresarial identificable.** En A-1
 no hay endpoint ni flujo de negocio para crear lotes; `applyMovements` solo acepta un lote existente
-y falla si el identificador no existe. Las pruebas crean lotes directamente como fixtures. La FK
-de origen empresarial se incorporará cuando existan Compras y Producción; hasta entonces, la base
-Foundation no puede verificar ese origen.
+y falla si el identificador no existe. Si la fila existente carece de origen empresarial, A-1 no
+puede detectarlo y el contrato interno puede registrar movimientos contra ella. Las pruebas crean
+lotes directamente como fixtures; A-1 no tiene operación de negocio ni endpoint para crearlos. La
+FK y la validación de origen se incorporarán con Compras y Producción; hasta entonces, Foundation
+no puede garantizar el rechazo de una fila existente sin origen. El DoD de A-1 es no crear lotes
+automáticamente ni ofrecer alta operativa; el rechazo por origen pertenece a Compras.
 
 El ADR 013 aceptado concreta ese origen en `Lot.purchaseReceiptItemId` o
 `Lot.productionOrderId`, con FK y unicidad de cada origen. Compras habilita únicamente el
 primero; C-2 amplía a XOR preservando los datos recibidos. Inventario crea los lotes dentro
-del plan de recursos/transacción del llamador. A-1 no crea lotes operativos sin origen.
+del plan de recursos/transacción del llamador. A-1 no ofrece esa creación operativa; la validación
+del origen comienza con las FKs de Compras.
 
 Consecuencia que conviene tener presente: **durante A-1 no debe crearse ningún lote operativo**,
 porque todavía no existe ningún documento que pueda originarlo. Los fixtures de prueba pueden crear

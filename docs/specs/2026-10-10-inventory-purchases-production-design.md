@@ -66,7 +66,7 @@ No acredita los casos de uso de esta ronda ni constituye una reejecución en PR0
 
 | Responsable                     | Rama / entrega                      | Alcance y condición de cierre                                                                                                                                                |
 | ------------------------------- | ----------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Inventario                      | A-1: `feature/inventory-contract`   | Contrato backend reutilizable, movimientos en lote, bloqueos y numeración compartida. Ajustes probados; ningún lote operativo sin origen.                                    |
+| Inventario                      | A-1: `feature/inventory-contract`   | Contrato backend reutilizable, movimientos en lote, bloqueos y numeración compartida. Ajustes probados; sin alta operativa de lotes; origen verificable desde Compras.       |
 | Compras                         | `feature/purchases`                 | Órdenes, confirmación, cancelación, recepciones parciales/completas, origen de lotes recibidos, frontend y pruebas. Depende de A-1.                                          |
 | Inventario                      | A-2: `feature/inventory-movements`  | Consultas de stock/movimientos/lotes, ajustes autorizados, configuración de trazabilidad/calidad y pantallas. Depende de A-1; consulta de lotes operativos requiere Compras. |
 | Vos / responsable de Producción | C-1: `feature/production-core`      | BOM/versiones, borradores de OP, edición/cancelación de borradores, cálculo y consulta informativa de disponibilidad, frontend y pruebas; cero cambios de stock.             |
@@ -142,10 +142,16 @@ InventoryService.applyMovements(tx, command);
 - `command` contiene actor, instante, `requestId` y todas las líneas de la operación.
 - Cada línea identifica producto, almacén, tipo, magnitud decimal positiva, lote cuando
   corresponda y un origen tipado. Inventario determina el signo almacenado por el tipo.
-- Los lotes nuevos se describen en el mismo plan de operación: producto, origen empresarial,
-  vencimiento opcional y número reservado. Inventario los crea después de bloquear **todos**
-  los recursos y enlaza sus movimientos; no se crea un lote por fuera de ese plan.
-- Devuelve identificadores de movimientos y lotes creados para la respuesta y la auditoría.
+- En A-1, la línea puede referir un lote existente. El servicio valida existencia y relación con
+  el producto, pero no origen empresarial: Foundation aún no tiene columnas ni FKs de origen.
+  A-1 no ofrece una operación de negocio ni un endpoint para crear lotes; los fixtures de prueba
+  sí pueden insertarlos directamente. Referir un lote preexistente sin origen es una limitación
+  técnica aceptada de esta etapa, no evidencia de que se rechacen lotes huérfanos.
+- Para Compras/C-2, los lotes nuevos se describen en el mismo plan de operación: producto, origen
+  empresarial, vencimiento opcional y número reservado. Inventario los crea después de bloquear
+  **todos** los recursos y enlaza sus movimientos; no se crea un lote por fuera de ese plan.
+- La extensión futura devuelve identificadores de movimientos y lotes creados para la respuesta
+  y la auditoría; A-1 solo devuelve movimientos.
 - No abre una transacción propia ni hace commit o rollback independientes; propaga errores
   al caso de uso llamador. No registra auditoría empresarial.
 
@@ -219,16 +225,26 @@ añade coherencia entre línea recibida y línea ordenada. Producción valida el
 output y los componentes contra la OP/version utilizada. Cada línea recibida genera un
 movimiento; repetirla debe rechazarse mediante unicidad de su origen.
 
-Todo lote operativo tiene exactamente un origen: `PurchaseReceiptItem` XOR `ProductionOrder`.
-En Compras solo se habilita el primero; C-2 amplía el CHECK preservando las recepciones.
-Ambos orígenes son FK, únicos para producir un lote por línea recibida y por OP terminada.
-La relación de recepción con lote se resuelve desde `Lot.purchaseReceiptItemId`, sin duplicar
-un `PurchaseReceiptItem.lotId` editable que pudiera apuntar a otro lote.
+El modelo objetivo exige que todo lote operativo tenga exactamente un origen:
+`PurchaseReceiptItem` XOR `ProductionOrder`. Compras habilita el primero; C-2 amplía el CHECK
+preservando las recepciones. Ambos orígenes son FK, únicos para producir un lote por línea recibida
+y por OP terminada. La relación de recepción con lote se resuelve desde
+`Lot.purchaseReceiptItemId`, sin duplicar un `PurchaseReceiptItem.lotId` editable que pudiera
+apuntar a otro lote.
 
-A-1 no crea lotes operativos ni habilita entradas trazables sin origen. La creación pertenece
-a Inventario y participa de la transacción de recepción/producción. El lote nace `RELEASED`
-si no requiere inspección, y `QUARANTINED` si la requiere. Hasta disponer de Calidad, un lote
-en cuarentena no es consumible; no se libera mediante edición manual del catálogo.
+**Alcance A-1 y limitación conocida:** A-1 no crea lotes empresariales ni ofrece endpoint de alta.
+`applyMovements` puede recibir un ID de lote existente, comprobar que existe y pertenece al producto,
+pero no puede verificar su origen porque el esquema Foundation aún no lo modela. Las pruebas crean
+lotes directamente como fixtures. En consecuencia, un lote preexistente sin origen no queda
+rechazado por el servicio; la validación de origen se difiere formalmente a Compras. Antes de
+habilitar recepciones o creación operativa de lotes, la migración de Compras debe exigir la FK de
+origen y detenerse si encuentra filas sin origen que requieran resolución explícita. C-2 amplía
+la regla para incluir `ProductionOrder`.
+
+La creación empresarial futura pertenece a Inventario y participa de la transacción de
+recepción/producción. El lote nace `RELEASED` si no requiere inspección, y `QUARANTINED` si la
+requiere. Hasta disponer de Calidad, un lote en cuarentena no es consumible; no se libera mediante
+edición manual del catálogo.
 
 ## 8. Compras y recepción
 
@@ -363,7 +379,9 @@ ampliación debe acordarse. Los nombres de páginas/componentes siguen siendo or
 PR0 no cambia `schema.prisma` ni migraciones. Cada PR funcional parte de `develop` actualizado
 y conserva todas las migraciones compartidas, los catálogos, auth y auditoría.
 
-- A-1 concreta servicios y contrato sin habilitar tipos/orígenes empresariales inexistentes.
+- A-1 concreta servicios y contrato sin habilitar tipos/orígenes empresariales inexistentes. No
+  crea lotes ni tiene endpoint de alta; la FK de origen aún no existe, por lo que un lote existente
+  sin origen puede ser referenciado internamente. La validación de origen comienza con Compras.
 - Compras incorpora documentos, `PURCHASE_RECEIPT`, su FK de origen, `reason` nullable y el
   origen de lotes recibidos, con CHECK/índices/FKs propios.
 - C-1 incorpora BOM/versiones/OP sin habilitar ejecución ni crear lotes.
@@ -380,13 +398,13 @@ PR de migración, sin prometer downgrade automático ni borrar documentos de dom
 
 ## 13. Pruebas y Definition of Done
 
-| Entrega | Evidencia mínima esperada                                                                                                                                                                                                                                |
-| ------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| A-1     | Ajustes previos preservados; varias líneas atómicas; carrera del primer saldo; dos salidas competidoras; orden invertido de entrada con los mismos recursos; catálogos concurrentes; reconciliación; auditoría con rollback; lotes huérfanos rechazados. |
-| Compras | Orden/confirmación/cancelación sin stock; recepciones parciales; varias filas de la misma línea; sobre-recepción concurrente; origen y signo/FKs; creación de lote; rollback de auditoría y documentos; permisos y frontend.                             |
-| A-2     | Filtros/paginación; saldo general y por lote; ajustes con motivo; productos/almacenes inactivos; cambio de `isLotTracked` rechazado con cualquier movimiento, incluso con saldo cero, y permitido sin historial; permisos; estados de interfaz.          |
-| C-1     | BOM válida/inválida, duplicados/autorreferencia, cantidades decimales; cálculo exacto; versión usada inmutable y una activa; OP con BOM incorrecta/producto no trazable; borradores sin stock; disponibilidad real y permisos/frontend.                  |
-| C-2     | START sin stock; lotes insuficientes/no liberados; asignaciones exactas; consumo según plan y output real; COMPLETE concurrente/repetido; rollback total; inspección vs consumo; calidad/no conformidades; trazabilidad hasta proveedor y frontend.      |
+| Entrega | Evidencia mínima esperada                                                                                                                                                                                                                                                                                                                                                                    |
+| ------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| A-1     | Ajustes previos preservados; varias líneas atómicas; carrera del primer saldo; dos salidas competidoras; orden invertido de entrada con los mismos recursos; catálogos concurrentes; reconciliación; auditoría con rollback; no hay alta operativa de lotes; un ID inexistente se rechaza y no se crea automáticamente. La validación del origen de una fila existente se difiere a Compras. |
+| Compras | Orden/confirmación/cancelación sin stock; recepciones parciales; varias filas de la misma línea; sobre-recepción concurrente; origen y signo/FKs; creación de lote; rollback de auditoría y documentos; rechazar filas operativas sin FK de origen; permisos y frontend.                                                                                                                     |
+| A-2     | Filtros/paginación; saldo general y por lote; ajustes con motivo; productos/almacenes inactivos; cambio de `isLotTracked` rechazado con cualquier movimiento, incluso con saldo cero, y permitido sin historial; permisos; estados de interfaz.                                                                                                                                              |
+| C-1     | BOM válida/inválida, duplicados/autorreferencia, cantidades decimales; cálculo exacto; versión usada inmutable y una activa; OP con BOM incorrecta/producto no trazable; borradores sin stock; disponibilidad real y permisos/frontend.                                                                                                                                                      |
+| C-2     | START sin stock; lotes insuficientes/no liberados; asignaciones exactas; consumo según plan y output real; COMPLETE concurrente/repetido; rollback total; inspección vs consumo; calidad/no conformidades; trazabilidad hasta proveedor y frontend.                                                                                                                                          |
 
 Antes del PR funcional: dependencias integradas, contrato real conectado, backend/frontend y
 pruebas del alcance completos, lint/formato/build y suites correspondientes aprobados,
