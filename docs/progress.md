@@ -873,17 +873,30 @@ Se adoptan fechas de inicio/fin opcionales UTC, UI Managua; la especificación r
 además las políticas de precisión, inmutabilidad completa y primera versión activa.
 El alcance implementado en la rama no acredita todavía integración de C-1 en `develop`.
 
-| Etapa | Contenido                                                    | Estado                                                                  |
-| ----- | ------------------------------------------------------------ | ----------------------------------------------------------------------- |
-| 3     | Autenticación JWT y RBAC                                     | Integrada en `develop` (PR #3)                                          |
-| 4     | Datos maestros: productos, almacenes, proveedores y clientes | Integrados en `develop` (PR #6, #8 y #9), CI con 433 pruebas            |
-| 5     | Compras y recepción                                          | Pendiente                                                               |
-| 6     | Inventario y movimientos                                     | Pendiente                                                               |
-| 7     | BOM y producción                                             | C-1 implementado en rama: BOM, OP DRAFT y disponibilidad; C-2 pendiente |
-| 8     | Lotes, trazabilidad y calidad                                | Pendiente                                                               |
-| 9     | Clientes, ventas y despacho                                  | Pendiente                                                               |
-| 10    | Dashboard y reportes básicos                                 | Pendiente                                                               |
-| 11    | Simulación ISA-95                                            | Pendiente                                                               |
+### Integración de A-1 y C-1 (2026-10-11)
+
+- **Inventory A-1** se integró en `develop` mediante el PR #12 (`feature/inventory-contract`,
+  autor smorsikda), con merge `e7f12bc`. Luigui789 pidió cambios dos veces y luego aprobó;
+  `Quality and tests` y `Docker development` pasaron. La punta de la rama (`43958e9`) es
+  ancestro de `develop`: no conserva commits sin integrar.
+- **Producción C-1** se integró en `develop` mediante el PR #13 (`feature/production-core`,
+  8 commits), con merge `642c0b5`, fusionado por Luigui789 conforme a la política vigente.
+  `Quality and tests` y `Docker development` pasaron en GitHub Actions.
+
+Con ello, A-1 y C-1 quedan disponibles en `develop`. Siguen pendientes Compras, Inventory A-2
+y Producción C-2; C-2 requiere además Compras.
+
+| Etapa | Contenido                                                    | Estado                                                                             |
+| ----- | ------------------------------------------------------------ | ---------------------------------------------------------------------------------- |
+| 3     | Autenticación JWT y RBAC                                     | Integrada en `develop` (PR #3)                                                     |
+| 4     | Datos maestros: productos, almacenes, proveedores y clientes | Integrados en `develop` (PR #6, #8 y #9), CI con 433 pruebas                       |
+| 5     | Compras y recepción                                          | Pendiente                                                                          |
+| 6     | Inventario y movimientos                                     | A-1 integrado en `develop` (PR #12); A-2 pendiente                                 |
+| 7     | BOM y producción                                             | C-1 integrado en `develop` (PR #13): BOM, OP DRAFT y disponibilidad; C-2 pendiente |
+| 8     | Lotes, trazabilidad y calidad                                | Pendiente                                                                          |
+| 9     | Clientes, ventas y despacho                                  | Pendiente                                                                          |
+| 10    | Dashboard y reportes básicos                                 | Pendiente                                                                          |
+| 11    | Simulación ISA-95                                            | Pendiente                                                                          |
 
 `develop` se integra en `main` cuando haya un bloque funcional completo —configuración, modelo de
 datos, autenticación y datos maestros—, no al terminar cada etapa.
