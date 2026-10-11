@@ -602,3 +602,78 @@ Acciones `CREATE`, `UPDATE`, `ENABLE` y `DISABLE` sobre la entidad `CUSTOMER`, e
 `email`, `phone`, `address`, `isActive`), y una edición registra solo los campos que cambiaron.
 El cambio y su evento comparten transacción; los cambios sobre un mismo cliente se serializan con
 un bloqueo de fila. La desactivación es lógica: no hay `DELETE`.
+
+## 12. Producción C-1
+
+Implementado en `feature/production-core`, sobre A-1 integrado (`develop` en `e7f12bc`).
+Todas las lecturas requieren autenticación; las escrituras requieren `ADMIN` o `PRODUCCION`.
+Se aplican la cookie de sesión, política de contraseña, validación estricta y respuestas del proyecto.
+
+### Fórmulas y versiones
+
+| Método | Ruta                                                     | Operación                                                                      |
+| ------ | -------------------------------------------------------- | ------------------------------------------------------------------------------ |
+| GET    | `/api/production/boms`                                   | Lista paginada, filtros `search` e `isActive`.                                 |
+| POST   | `/api/production/boms`                                   | Cabecera `{ productId, name }`.                                                |
+| GET    | `/api/production/boms/:id`                               | Cabecera, producto y versiones.                                                |
+| PATCH  | `/api/production/boms/:id`                               | Nombre; no cambia producto.                                                    |
+| PATCH  | `/api/production/boms/:id/status`                        | `{ isActive: boolean }`.                                                       |
+| POST   | `/api/production/boms/:id/versions`                      | `{ outputQuantity: string, items: [{ productId, quantity: string }] }`.        |
+| POST   | `/api/production/boms/:id/versions/:versionId/activate`  | Activa una versión, desactiva la anterior atómicamente.                        |
+| POST   | `/api/production/boms/:id/versions/:versionId/calculate` | `{ quantityPlanned: string }`; lectura/cálculo para cualquier rol autenticado. |
+
+La primera versión queda activa automáticamente. Las siguientes requieren activación.
+No hay edición/borrado de contenido de versiones; los componentes se guardan en la unidad
+base de su producto. La salida debe estar activa, ser intermedia o terminada y trazable.
+Los componentes deben estar activos y ser materia prima, consumible o intermedio, sin
+duplicados ni autorreferencia. El cálculo retorna `requiredQuantity` por componente;
+resultados no representables exactamente en cuatro decimales se rechazan con `422`.
+
+### Órdenes y disponibilidad
+
+| Método | Ruta                                      | Operación                                                                           |
+| ------ | ----------------------------------------- | ----------------------------------------------------------------------------------- |
+| GET    | `/api/production/orders`                  | Lista paginada; `search` por número/producto, `status`, `productId`, `warehouseId`. |
+| POST   | `/api/production/orders`                  | Crea un borrador y asigna número OP mediante la secuencia real.                     |
+| GET    | `/api/production/orders/:id`              | Orden, producto, almacén y versión BOM persistida con componentes.                  |
+| PATCH  | `/api/production/orders/:id`              | Edición parcial exclusivamente en DRAFT.                                            |
+| POST   | `/api/production/orders/:id/cancel`       | DRAFT → CANCELLED, respuesta `200`.                                                 |
+| GET    | `/api/production/orders/:id/requirements` | Requerimientos y stock consumible reales; respuesta `200`.                          |
+
+Creación:
+
+```json
+{
+  "productId": "01900000-0000-7000-8000-000000000001",
+  "bomVersionId": "01900000-0000-7000-8000-000000000002",
+  "warehouseId": "01900000-0000-7000-8000-000000000003",
+  "quantityPlanned": "100.0000",
+  "plannedStartAt": "2026-10-10T14:00:00Z",
+  "plannedEndAt": null
+}
+```
+
+Las cantidades HTTP deben ser strings positivas con hasta 14 enteros y cuatro decimales;
+los números JSON, exponentes y campos adicionales se rechazan. Referencias son UUID.
+La versión elegida debe pertenecer al producto y estar activa al seleccionarla. La activación
+posterior de otra versión no altera la OP; editar cantidad/fechas conserva la versión histórica.
+Una selección nueva explícita de producto/versión vuelve a exigir versión activa.
+
+Las fechas son opcionales y admiten `null`. Deben incluir zona ISO 8601 (`Z` u offset).
+Si ambas están presentes, el fin no puede preceder al inicio. En PATCH, omitir conserva
+el valor y `null` lo borra. La UI usa Managua y el API retorna instantes UTC.
+No se admite `plannedDate`, estado, número, creador ni campos de ejecución desde el cliente.
+
+La consulta de requerimientos retorna `orderId`, `bomVersionId`, `version`, `quantityPlanned`,
+`warehouseId`, `updatedAt`, `canStart`, `eligibilityIssues` y `items` con producto,
+`required`, `available`, `shortage` como strings de cuatro decimales. Para trazables, la
+disponibilidad usa únicamente lotes `RELEASED` del almacén. `canStart` es informativo:
+exige borrador y catálogo vigente, pero no reserva ni garantiza stock para una ejecución futura.
+La UI descarta requerimientos de una revisión anterior de la orden.
+
+Listados: `{ data, meta: { page, limit, total } }`; operaciones individuales: `{ data, message }`.
+Errores: `400` validación/edición vacía, `404` referencia inexistente, `409` estado o selección
+de versión no permitidos, `422` incoherencia de producto/catálogo/ventana/cálculo.
+Auditoría transaccional: CREATE/UPDATE/CANCEL_PRODUCTION sobre PRODUCTION_ORDER,
+con diferencias permitidas, actor y requestId. C-1 no escribe stock, movimientos ni lotes.
+`start`, `complete`, inspecciones y trazabilidad pertenecen a C-2.

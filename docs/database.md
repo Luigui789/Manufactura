@@ -58,14 +58,14 @@ Decisiones que lo sostienen:
 
 No son el mismo tipo de dato y mezclarlos causa errores en el cambio de día.
 
-| Campo                                       | Tipo          | Razón                                                                                      |
-| ------------------------------------------- | ------------- | ------------------------------------------------------------------------------------------ |
-| `occurredAt`, `createdAt`, `updatedAt`      | `timestamptz` | Momentos exactos en la línea del tiempo                                                    |
-| `receivedAt`, `dispatchedAt`, `inspectedAt` | `timestamptz` | Momentos exactos                                                                           |
-| `startedAt`, `completedAt`, `originatedAt`  | `timestamptz` | Momentos exactos                                                                           |
-| Planificación de `ProductionOrder`          | Por decidir   | `plannedDate` como `date` frente a inicio/fin como `timestamptz`; decisión abierta de C-1. |
-| `PurchaseOrder.expectedDate`                | `date`        | La fecha esperada de entrega es un día                                                     |
-| `Lot.expiresAt`                             | `date`        | El vencimiento es un día, no una hora                                                      |
+| Campo                                            | Tipo          | Razón                                                                              |
+| ------------------------------------------------ | ------------- | ---------------------------------------------------------------------------------- |
+| `occurredAt`, `createdAt`, `updatedAt`           | `timestamptz` | Momentos exactos en la línea del tiempo                                            |
+| `receivedAt`, `dispatchedAt`, `inspectedAt`      | `timestamptz` | Momentos exactos                                                                   |
+| `startedAt`, `completedAt`, `originatedAt`       | `timestamptz` | Momentos exactos                                                                   |
+| `ProductionOrder.plannedStartAt`, `plannedEndAt` | `timestamptz` | Opcionales, UTC; UI America/Managua. Decisión adoptada por C-1, sin `plannedDate`. |
+| `PurchaseOrder.expectedDate`                     | `date`        | La fecha esperada de entrega es un día                                             |
+| `Lot.expiresAt`                                  | `date`        | El vencimiento es un día, no una hora                                              |
 
 ### Zona horaria empresarial
 
@@ -576,23 +576,30 @@ crea entradas. El bloqueo de la OC serializa recepciones y evita exceder la cant
 
 ### Producción — migraciones planificadas C-1 y C-2
 
-| Entidad             | Papel       | Campos relevantes                                                                                                                                                                    |
-| ------------------- | ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `BillOfMaterial`    | Raíz        | `productId` único, `name`, `isActive`; fórmula de un producto manufacturable                                                                                                         |
-| `BomVersion`        | Dependiente | `bomId`, `version`, `outputQuantity`, `isActive`, `createdByUserId`; único `(bomId, version)`                                                                                        |
-| `BomItem`           | Dependiente | `bomVersionId`, `componentProductId`, `quantity`; componente único por versión                                                                                                       |
-| `ProductionOrder`   | Raíz        | `number` UK, `productId`, `bomVersionId`, `warehouseId`, `quantityPlanned`, `quantityProduced`, `status`, `startedAt?`, `completedAt?`, `createdByUserId`; planificación por decidir |
-| `QualityInspection` | Raíz        | `lotId`, `status` (`APPROVED`/`REJECTED`), `observations?`, `nonconformities?`, `inspectedAt`, `inspectedByUserId`                                                                   |
+| Entidad             | Papel       | Campos relevantes                                                                                                                                                                             |
+| ------------------- | ----------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `BillOfMaterial`    | Raíz        | `productId` único, `name`, `isActive`; fórmula de un producto manufacturable                                                                                                                  |
+| `BomVersion`        | Dependiente | `bomId`, `version`, `outputQuantity`, `isActive`, `createdByUserId`; único `(bomId, version)`                                                                                                 |
+| `BomItem`           | Dependiente | `bomVersionId`, `componentProductId`, `quantity`; componente único por versión                                                                                                                |
+| `ProductionOrder`   | Raíz        | `number` UK, `productId`, `bomVersionId`, `warehouseId`, `quantityPlanned`, `quantityProduced`, `status`, `plannedStartAt?`, `plannedEndAt?`, `startedAt?`, `completedAt?`, `createdByUserId` |
+| `QualityInspection` | Raíz        | `lotId`, `status` (`APPROVED`/`REJECTED`), `observations?`, `nonconformities?`, `inspectedAt`, `inspectedByUserId`                                                                            |
 
 **`BomItem` no tiene columna de unidad.** La cantidad se expresa en la unidad base del componente,
 que ya está en `Product.unit`. Una unidad propia implicaría conversiones que el proyecto declara
 inexistentes, y una conversión implícita y no implementada es peor que ninguna.
 
-**Planificación de OP: decisión abierta.** El diseño anterior proponía `plannedDate` como
-fecha de calendario; el chat propone `plannedStartAt` y `plannedEndAt` como instantes.
-Se elegirá un modelo antes de implementar C-1, manteniendo UTC para instantes y
-`America/Managua` para calendario. P-PRO-005 sigue `PROPUESTO`; RF-PRO-002 exige creación,
-no esas fechas de planificación.
+**Planificación adoptada por C-1:** `plannedStartAt` y `plannedEndAt` opcionales como
+instantes `timestamptz`/UTC, interpretados por la UI en `America/Managua`.
+Cualquiera puede omitirse; si existen ambos, el fin debe ser igual o posterior al inicio.
+Solo se editan en `DRAFT`, no representan inicio/finalización reales y no se agrega `plannedDate`.
+P-PRO-005 conserva origen `PROPUESTO`: es una decisión del equipo, no un nuevo requisito oficial.
+
+En `feature/production-core`, las migraciones `20261010180000_production_boms` y
+`20261010220000_production_orders` materializan BOM/versiones/componentes y OP.
+La segunda añade `DocumentType.OP`, `AuditEntityType.PRODUCTION_ORDER` y
+`AuditAction.CANCEL_PRODUCTION`; checks protegen cantidad planificada positiva,
+producida no negativa y ventana de planificación. C-1 mantiene producción real en cero.
+Las migraciones compartidas anteriores permanecen intactas. Calidad y ejecución siguen en C-2.
 
 **Congelación de la versión de BOM.** `ProductionOrder.bomVersionId` apunta a la versión exacta
 usada. Una `BomVersion` referenciada por alguna orden **no puede modificarse**: las correcciones
@@ -721,8 +728,8 @@ Las pruebas de estas reglas de catálogo están en
 en ambos órdenes de confirmación, se prueba en
 `backend/test/catalog-adjustments-concurrency.e2e-spec.ts`.
 
-Las reglas de BOM y de cantidades recibidas o despachadas corresponden a los
-módulos transaccionales pendientes de implementación.
+Las reglas de BOM se implementan en C-1 mediante checks, índice parcial de versión activa,
+triggers de inmutabilidad y validación transaccional. Recepción y despacho siguen en sus entregas.
 
 ### Disparadores
 

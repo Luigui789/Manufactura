@@ -1,114 +1,101 @@
-# Producción C-1 — primer bloque local
+# Producción C-1 — BOM, borradores y disponibilidad
 
 Fecha: 2026-10-10. Rama: `feature/production-core`.
-Base: `develop` en `37e2548` (PR0 integrado mediante PR #11).
+Base: `origin/develop` en `e7f12bc`, con Inventory A-1 integrado.
 
-Este bloque implementa el inicio indicado en el punto 171 del plan de ejecución:
-`BillOfMaterial`, `BomVersion`, `BomItem` y `BomCalculatorService`, con API,
-pantallas y pruebas. C-1 completo sigue en desarrollo; no hay PR de Producción.
-
+C-1 está implementado en su rama; su integración en `develop` queda pendiente del PR.
 Fuentes: [diseño de la ronda](specs/2026-10-10-inventory-purchases-production-design.md)
 y [ADR 014](decisions/014-versionado-bom-y-ejecucion-produccion.md).
 
-## Implementado localmente
+## Alcance
 
-- Cabecera única por producto: creación, nombre, activación/desactivación y consulta paginada.
-- Versiones consecutivas bajo bloqueo de la cabecera; componentes sin duplicados ni autorreferencia.
-- Primera versión activa automáticamente; las siguientes se activan explícitamente.
-- Índice parcial de PostgreSQL que permite una sola versión activa por fórmula.
-- Contenido guardado sin endpoints de edición ni borrado. Triggers impiden modificar o borrar
-  versiones y componentes existentes; solo la activación de una versión es mutable.
-- Salida activa `INTERMEDIATE` o `FINISHED_GOOD` con `isLotTracked=true`.
-- Componentes activos `RAW_MATERIAL`, `CONSUMABLE` o `INTERMEDIATE`.
-- Revalidación del catálogo al crear/activar versiones y calcular; los intermedios no se expanden.
-- Cada cantidad usa `Product.unit`, sin campo de unidad duplicado ni conversiones.
-- Productos referenciados por fórmulas conservan tipo y unidad mediante una restricción en
-  `ProductsService`; cambiar nombre o estado mantiene las políticas existentes.
-- Mutaciones y auditoría en la misma transacción; fallo de auditoría revierte la operación.
-- Escritura para ADMIN/PRODUCCION; consulta y cálculo para cualquier usuario autenticado.
-- Interfaz `/production/boms` y detalle: creación, versiones, activación y cálculo.
-- Selectores de productos con filtros, búsqueda y paginación; cantidades siempre como strings.
+- BOM única por producto, nombre/estado, versiones consecutivas y una sola versión activa.
+- Componentes en unidad base, sin duplicados, autorreferencia ni expansión recursiva de intermedios.
+- Salida activa intermedia o terminada y trazable; componentes y almacén activos.
+- Cálculo exacto y versiones históricas conservadas; protección de tipo/unidad de productos referenciados.
+- OP DRAFT: crear, consultar, editar y cancelar a CANCELLED, con versión concreta persistida.
+- Número `OP-año-contador` mediante el `DocumentSequenceService` real; año empresarial de Managua.
+- Requerimientos y disponibilidad mediante el `StockQueryService` real por componente/almacén.
+- API y pantallas de BOM y órdenes: carga/error/vacío, búsqueda/filtros/paginación, edición,
+  cancelación con confirmación y actualización de disponibilidad.
+- ADMIN/PRODUCCION escriben; todos los roles autenticados consultan.
+- Mutaciones, secuencia y auditoría comparten transacción; un fallo revierte el conjunto.
 
-Las operaciones BOM no escriben saldos, movimientos, lotes ni secuencias de documentos.
-No se incorporó ni copió el desarrollo local de Inventory A-1.
+C-1 produce **cero escrituras** de saldos, movimientos y lotes; no reserva stock.
+No incluye `start`, `complete`, asignación de lotes, calidad ni trazabilidad de C-2.
 
-## Cálculo y precisión
+## Decisiones concretadas
 
-`requerido = cantidad_componente × cantidad_planificada / cantidad_base_salida`.
+Estas políticas cierran elecciones que PR0 dejó abiertas o especificó con un mínimo menos estricto:
 
-Se utilizan decimales con contexto aislado de precisión 60. El servicio verifica el residuo
-antes de dividir y rechaza resultados no representables exactamente con cuatro decimales,
-incluidos subescala y desbordamiento de `Decimal(18,4)`. No redondea silenciosamente.
+1. Resultados no representables exactamente con cuatro decimales o fuera de `Decimal(18,4)`
+   se rechazan, sin redondeo/truncamiento. Contexto decimal aislado de precisión 60.
+2. Todas las versiones conservan su contenido desde creación, incluso antes de usarse en una OP.
+   La activación sigue siendo mutable y nunca cambia la versión de una orden existente.
+3. Primera versión activa automáticamente; siguientes versiones con activación explícita.
+4. Elección explícita del responsable: `plannedStartAt` y `plannedEndAt` opcionales como
+   `timestamptz`/UTC, UI en `America/Managua`, editables en DRAFT. Cualquiera puede omitirse;
+   si existen ambos, fin >= inicio. No son fechas de ejecución y no se agrega `plannedDate`.
 
-Esta es la política conservadora del borrador local para la decisión de precisión que el
-ADR 014 deja abierta; debe confirmarse al revisar el bloque. Todas las versiones creadas
-se conservan inmutables, incluso antes de asociarlas a una OP.
+La especificación y `database.md` registran estas decisiones. Los ADR aceptados se conservan
+como registro de PR0; estas políticas no se presentan como obligaciones originales del ADR 014.
 
-Ejemplo verificado para 100 jabones, salida base 1:
+## Contratos y concurrencia
 
-| Componente | Cantidad base | Requerimiento |
-| ---------- | ------------- | ------------- |
-| Aceite     | 500           | 50000.0000    |
-| Soda       | 70            | 7000.0000     |
-| Agua       | 180           | 18000.0000    |
-| Fragancia  | 5             | 500.0000      |
+La OP guarda `bomVersionId`; activar otra versión no altera su referencia. Un PATCH que omite
+producto/versión conserva esa selección histórica, aunque ya no sea la activa. Elegir explícitamente
+otra versión exige que esté activa y pertenezca al producto. Se revalida después de esperar bloqueos.
 
-## Transacciones y migración
+Creación: cabecera BOM → secuencia OP → productos por UUID ascendente → almacén.
+Edición: OP → cabecera BOM → productos ordenados → almacén. OP/BOM usan `FOR UPDATE`;
+catálogo usa `FOR SHARE`, incompatible con los editores `FOR NO KEY UPDATE`.
+Cancelación bloquea la OP y solo admite DRAFT; catálogo inactivo no impide cancelarla.
 
-Las modificaciones de una fórmula bloquean primero su cabecera `FOR UPDATE`, y después
-los productos únicos por UUID ascendente `FOR SHARE`. Este bloqueo de productos es incompatible
-con el `FOR NO KEY UPDATE` usado por el editor de catálogo. El cálculo también toma esos
-bloqueos para revalidar un catálogo coherente.
+Requerimientos se reconstruyen desde la versión persistida, sin tabla derivada adicional.
+Devuelven `required`, `available`, `shortage` como strings y `canStart` informativo.
+Para trazables, solo los lotes RELEASED del almacén cuentan como consumibles.
+La consulta no ofrece una instantánea transaccional de todos los componentes ni garantiza
+stock futuro; C-2 deberá revalidar. La UI evita mostrar requisitos de una revisión anterior
+actualizando detalle y requerimientos juntos. Editar otro campo conserva los segundos de
+fechas introducidas por API aunque el formulario muestre minutos.
 
-La migración nueva `20261010180000_production_boms` agrega tres tablas, dos tipos de entidad
-de auditoría, claves foráneas, checks positivos, índice de versión activa y triggers.
-Las cuatro migraciones publicadas anteriores no se modifican.
+## Migraciones y preservación
 
-Se probó exclusivamente en bases nuevas dedicadas `*_test`, no en la base de trabajo.
-La prueba de upgrade conserva idénticas las filas de 11 tablas existentes: roles, usuarios,
-productos, almacenes, lotes, saldos, movimientos, auditoría, secuencias, proveedores y clientes.
-Se verificó además que continúan las protecciones de auditoría/ledger append-only y saldo no negativo.
+- `20261010180000_production_boms`: tablas BOM/versiones/items, auditoría, checks,
+  índice parcial y triggers de inmutabilidad. Se conserva idéntica al checkpoint anterior al rebase.
+- `20261010220000_production_orders`: OP, enum de estados, secuencia OP, entidad/acción de auditoría,
+  FKs, índices y checks de cantidades/ventana de fechas.
+- Las cuatro migraciones publicadas y `migration_lock.toml` conservan sus hashes de `origin/develop`.
 
-La migración permanece local: su integración definitiva debe coordinarse sobre el `develop`
-actualizado después de las dependencias indicadas en la especificación.
+Validación en PostgreSQL 18.6: instalación vacía de seis migraciones y upgrade desde las cuatro
+publicadas con datos en 11 tablas. Sus filas permanecieron idénticas después de migrar y de crear
+la primera OP. Continuaron ledger/auditoría append-only y saldo no negativo. Fueron 72 comprobaciones
+aprobadas; el despliegue Prisma también aplicó la migración OP en la base aislada de pruebas.
+La base de trabajo no se utilizó y no se eliminaron datos ni bases existentes.
 
-## Pendiente para completar C-1
+Rollback: conservar migraciones y documentos. Retirar las rutas/pantallas de Producción exige
+mantener un cliente Prisma y los valores/prefijos de enum compatibles con OP y su auditoría;
+no se propone ejecutar ciegamente un build A-1 anterior sobre estos datos ni borrar tablas/enums.
+Las cantidades y documentos anteriores no se transforman por estas migraciones aditivas.
 
-- `ProductionOrder`: creación en DRAFT, edición, cancelación y persistencia de una versión concreta.
-- Numeración OP mediante el servicio de secuencias real de Inventory A-1.
-- Disponibilidad informativa mediante el `StockQueryService` definitivo; no se creó un proveedor simulado.
-- Pantallas y pruebas de órdenes y disponibilidad.
-- Actualizar la rama con `develop` después del merge de A-1 y coordinar Prisma.
+## Coordinación y pendientes
 
-El catálogo integrado no permite configurar `isLotTracked` por API todavía. Por eso, crear
-una fórmula desde la UI requiere productos que ya tengan el flag habilitado; las pruebas crean
-fixtures así en su base aislada. Debe coordinarse la habilitación de ese campo con el responsable
-de Inventario. No se agrega un endpoint paralelo de catálogo en Producción.
+El catálogo todavía no configura `isLotTracked` por API. Crear BOM requiere productos con ese
+flag habilitado; las pruebas instalan fixtures trazables en su base aislada. La configuración
+corresponde a Inventario A-2 y debe coordinarse con su responsable; no se agrega un endpoint
+paralelo de catálogo. El guard de tipo/unidad de `ProductsService` está aislado en su propio commit.
 
-No se inicia C-2: ejecución, consumo, output, lotes, calidad y trazabilidad dependen además
-de Inventario y Compras.
+C-2 depende además de Compras y del contrato necesario de Inventario. No se inicia en este PR.
 
 ## Validación
 
-Resultados de la primera verificación:
+- Backend unitario completo: 148/148 aprobado.
+- API BOM: 20/20 aprobado; API órdenes: 22/22 aprobado.
+- UI órdenes: 8 casos, incluidos permisos, creación, edición, cancelación, filtros, revisión
+  obsoleta y refresco tras edición de otra persona; regresión frontend completa en ejecución.
+- BOM calculator: ejemplo de 100 jabones y precisión cubiertos por las pruebas unitarias.
+- Backend/frontend build aprobado; verificación final de lint, formato, enlaces y diff pendiente.
+- Regresión e2e general en ejecución; los resultados finales se registran antes del commit.
 
-- cálculo: 13 pruebas unitarias aprobadas, incluido el ejemplo de 100 jabones;
-- API BOM: 20 pruebas e2e aprobadas, incluyendo permisos, creación/activación simultánea,
-  inmutabilidad, rollback al crear y activar, carrera de edición de unidad/tipo contra publicación
-  de una versión y ausencia de escrituras de inventario;
-- schemas frontend: 102 pruebas aprobadas;
-- formularios: 5 pruebas aprobadas, incluyendo resultados obsoletos y preservación del borrador;
-- backend y frontend compilaron;
-- lint, Prettier y diff check aprobados;
-- upgrade sobre datos existentes aprobado.
-
-Regresiones: 85 pruebas unitarias backend y 235 frontend aprobadas. Las pruebas e2e
-restantes aprobaron 222 casos; Foundation aprobó 11 después de completar su fixture de
-almacén faltante. Sumadas a las 20 de BOM, acreditan 253 casos e2e por suites.
-La ejecución e2e general inicial omitió Foundation por ese fixture; no se presenta como
-una ejecución general aprobada.
-
-La revisión detectó además arrays anidados en `items`: se incorporó validación de objeto
-por componente y un caso HTTP de regresión.
-
-No se ejecutó CI remoto ni Docker build en este bloque. Los cambios siguen sin stage, commit ni push.
+No se atribuye esta implementación a `develop` ni se afirma una revisión manual de navegador.
+Los checks remotos se consultan tras publicar el PR; el merge queda a cargo del responsable.
