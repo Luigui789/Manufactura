@@ -3,7 +3,7 @@
 Fecha: 2026-10-10. Rama: `feature/production-core`.
 Base: `origin/develop` en `e7f12bc`, con Inventory A-1 integrado.
 
-C-1 está implementado en su rama; su integración en `develop` queda pendiente del PR.
+C-1 se integró en `develop` el 2026-10-11 mediante el PR #13 (merge `642c0b5`).
 Fuentes: [diseño de la ronda](specs/2026-10-10-inventory-purchases-production-design.md)
 y [ADR 014](decisions/014-versionado-bom-y-ejecucion-produccion.md).
 
