@@ -257,3 +257,49 @@ describe('Catálogos y ajustes: serialización en ambos órdenes', () => {
     },
   );
 });
+
+describe('Atomicidad del ajuste y su auditoría', () => {
+  it('revierte movimiento y saldo si falla la escritura de AuditLog', async () => {
+    const { product, warehouse } = await fixture();
+    const requestId = `test-audit-rollback-${randomUUID()}`;
+
+    try {
+      await kit.prisma.$executeRawUnsafe(`
+        CREATE FUNCTION reject_test_adjustment_audit() RETURNS trigger AS $$
+        BEGIN
+          IF NEW.action = 'ADJUST_STOCK' AND NEW.request_id LIKE 'test-audit-rollback-%' THEN
+            RAISE EXCEPTION 'forced audit failure for atomicity test';
+          END IF;
+          RETURN NEW;
+        END;
+        $$ LANGUAGE plpgsql
+      `);
+      await kit.prisma.$executeRawUnsafe(`
+        CREATE TRIGGER reject_test_adjustment_audit
+        BEFORE INSERT ON audit_logs
+        FOR EACH ROW EXECUTE FUNCTION reject_test_adjustment_audit()
+      `);
+
+      await expect(
+        applyAdjustment(kit.prisma, {
+          productId: product.id,
+          warehouseId: warehouse.id,
+          type: 'ADJUSTMENT_IN',
+          quantity: '7',
+          reason: 'INITIAL_LOAD',
+          performedByUserId: actor.id,
+          requestId,
+        }),
+      ).rejects.toThrow('forced audit failure for atomicity test');
+    } finally {
+      await kit.prisma.$executeRawUnsafe(
+        'DROP TRIGGER IF EXISTS reject_test_adjustment_audit ON audit_logs',
+      );
+      await kit.prisma.$executeRawUnsafe('DROP FUNCTION IF EXISTS reject_test_adjustment_audit()');
+    }
+
+    expect(await kit.prisma.inventoryMovement.count({ where: { requestId } })).toBe(0);
+    expect(await kit.prisma.stockBalance.count({ where: { productId: product.id } })).toBe(0);
+    expect(await kit.prisma.auditLog.count({ where: { requestId } })).toBe(0);
+  });
+});

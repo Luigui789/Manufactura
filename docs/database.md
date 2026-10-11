@@ -10,7 +10,9 @@
 ### Estado físico y diseño de la siguiente ronda
 
 En `develop` (`53b7402`) están versionadas las migraciones Foundation, auth, proveedores y
-clientes. Los movimientos físicos solo admiten ajustes y tienen `reason` obligatorio.
+clientes. En A-1, `InventoryMovement.reason` sigue siendo obligatorio y las migraciones físicas
+solo admiten ajustes. Compras añadirá posteriormente la nulabilidad de `reason` junto con su origen
+empresarial verificable y las restricciones correspondientes.
 `Lot` aún no tiene columnas de origen empresarial. Órdenes, recepciones, BOM, ejecución y
 calidad siguen siendo **modelo planificado**, no tablas/endpoints existentes.
 
@@ -244,10 +246,11 @@ bloquear nunca un lote.
 la finalización de la producción o la recepción de la mercancía. Un campo llamado «producido» que
 además significara «recibido» haría ambiguas todas las consultas.
 
-**`InventoryMovement.reason`** actualmente es obligatorio porque solo existen ajustes.
-Compras planifica hacerlo nullable: obligatorio en ajustes y nulo en los tipos empresariales
-que su migración habilite. Una nota libre no basta como justificación: un motivo tipificado
-se puede filtrar, contar y auditar.
+**`InventoryMovement.reason`** es obligatorio en A-1: los únicos movimientos instalados son ajustes,
+y cada ajuste requiere un motivo tipificado tanto en la validación de la API como en la regla de
+base de datos. Compras añadirá posteriormente los movimientos empresariales que admitan `reason`
+nulo, junto con su FK de origen y la regla de integridad correspondiente. Una nota libre no basta
+como justificación: un motivo tipificado se puede filtrar, contar y auditar.
 
 ## 5. Matriz tipo → origen por migración
 
@@ -258,12 +261,12 @@ porque renunciaría a la integridad referencial.
 La solución es que **cada migración declare qué tipos acepta y cuál es su origen obligatorio**, y
 reemplace la restricción `CHECK` anterior por la ampliada.
 
-| Migración                    | Tipos permitidos                                 | Origen obligatorio            | Columna añadida            |
-| ---------------------------- | ------------------------------------------------ | ----------------------------- | -------------------------- |
-| Foundation (actual)          | `ADJUSTMENT_IN`, `ADJUSTMENT_OUT`                | ninguno; `reason` obligatorio | —                          |
-| Compras (planificada)        | \+ `PURCHASE_RECEIPT`                            | `purchaseReceiptItemId`       | `purchase_receipt_item_id` |
-| Producción C-2 (planificada) | \+ `PRODUCTION_CONSUMPTION`, `PRODUCTION_OUTPUT` | `productionOrderId`           | `production_order_id`      |
-| Ventas (fuera de esta ronda) | \+ `SALE_DISPATCH`                               | `dispatchItemId`              | `dispatch_item_id`         |
+| Migración                    | Tipos permitidos                                 | Origen obligatorio                     | Columna añadida            |
+| ---------------------------- | ------------------------------------------------ | -------------------------------------- | -------------------------- |
+| Foundation (actual)          | `ADJUSTMENT_IN`, `ADJUSTMENT_OUT`                | ninguno; `reason` requerido en ajustes | —                          |
+| Compras (planificada)        | \+ `PURCHASE_RECEIPT`                            | `purchaseReceiptItemId`; `reason` nulo | `purchase_receipt_item_id` |
+| Producción C-2 (planificada) | \+ `PRODUCTION_CONSUMPTION`, `PRODUCTION_OUTPUT` | `productionOrderId`                    | `production_order_id`      |
+| Ventas (fuera de esta ronda) | \+ `SALE_DISPATCH`                               | `dispatchItemId`                       | `dispatch_item_id`         |
 
 La restricción de la fundación es, literalmente:
 
@@ -357,17 +360,25 @@ se conserva el ADR original sin modificarlo.
 | Intermedio y terminado | `ProductionOrder`     | Migración de Producción |
 
 Desde la migración de Compras, un `CHECK` de arco exclusivo exige que todo lote tenga exactamente un
-origen. **No deben existir lotes trazables operativos sin origen empresarial identificable.**
+origen. **No deben existir lotes trazables operativos sin origen empresarial identificable.** En A-1
+no hay endpoint ni flujo de negocio para crear lotes; `applyMovements` solo acepta un lote existente
+y falla si el identificador no existe. Si la fila existente carece de origen empresarial, A-1 no
+puede detectarlo y el contrato interno puede registrar movimientos contra ella. Las pruebas crean
+lotes directamente como fixtures; A-1 no tiene operación de negocio ni endpoint para crearlos. La
+FK y la validación de origen se incorporarán con Compras y Producción; hasta entonces, Foundation
+no puede garantizar el rechazo de una fila existente sin origen. El DoD de A-1 es no crear lotes
+automáticamente ni ofrecer alta operativa; el rechazo por origen pertenece a Compras.
 
 El ADR 013 aceptado concreta ese origen en `Lot.purchaseReceiptItemId` o
 `Lot.productionOrderId`, con FK y unicidad de cada origen. Compras habilita únicamente el
 primero; C-2 amplía a XOR preservando los datos recibidos. Inventario crea los lotes dentro
-del plan de recursos/transacción del llamador. A-1 no crea lotes operativos sin origen.
+del plan de recursos/transacción del llamador. A-1 no ofrece esa creación operativa; la validación
+del origen comienza con las FKs de Compras.
 
-Consecuencia que conviene tener presente: **durante la fundación no debe crearse ningún lote
-operativo**, porque todavía no existe ningún documento que pueda originarlo. Los únicos
-movimientos posibles son ajustes, y en la fundación solo deben aplicarse a productos sin
-trazabilidad. La carga inicial de inventario con lotes se hace cuando exista Compras.
+Consecuencia que conviene tener presente: **durante A-1 no debe crearse ningún lote operativo**,
+porque todavía no existe ningún documento que pueda originarlo. Los fixtures de prueba pueden crear
+lotes directamente para verificar reglas del ledger, pero esa vía no está expuesta como operación
+empresarial. La carga inicial operativa de inventario con lotes se hará cuando exista Compras.
 
 ## 7. Política de calidad y liberación de lotes
 
