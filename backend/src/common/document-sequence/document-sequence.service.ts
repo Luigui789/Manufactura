@@ -7,6 +7,7 @@ const BUSINESS_TIME_ZONE = 'America/Managua';
 // Keeping this exhaustive makes new document types require an intentional prefix.
 const DOCUMENT_PREFIX: Record<DocumentType, string> = {
   LOT: 'LOT',
+  OP: 'OP',
 };
 
 @Injectable()

@@ -1,7 +1,8 @@
 # Diseño de la siguiente ronda — Inventario, Compras y Producción
 
 - **Fecha:** 2026-10-10, zona empresarial `America/Managua`.
-- **Estado:** Revisado; ADR 011–014 aceptados; implementación pendiente.
+- **Estado:** PR0 revisado; ADR 011–014 aceptados. A-1 integrado; C-1 implementado en su rama, pendiente de integración.
+- **Base de C-1:** `develop` en `e7f12bc`, con el contrato real de Inventory A-1.
 - **Base inspeccionada:** `develop`, commit `53b7402`, actualizado desde `origin/develop`.
 - **Rama de documentación:** `docs/next-development-round` (PR0).
 - **Fuente:** chat «Relacionar módulos del sistema», especialmente la instrucción inicial de
@@ -296,14 +297,41 @@ requiredQuantity = componentQuantity × (quantityPlanned / bomOutputQuantity)
 ```
 
 Se usan decimales; la versión inmutable permite reconstruir necesidades sin guardar otra
-tabla de requerimientos derivada. La política para resultados con más de cuatro decimales
-debe acordarse antes de cerrar C-1; no se trunca un consumo silenciosamente.
+tabla de requerimientos derivada. C-1 adopta rechazo de resultados no representables
+exactamente con cuatro decimales o fuera de `Decimal(18,4)`, sin redondeo ni truncamiento.
+Esta política concreta la decisión que PR0 dejó abierta; no era una exigencia previa del ADR.
 
-Estados de OP aceptados en ADR 014, todavía no implementados: `DRAFT`, `IN_PROGRESS`,
+C-1 conserva **todas** las versiones inmutables desde su creación, incluso sin OP asociada;
+el mínimo del ADR 014 protegía las versiones utilizadas. La primera versión se activa
+automáticamente, y las siguientes requieren activación explícita. Son políticas de implementación
+de C-1, no obligaciones previamente prescritas por PR0. El nombre y estado de la cabecera
+y la activación de una versión siguen siendo mutables.
+
+Estados de OP aceptados en ADR 014: `DRAFT`, `IN_PROGRESS`,
 `COMPLETED`, `CANCELLED`, sin `CONFIRMED`.
 Una OP utiliza un único almacén para consumo y output. C-1 crea/edita borradores, permite
 cancelarlos y consulta requerimientos/disponibilidad. Crear, editar o cancelar un borrador
-produce cero movimientos y cero lotes. Fechas planificadas: decisión abierta en §14.
+produce cero movimientos y cero lotes. C-1 expone únicamente `DRAFT` y cancelación a `CANCELLED`;
+inicio y finalización pertenecen a C-2.
+
+**Decisión de planificación cerrada al revisar C-1 (2026-10-10):**
+`plannedStartAt` y `plannedEndAt` son opcionales y se almacenan como `timestamptz`/UTC.
+Se permite cualquiera de los campos por separado; si existen ambos, `plannedEndAt >= plannedStartAt`.
+La UI muestra y edita estos instantes en `America/Managua`, independientemente de la zona del navegador.
+Son editables mientras la OP esté en `DRAFT` y distintos de `startedAt`/`completedAt`.
+No se agrega `plannedDate`.
+
+La creación usa `DocumentSequenceService.nextCode(tx, OP, createdAt)`; el año es el empresarial
+de Managua. Número, OP y auditoría comparten transacción. La edición puede cambiar explícitamente
+producto/versión, almacén, cantidad y planificación; una versión nueva debe estar activa y
+pertenecer al producto. Omitir esos campos conserva la versión persistida, aunque otra pase a estar activa.
+La OP no se rebasa automáticamente a la última fórmula.
+
+`GET /api/production/orders/:id/requirements` calcula la versión almacenada y consulta
+`StockQueryService.getConsumableQuantity` por componente y almacén. Devuelve cantidades string
+`required`, `available`, `shortage`, más `canStart` y restricciones de elegibilidad. La versión
+anterior desactivada conserva su validez para la OP existente; productos, cabecera y almacén
+deben seguir activos. La consulta no reserva stock ni ofrece una garantía para C-2.
 
 ## 10. Ejecución, calidad y trazabilidad
 
@@ -353,8 +381,9 @@ distinción entre auditoría del sistema, documentos empresariales y ledger.
 
 ## 11. API y pantallas previstas
 
-Todos los endpoints de esta tabla son **planificados**, no están implementados. `api.md`
-se actualiza en cada PR funcional cuando exista el endpoint real. Todas las rutas declaran
+Esta tabla conserva el alcance previsto de la ronda. Los endpoints C-1 ya están implementados
+en `feature/production-core`; su contrato real se registra en `api.md`. Los de Compras, A-2 y C-2
+siguen sujetos a sus entregas. Todas las rutas declaran
 una política de acceso y reutilizan validación, paginación y respuestas del proyecto.
 
 | Entrega | API prevista                                                                                                                                                        | Pantallas previstas                                                                      |
@@ -460,13 +489,15 @@ Políticas deliberadamente propuestas y guía ajustable:
 - **Alcance de Calidad:** mínimo propuesto de lotes producidos; lotes de Compra por acordar.
 - **Archivos/componentes frontend:** orientación de implementación, sin nombres obligatorios en ADR.
 
-Decisiones que requieren resolución antes de implementar el punto afectado:
+Decisiones concretadas por C-1:
 
-- **Fechas de OP:** `plannedDate` (`date`) del diseño anterior frente a
-  `plannedStartAt`/`plannedEndAt` (`timestamptz`) del chat. No se agregan ambos modelos por
-  defecto. Se mantiene abierta la elección hasta revisar C-1.
-- **Precisión del cálculo BOM:** rechazo o política explícita de redondeo cuando el resultado
-  no cabe en cuatro decimales; definir antes de cerrar el contrato de cálculo de C-1.
+- **Fechas de OP:** inicio/fin opcionales `timestamptz`/UTC, UI Managua y validación de ventana (§9).
+  Elección explícita del responsable al revisar C-1, sin `plannedDate` adicional.
+- **Precisión BOM:** rechazo si el resultado no cabe exactamente en cuatro decimales (§9).
+- **Versiones:** contenido inmutable desde su creación y primera versión activa automáticamente (§9).
+
+Decisiones que aún requieren resolución antes de implementar el punto afectado:
+
 - **Reinspección:** estados desde los que puede aprobarse/rechazarse de nuevo y preservación
   del historial; definir antes de implementar Calidad.
 - **Reintentos de recepción parcial:** decidir si se añade clave de idempotencia HTTP; el

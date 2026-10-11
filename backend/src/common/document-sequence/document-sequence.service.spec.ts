@@ -26,6 +26,16 @@ function makeTransaction(lastNumbers: number[] = [1]) {
 }
 
 describe('DocumentSequenceService', () => {
+  it('numera OP con el año empresarial de Managua, separado de LOT', async () => {
+    const { tx, createMany } = makeTransaction([7]);
+    await expect(
+      new DocumentSequenceService().nextCode(tx, 'OP', new Date('2027-01-01T05:30:00Z')),
+    ).resolves.toBe('OP-2026-000007');
+    expect(createMany).toHaveBeenCalledWith({
+      data: [{ documentType: 'OP', year: 2026 }],
+      skipDuplicates: true,
+    });
+  });
   it('genera un código LOT con seis dígitos y usa el contador bloqueado', async () => {
     const { tx, createMany, update } = makeTransaction([42]);
     const service = new DocumentSequenceService();

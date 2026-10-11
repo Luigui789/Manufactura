@@ -10,6 +10,7 @@ import { validateEnv } from './config/env.validation.js';
 import { HealthModule } from './health/health.module.js';
 import { InventoryModule } from './inventory/inventory.module.js';
 import { PrismaModule } from './prisma/prisma.module.js';
+import { ProductionModule } from './production/production.module.js';
 import { PurchasesModule } from './purchases/purchases.module.js';
 import { SalesModule } from './sales/sales.module.js';
 import { UsersModule } from './users/users.module.js';
@@ -18,8 +19,7 @@ import { UsersModule } from './users/users.module.js';
  * Solo existen los modulos que hacen algo real en esta etapa.
  *
  * Compras contiene proveedores, Inventario contiene productos y almacenes,
- * y Ventas contiene clientes. Produccion y los flujos transaccionales se
- * materializaran cuando empiece su funcionalidad.
+ * Ventas contiene clientes y Produccion contiene formulas versionadas.
  */
 @Module({
   imports: [
@@ -39,6 +39,7 @@ import { UsersModule } from './users/users.module.js';
     HealthModule,
     InventoryModule,
     PurchasesModule,
+    ProductionModule,
     SalesModule,
   ],
   providers: [

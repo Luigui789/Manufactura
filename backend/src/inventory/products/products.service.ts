@@ -129,6 +129,15 @@ export class ProductsService {
               'No se puede cambiar la unidad ni el tipo de un producto con movimientos de inventario',
             );
           }
+          const [output, component] = await Promise.all([
+            tx.billOfMaterial.findUnique({ where: { productId: id }, select: { id: true } }),
+            tx.bomItem.findFirst({ where: { componentProductId: id }, select: { id: true } }),
+          ]);
+          if (output || component) {
+            throw new ConflictException(
+              'No se puede cambiar la unidad ni el tipo de un producto referenciado por una fórmula de producción',
+            );
+          }
         }
 
         const after = await tx.product.update({

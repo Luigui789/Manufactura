@@ -12,10 +12,34 @@ import { HomePage } from './HomePage';
 import { NotFoundPage } from './NotFoundPage';
 import CustomersPage from '@/features/sales/pages/CustomersPage';
 import SuppliersPage from '@/features/purchases/pages/SuppliersPage';
+const BomsPage = lazy(() =>
+  import('@/features/production/pages/BomsPage').then((module) => ({ default: module.BomsPage })),
+);
+const BomDetailPage = lazy(() =>
+  import('@/features/production/pages/BomDetailPage').then((module) => ({
+    default: module.BomDetailPage,
+  })),
+);
 
 const UsersPage = lazy(() =>
   import('@/features/users/pages/UsersPage').then((module) => ({
     default: module.UsersPage,
+  })),
+);
+
+const OrdersPage = lazy(() =>
+  import('@/features/production/pages/OrdersPage').then((module) => ({
+    default: module.OrdersPage,
+  })),
+);
+const NewOrderPage = lazy(() =>
+  import('@/features/production/pages/NewOrderPage').then((module) => ({
+    default: module.NewOrderPage,
+  })),
+);
+const OrderDetailPage = lazy(() =>
+  import('@/features/production/pages/OrderDetailPage').then((module) => ({
+    default: module.OrderDetailPage,
   })),
 );
 
@@ -79,6 +103,48 @@ export function AppRoutes() {
             />
 
             <Route path="*" element={<NotFoundPage />} />
+            <Route
+              path="/production/orders"
+              element={
+                <Suspense fallback={<p role="status">Cargando producción…</p>}>
+                  <OrdersPage />
+                </Suspense>
+              }
+            />
+            <Route element={<RequireRole roles={['ADMIN', 'PRODUCCION']} />}>
+              <Route
+                path="/production/orders/new"
+                element={
+                  <Suspense fallback={<p role="status">Cargando formulario…</p>}>
+                    <NewOrderPage />
+                  </Suspense>
+                }
+              />
+            </Route>
+            <Route
+              path="/production/orders/:id"
+              element={
+                <Suspense fallback={<p role="status">Cargando orden…</p>}>
+                  <OrderDetailPage />
+                </Suspense>
+              }
+            />
+            <Route
+              path="/production/boms"
+              element={
+                <Suspense fallback={<p role="status">Cargando fórmulas…</p>}>
+                  <BomsPage />
+                </Suspense>
+              }
+            />
+            <Route
+              path="/production/boms/:id"
+              element={
+                <Suspense fallback={<p role="status">Cargando fórmula…</p>}>
+                  <BomDetailPage />
+                </Suspense>
+              }
+            />
           </Route>
         </Route>
       </Route>

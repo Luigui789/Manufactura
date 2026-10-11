@@ -858,20 +858,32 @@ Compras y el contrato necesario de Inventario, además de C-1; A-2 completo no e
 Producción queda a cargo del responsable del proyecto; falta asignar nominalmente los otros
 dos responsables y coordinar Prisma.
 
-El trabajo de PR0 queda revisado localmente, sin commit ni push. Inventario,
-Compras y Producción conservan sus estados pendientes/parciales y la evidencia histórica.
+PR0 se integró mediante PR #11 en `develop` (`37e2548`). Inventory A-1 queda a cargo
+de smorsikda; el responsable del proyecto continúa Producción en `feature/production-core`,
+creada en un worktree separado desde esa base.
 
-| Etapa | Contenido                                                    | Estado                                                       |
-| ----- | ------------------------------------------------------------ | ------------------------------------------------------------ |
-| 3     | Autenticación JWT y RBAC                                     | Integrada en `develop` (PR #3)                               |
-| 4     | Datos maestros: productos, almacenes, proveedores y clientes | Integrados en `develop` (PR #6, #8 y #9), CI con 433 pruebas |
-| 5     | Compras y recepción                                          | Pendiente                                                    |
-| 6     | Inventario y movimientos                                     | Pendiente                                                    |
-| 7     | BOM y producción                                             | Pendiente                                                    |
-| 8     | Lotes, trazabilidad y calidad                                | Pendiente                                                    |
-| 9     | Clientes, ventas y despacho                                  | Pendiente                                                    |
-| 10    | Dashboard y reportes básicos                                 | Pendiente                                                    |
-| 11    | Simulación ISA-95                                            | Pendiente                                                    |
+Después del checkpoint BOM, `feature/production-core` se actualizó mediante rebase sin
+conflictos sobre `origin/develop` en `e7f12bc`, con A-1 integrado. Producción continúa
+en su worktree; el desarrollo local duplicado de Inventario permanece preservado aparte.
+
+[Producción C-1](production-c1-status.md) implementa fórmulas/versiones y órdenes DRAFT,
+edición/cancelación, números OP mediante `DocumentSequenceService`, y disponibilidad real
+mediante `StockQueryService`, con API, UI y pruebas. No modifica existencias ni inicia C-2.
+Se adoptan fechas de inicio/fin opcionales UTC, UI Managua; la especificación registra
+además las políticas de precisión, inmutabilidad completa y primera versión activa.
+El alcance implementado en la rama no acredita todavía integración de C-1 en `develop`.
+
+| Etapa | Contenido                                                    | Estado                                                                  |
+| ----- | ------------------------------------------------------------ | ----------------------------------------------------------------------- |
+| 3     | Autenticación JWT y RBAC                                     | Integrada en `develop` (PR #3)                                          |
+| 4     | Datos maestros: productos, almacenes, proveedores y clientes | Integrados en `develop` (PR #6, #8 y #9), CI con 433 pruebas            |
+| 5     | Compras y recepción                                          | Pendiente                                                               |
+| 6     | Inventario y movimientos                                     | Pendiente                                                               |
+| 7     | BOM y producción                                             | C-1 implementado en rama: BOM, OP DRAFT y disponibilidad; C-2 pendiente |
+| 8     | Lotes, trazabilidad y calidad                                | Pendiente                                                               |
+| 9     | Clientes, ventas y despacho                                  | Pendiente                                                               |
+| 10    | Dashboard y reportes básicos                                 | Pendiente                                                               |
+| 11    | Simulación ISA-95                                            | Pendiente                                                               |
 
 `develop` se integra en `main` cuando haya un bloque funcional completo —configuración, modelo de
 datos, autenticación y datos maestros—, no al terminar cada etapa.
