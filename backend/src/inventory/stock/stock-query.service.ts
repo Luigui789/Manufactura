@@ -2,6 +2,7 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 
 import { LotStatus, Prisma } from '../../generated/prisma/client.js';
 import { PrismaService } from '../../prisma/prisma.service.js';
+import { StockQueryDto } from './dto/stock-query.dto.js';
 
 /** Consultas informativas; las escrituras deben validar otra vez bajo bloqueo. */
 @Injectable()
@@ -42,6 +43,81 @@ export class StockQueryService {
       _sum: { quantity: true },
     });
     return releasedLotLedger._sum.quantity ?? new Prisma.Decimal(0);
+  }
+
+  async list(query: StockQueryDto) {
+    const { page, limit, productId, warehouseId, productType, search, hasStock } = query;
+
+    const where: Prisma.StockBalanceWhereInput = {
+      ...(productId ? { productId } : {}),
+      ...(warehouseId ? { warehouseId } : {}),
+      ...(hasStock === true ? { quantity: { gt: new Prisma.Decimal(0) } } : {}),
+      ...(productType || search
+        ? {
+            product: {
+              is: {
+                ...(productType ? { type: productType } : {}),
+                ...(search
+                  ? {
+                      OR: [
+                        { code: { contains: search, mode: 'insensitive' } },
+                        { name: { contains: search, mode: 'insensitive' } },
+                      ],
+                    }
+                  : {}),
+              },
+            },
+          }
+        : {}),
+    };
+
+    // Existencia física: incluye lotes de cualquier estado. La disponibilidad
+    // consumible sigue siendo un contrato distinto en getConsumableQuantity.
+    // Página y total se consultan en PostgreSQL sobre la misma instantánea.
+    const [balances, total] = await this.prisma.$transaction(
+      [
+        this.prisma.stockBalance.findMany({
+          where,
+          orderBy: [
+            { product: { name: 'asc' } },
+            { warehouse: { name: 'asc' } },
+            { productId: 'asc' },
+            { warehouseId: 'asc' },
+          ],
+          skip: (page - 1) * limit,
+          take: limit,
+          select: {
+            id: true,
+            quantity: true,
+            updatedAt: true,
+            product: {
+              select: {
+                id: true,
+                code: true,
+                name: true,
+                type: true,
+                unit: true,
+                isLotTracked: true,
+              },
+            },
+            warehouse: {
+              select: { id: true, code: true, name: true },
+            },
+          },
+        }),
+        this.prisma.stockBalance.count({ where }),
+      ],
+      { isolationLevel: Prisma.TransactionIsolationLevel.RepeatableRead },
+    );
+    const data = balances.map((balance) => ({
+      ...balance,
+      quantity: balance.quantity.toFixed(4),
+    }));
+
+    return {
+      data,
+      meta: { page, limit, total },
+    };
   }
 
   private async assertReferencesExist(productId: string, warehouseId: string): Promise<void> {
