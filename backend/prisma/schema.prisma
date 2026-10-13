@@ -40,6 +40,7 @@ enum LotStatus {
 enum InventoryMovementType {
   ADJUSTMENT_IN
   ADJUSTMENT_OUT
+  PURCHASE_RECEIPT
 }
 
 enum AdjustmentReason {
@@ -71,6 +72,9 @@ enum AuditAction {
   CHANGE_PASSWORD
   RESET_PASSWORD
   CANCEL_PRODUCTION
+  CONFIRM
+  CANCEL
+  RECEIVE
 }
 
 enum AuditEntityType {
@@ -85,17 +89,29 @@ enum AuditEntityType {
   BILL_OF_MATERIAL
   BOM_VERSION
   PRODUCTION_ORDER
+  PURCHASE_ORDER
+  PURCHASE_RECEIPT
 }
 
 enum DocumentType {
   LOT
   OP
+  PURCHASE_ORDER
+  PURCHASE_RECEIPT
 }
 
 enum ProductionOrderStatus {
   DRAFT
   IN_PROGRESS
   COMPLETED
+  CANCELLED
+}
+
+enum PurchaseOrderStatus {
+  DRAFT
+  CONFIRMED
+  PARTIALLY_RECEIVED
+  RECEIVED
   CANCELLED
 }
 
@@ -127,6 +143,8 @@ model User {
   auditLogs          AuditLog[]
   bomVersions        BomVersion[]
   productionOrders   ProductionOrder[]
+  purchaseOrders     PurchaseOrder[]
+  purchaseReceipts   PurchaseReceipt[]
 
   @@map("users")
 }
@@ -149,6 +167,8 @@ model Product {
   billOfMaterial            BillOfMaterial?
   bomComponents             BomItem[]
   productionOrders          ProductionOrder[]
+  purchaseOrderItems        PurchaseOrderItem[]
+  purchaseReceiptItems      PurchaseReceiptItem[]
 
   @@index([type])
   @@index([isActive])
@@ -211,6 +231,7 @@ model Warehouse {
   balances         StockBalance[]
   movements        InventoryMovement[]
   productionOrders ProductionOrder[]
+  purchaseReceiptItems PurchaseReceiptItem[]
 
   @@map("warehouses")
 }
@@ -252,6 +273,8 @@ model Lot {
   expiresAt    DateTime?           @map("expires_at") @db.Date
   product      Product             @relation(fields: [productId], references: [id], onDelete: Restrict)
   movements    InventoryMovement[]
+  purchaseReceiptItemId String?    @unique @map("purchase_receipt_item_id") @db.Uuid
+  purchaseReceiptItem   PurchaseReceiptItem? @relation(fields: [purchaseReceiptItemId], references: [id], onDelete: Restrict)
 
   // Referencia compuesta de InventoryMovement: el lote debe ser del producto.
   @@unique([id, productId])
@@ -280,14 +303,16 @@ model InventoryMovement {
   lotId             String?               @map("lot_id") @db.Uuid
   type              InventoryMovementType
   quantity          Decimal               @db.Decimal(18, 4)
-  reason            AdjustmentReason
+  reason            AdjustmentReason?
   occurredAt        DateTime              @default(now()) @map("occurred_at") @db.Timestamptz(6)
   performedByUserId String                @map("performed_by_user_id") @db.Uuid
   requestId         String?               @map("request_id")
+  purchaseReceiptItemId String?           @map("purchase_receipt_item_id") @db.Uuid
   product           Product               @relation(fields: [productId], references: [id], onDelete: Restrict)
   warehouse         Warehouse             @relation(fields: [warehouseId], references: [id], onDelete: Restrict)
   lot               Lot?                  @relation(fields: [lotId, productId], references: [id, productId], onDelete: Restrict)
   performedByUser   User                  @relation(fields: [performedByUserId], references: [id], onDelete: Restrict)
+  purchaseReceiptItem   PurchaseReceiptItem? @relation(fields: [purchaseReceiptItemId], references: [id], onDelete: Restrict)
 
   @@index([productId, occurredAt])
   @@index([lotId, warehouseId])
@@ -339,6 +364,7 @@ model Supplier {
   isActive  Boolean  @default(true) @map("is_active")
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+  purchaseOrders PurchaseOrder[]
 
   @@index([isActive])
   @@map("suppliers")
@@ -359,4 +385,73 @@ model Customer {
 
   @@index([isActive])
   @@map("customers")
+}
+
+model PurchaseOrder {
+  id              String              @id @default(uuid(7)) @db.Uuid
+  number          String              @unique
+  supplierId      String              @map("supplier_id") @db.Uuid
+  status          PurchaseOrderStatus @default(DRAFT)
+  orderedAt       DateTime            @map("ordered_at") @db.Timestamptz(6)
+  expectedDate    DateTime?           @map("expected_date") @db.Date
+  createdByUserId String              @map("created_by_user_id") @db.Uuid
+  createdAt       DateTime            @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime            @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  supplier        Supplier            @relation(fields: [supplierId], references: [id], onDelete: Restrict)
+  createdBy       User                @relation(fields: [createdByUserId], references: [id], onDelete: Restrict)
+  items           PurchaseOrderItem[]
+  receipts        PurchaseReceipt[]
+
+  @@map("purchase_orders")
+}
+
+model PurchaseOrderItem {
+  id              String                @id @default(uuid(7)) @db.Uuid
+  purchaseOrderId String                @map("purchase_order_id") @db.Uuid
+  productId       String                @map("product_id") @db.Uuid
+  quantityOrdered Decimal               @map("quantity_ordered") @db.Decimal(18, 4)
+  unitPrice       Decimal               @map("unit_price") @db.Decimal(14, 4)
+  lineTotal       Decimal               @map("line_total") @db.Decimal(14, 2)
+
+  purchaseOrder   PurchaseOrder         @relation(fields: [purchaseOrderId], references: [id], onDelete: Cascade)
+  product         Product               @relation(fields: [productId], references: [id], onDelete: Restrict)
+  receiptItems    PurchaseReceiptItem[]
+
+  @@map("purchase_order_items")
+}
+
+model PurchaseReceipt {
+  id               String                @id @default(uuid(7)) @db.Uuid
+  number           String                @unique
+  purchaseOrderId  String                @map("purchase_order_id") @db.Uuid
+  receivedAt       DateTime              @map("received_at") @db.Timestamptz(6)
+  receivedByUserId String                @map("received_by_user_id") @db.Uuid
+  notes            String?               @db.VarChar(500)
+  createdAt        DateTime              @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  purchaseOrder    PurchaseOrder         @relation(fields: [purchaseOrderId], references: [id], onDelete: Restrict)
+  receivedBy       User                  @relation(fields: [receivedByUserId], references: [id], onDelete: Restrict)
+  items            PurchaseReceiptItem[]
+
+  @@map("purchase_receipts")
+}
+
+model PurchaseReceiptItem {
+  id                  String             @id @default(uuid(7)) @db.Uuid
+  purchaseReceiptId   String             @map("purchase_receipt_id") @db.Uuid
+  purchaseOrderItemId String             @map("purchase_order_item_id") @db.Uuid
+  productId           String             @map("product_id") @db.Uuid
+  warehouseId         String             @map("warehouse_id") @db.Uuid
+  quantity            Decimal            @db.Decimal(18, 4)
+
+  receipt             PurchaseReceipt    @relation(fields: [purchaseReceiptId], references: [id], onDelete: Cascade)
+  orderItem           PurchaseOrderItem  @relation(fields: [purchaseOrderItemId], references: [id], onDelete: Restrict)
+  product             Product            @relation(fields: [productId], references: [id], onDelete: Restrict)
+  warehouse           Warehouse          @relation(fields: [warehouseId], references: [id], onDelete: Restrict)
+  
+  movements           InventoryMovement[]
+  lot                 Lot?               
+
+  @@map("purchase_receipt_items")
 }
