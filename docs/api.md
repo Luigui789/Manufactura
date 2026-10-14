@@ -603,7 +603,32 @@ Acciones `CREATE`, `UPDATE`, `ENABLE` y `DISABLE` sobre la entidad `CUSTOMER`, e
 El cambio y su evento comparten transacción; los cambios sobre un mismo cliente se serializan con
 un bloqueo de fila. La desactivación es lógica: no hay `DELETE`.
 
-## 12. Producción C-1
+## 12. Inventario A-2
+
+Implementación en `feature/inventory-movements`, posterior a A-1 integrado. Todos los
+listados y detalles requieren sesión. Los ajustes requieren `ADMIN` o `INVENTARIO`; la
+auditoría del ajuste y el movimiento se escriben en la misma transacción. No se crea ni
+se edita un lote desde esta etapa. Compras deberá asociar el origen empresarial de cada lote;
+hasta entonces la API informa `origin: null` y la UI lo presenta como no registrado.
+
+| Método | Ruta                         | Operación                                                                                                            |
+| ------ | ---------------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| GET    | `/api/inventory/stock`       | Existencia física paginada por producto/almacén; filtros por tipo, búsqueda y `hasStock`.                            |
+| GET    | `/api/inventory/movements`   | Historial paginado filtrable por producto, almacén, lote, tipo y ventana UTC.                                        |
+| POST   | `/api/inventory/adjustments` | Ajuste de entrada/salida; solo ADMIN/INVENTARIO; requiere cantidad decimal string positiva y motivo.                 |
+| GET    | `/api/inventory/lots`        | Consulta paginada de lotes existentes con filtros por producto, almacén, estado y existencia calculada desde ledger. |
+| GET    | `/api/inventory/lots/:id`    | Detalle de lote con saldos por almacén e historial.                                                                  |
+
+El listado de existencias representa saldo físico e incluye lotes liberados, en cuarentena y
+rechazados. La disponibilidad consumible para producción es un contrato diferente y cuenta
+solo lotes `RELEASED`. No se deben insertar lotes operativos sin origen empresarial; la validación
+de ese vínculo queda a cargo de la integración de Compras y está documentada en el Design Spec/ADR.
+
+Errores de dominio estables incluyen `LOT_TRACKING_MISMATCH`, `LOT_TRACKING_LOCKED` y
+`QUALITY_REQUIRES_LOT_TRACKING`. Cambiar la trazabilidad luego del primer movimiento devuelve
+409; requerir inspección sin trazabilidad devuelve 422.
+
+## 13. Producción C-1
 
 Implementado en `feature/production-core`, sobre A-1 integrado (`develop` en `e7f12bc`).
 Todas las lecturas requieren autenticación; las escrituras requieren `ADMIN` o `PRODUCCION`.

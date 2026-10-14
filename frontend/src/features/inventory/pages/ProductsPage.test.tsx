@@ -26,6 +26,8 @@ const newData: CreateProductData = {
   category: 'Jabones',
   type: 'FINISHED_GOOD',
   unit: 'UNIT',
+  isLotTracked: false,
+  requiresQualityInspection: false,
 };
 
 const clients: ReturnType<typeof createAppQueryClient>[] = [];
@@ -130,6 +132,10 @@ function fillProduct(data: CreateProductData = newData) {
   fill('Categoría', data.category);
   fill('Tipo de producto', data.type);
   fill('Unidad de medida', data.unit);
+  if (data.isLotTracked) fireEvent.click(screen.getByLabelText('Trazabilidad por lote'));
+  if (data.requiresQualityInspection) {
+    fireEvent.click(screen.getByLabelText('Requiere inspección de calidad'));
+  }
 }
 
 async function openCreate() {
@@ -248,6 +254,58 @@ describe('Productos: interfaz de Inventario', () => {
     expect(writes(fetch)).toHaveLength(0);
   });
 
+  it('crea un producto con trazabilidad e inspección configuradas', async () => {
+    const fetch = productsApi();
+    mount();
+    await openCreate();
+    const configured = {
+      ...newData,
+      isLotTracked: true,
+      requiresQualityInspection: true,
+    };
+    fillProduct(configured);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Crear producto' }));
+
+    expect(await screen.findByText('Producto PT-JABON-500G creado correctamente')).toBeTruthy();
+    expect(JSON.parse(String(writes(fetch)[0][1]?.body))).toEqual(configured);
+  });
+
+  it('rechaza inspección de calidad sin trazabilidad al crear', async () => {
+    const fetch = productsApi();
+    mount();
+    await openCreate();
+
+    fireEvent.click(screen.getByLabelText('Requiere inspección de calidad'));
+    fireEvent.click(screen.getByRole('button', { name: 'Crear producto' }));
+
+    expect(
+      await screen.findByText(
+        'Para requerir inspección de calidad, activa la trazabilidad por lote',
+      ),
+    ).toBeTruthy();
+    expect(writes(fetch)).toHaveLength(0);
+  });
+
+  it('edita las banderas de trazabilidad e inspección', async () => {
+    const fetch = productsApi();
+    mount();
+    await screen.findByText(product.name);
+    fireEvent.click(screen.getByRole('button', { name: 'Editar' }));
+
+    fireEvent.click(screen.getByLabelText('Trazabilidad por lote'));
+    fireEvent.click(screen.getByLabelText('Requiere inspección de calidad'));
+    const save = screen.getByRole('button', { name: 'Guardar cambios' }) as HTMLButtonElement;
+    await waitFor(() => expect(save.disabled).toBe(false));
+    fireEvent.click(save);
+
+    await waitFor(() => expect(writes(fetch)).toHaveLength(1));
+    expect(JSON.parse(String(writes(fetch)[0][1]?.body))).toEqual({
+      isLotTracked: true,
+      requiresQualityInspection: true,
+    });
+  });
+
   it('edita los cinco campos y admite nombres de más de 100 caracteres', async () => {
     const fetch = productsApi();
     mount();
@@ -276,7 +334,13 @@ describe('Productos: interfaz de Inventario', () => {
     const [url, options] = writes(fetch)[0];
     expect(url).toBe('http://localhost:3000/api/products/' + product.id);
     expect(options?.method).toBe('PATCH');
-    expect(JSON.parse(String(options?.body))).toEqual(changes);
+    expect(JSON.parse(String(options?.body))).toEqual({
+      code: changes.code,
+      name: changes.name,
+      category: changes.category,
+      type: changes.type,
+      unit: changes.unit,
+    });
   });
 
   it('deshabilita guardar al abrir y al revertir los cambios', async () => {

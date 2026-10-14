@@ -55,6 +55,16 @@ const ProductsPage = lazy(() =>
   })),
 );
 
+const StockPage = lazy(() =>
+  import('@/features/inventory/pages/StockPage').then((m) => ({ default: m.StockPage })),
+);
+const MovementsPage = lazy(() =>
+  import('@/features/inventory/pages/MovementsPage').then((m) => ({ default: m.MovementsPage })),
+);
+const LotsPage = lazy(() =>
+  import('@/features/inventory/pages/LotsPage').then((m) => ({ default: m.LotsPage })),
+);
+
 export function AppRoutes() {
   return (
     <Routes>
@@ -98,6 +108,31 @@ export function AppRoutes() {
               element={
                 <Suspense fallback={<p role="status">Cargando almacenes…</p>}>
                   <WarehousesPage />
+                </Suspense>
+              }
+            />
+
+            <Route
+              path="/inventory/stock"
+              element={
+                <Suspense fallback={<p role="status">Cargando existencias…</p>}>
+                  <StockPage />
+                </Suspense>
+              }
+            />
+            <Route
+              path="/inventory/movements"
+              element={
+                <Suspense fallback={<p role="status">Cargando movimientos…</p>}>
+                  <MovementsPage />
+                </Suspense>
+              }
+            />
+            <Route
+              path="/inventory/lots"
+              element={
+                <Suspense fallback={<p role="status">Cargando lotes…</p>}>
+                  <LotsPage />
                 </Suspense>
               }
             />

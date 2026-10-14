@@ -99,15 +99,31 @@ function auditFor(response: { headers: Record<string, unknown> }) {
 }
 
 const restrictedChanges = [
-  { field: 'unidad', patch: { unit: UnitOfMeasure.KILOGRAM } },
-  { field: 'tipo', patch: { type: ProductType.INTERMEDIATE } },
+  {
+    field: 'unidad',
+    patch: { unit: UnitOfMeasure.KILOGRAM },
+    message:
+      'No se puede cambiar la unidad ni el tipo de un producto con movimientos de inventario',
+  },
+  {
+    field: 'tipo',
+    patch: { type: ProductType.INTERMEDIATE },
+    message:
+      'No se puede cambiar la unidad ni el tipo de un producto con movimientos de inventario',
+  },
+  {
+    field: 'trazabilidad por lote',
+    patch: { isLotTracked: true },
+    message:
+      'No se puede cambiar la trazabilidad por lote de un producto con movimientos de inventario',
+  },
 ];
 
 describe('Productos: protección de unidad y tipo con historial', () => {
   describe.each([false, true])('con movimientos y saldo en cero=%s', (emptyStock) => {
     it.each(restrictedChanges)(
       'rechaza cambiar $field sin cambios ni auditoría',
-      async ({ patch }) => {
+      async ({ field, patch, message }) => {
         const product = await createProduct();
         await addHistory(product.id, emptyStock);
         const before = await kit.prisma.product.findUniqueOrThrow({
@@ -123,9 +139,11 @@ describe('Productos: protección de unidad y tipo con historial', () => {
 
         expect(response.body).toMatchObject({
           statusCode: 409,
-          message:
-            'No se puede cambiar la unidad ni el tipo de un producto con movimientos de inventario',
+          message,
         });
+        if (field === 'trazabilidad por lote') {
+          expect((response.body as { code: string }).code).toBe('LOT_TRACKING_LOCKED');
+        }
         expect(await kit.prisma.product.findUniqueOrThrow({ where: { id: product.id } })).toEqual(
           before,
         );
@@ -165,6 +183,34 @@ describe('Productos: protección de unidad y tipo con historial', () => {
       });
     },
   );
+
+  it('permite configurar inspección y trazabilidad antes del primer movimiento', async () => {
+    const product = await createProduct();
+    const changes = { isLotTracked: true, requiresQualityInspection: true };
+
+    const response = await kit
+      .http()
+      .patch(`/api/products/${product.id}`)
+      .set('Cookie', cookie)
+      .send(changes)
+      .expect(200);
+
+    expect(response.body).toMatchObject({ data: { id: product.id, ...changes } });
+    expect(await kit.prisma.product.findUniqueOrThrow({ where: { id: product.id } })).toMatchObject(
+      changes,
+    );
+
+    const logs = await auditFor(response);
+    expect(logs).toHaveLength(1);
+    expect(logs[0]).toMatchObject({
+      action: AuditAction.UPDATE,
+      entityType: AuditEntityType.PRODUCT,
+      entityId: product.id,
+      actorUserId: actor.id,
+      previousValues: { isLotTracked: false, requiresQualityInspection: false },
+      newValues: changes,
+    });
+  });
 
   it('permite editar código, nombre y categoría con historial conservando unidad y tipo', async () => {
     const product = await createProduct();

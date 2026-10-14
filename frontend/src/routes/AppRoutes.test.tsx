@@ -113,6 +113,9 @@ describe('Integración de los catálogos de Compras, Inventario y Ventas', () =>
     ['/sales/customers', 'Gestión de Clientes', 'customers', 'VENTAS'],
     ['/inventory/products', 'Gestión de Productos', 'products', 'INVENTARIO'],
     ['/inventory/warehouses', 'Gestión de Almacenes', 'warehouses', 'INVENTARIO'],
+    ['/inventory/stock', 'Existencias', 'inventory/stock', 'INVENTARIO'],
+    ['/inventory/movements', 'Movimientos', 'inventory/movements', 'INVENTARIO'],
+    ['/inventory/lots', 'Lotes', 'inventory/lots', 'INVENTARIO'],
   ] as const)(
     'abre %s y consulta su API con el rol responsable',
     async (path, heading, endpoint, role) => {
@@ -125,6 +128,9 @@ describe('Integración de los catálogos de Compras, Inventario y Ventas', () =>
       expect(await screen.findByRole('heading', { name: heading })).toBeTruthy();
       expect(screen.getByRole('link', { name: 'Productos' })).toBeTruthy();
       expect(screen.getByRole('link', { name: 'Almacenes' })).toBeTruthy();
+      expect(screen.getByRole('link', { name: 'Existencias' })).toBeTruthy();
+      expect(screen.getByRole('link', { name: 'Movimientos' })).toBeTruthy();
+      expect(screen.getByRole('link', { name: 'Lotes' })).toBeTruthy();
       await waitFor(() =>
         expect(fetch).toHaveBeenCalledWith(
           expect.stringContaining(`/api/${endpoint}?`),
