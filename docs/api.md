@@ -608,8 +608,11 @@ un bloqueo de fila. La desactivación es lógica: no hay `DELETE`.
 Implementación en `feature/inventory-movements`, posterior a A-1 integrado. Todos los
 listados y detalles requieren sesión. Los ajustes requieren `ADMIN` o `INVENTARIO`; la
 auditoría del ajuste y el movimiento se escriben en la misma transacción. No se crea ni
-se edita un lote desde esta etapa. Compras deberá asociar el origen empresarial de cada lote;
-hasta entonces la API informa `origin: null` y la UI lo presenta como no registrado.
+se edita un lote desde esta etapa. Las recepciones de Compras crean lotes con su FK concreta
+`purchaseReceiptItemId`; las consultas A-2 exponen esa relación como `origin` con
+`type: PURCHASE_RECEIPT`, `purchaseReceiptItemId`, `purchaseReceipt { id, number, receivedAt }`,
+`purchaseOrder { id, number }` y `supplier { id, code, name }`. La lista y el detalle muestran REC,
+OC y proveedor. Un vínculo roto no se disimula como un origen nulo.
 
 | Método | Ruta                         | Operación                                                                                                            |
 | ------ | ---------------------------- | -------------------------------------------------------------------------------------------------------------------- |
@@ -622,7 +625,20 @@ hasta entonces la API informa `origin: null` y la UI lo presenta como no registr
 El listado de existencias representa saldo físico e incluye lotes liberados, en cuarentena y
 rechazados. La disponibilidad consumible para producción es un contrato diferente y cuenta
 solo lotes `RELEASED`. No se deben insertar lotes operativos sin origen empresarial; la validación
-de ese vínculo queda a cargo de la integración de Compras y está documentada en el Design Spec/ADR.
+de ese vínculo está implementada por Compras y las restricciones físicas de PostgreSQL.
+
+Los movimientos devuelven `purchaseReceiptItemId` y `businessReference`:
+para recepciones, `{ type: PURCHASE_RECEIPT, id, number, purchaseOrder: { id, number } }`
+identifica la REC y la OC. Para ajustes ambos campos son `null`.
+El filtro `type` admite `PURCHASE_RECEIPT`, `ADJUSTMENT_IN` y `ADJUSTMENT_OUT`;
+`POST /inventory/adjustments` acepta exclusivamente los dos tipos de ajuste.
+El historial del detalle de lote también incluye la referencia empresarial.
+
+`expiresAt` se serializa como `YYYY-MM-DD` (PostgreSQL DATE) o `null`, y la UI conserva
+el día sin convertirlo a la zona horaria local. `originatedAt`, `occurredAt` y `receivedAt`
+siguen siendo instantes ISO. Solo una recepción exitosa invalida, además de las queries
+existentes de Compras, los prefijos `['inventory']` y `['lots']`; confirmar o cancelar
+no invalida esos prefijos.
 
 Errores de dominio estables incluyen `LOT_TRACKING_MISMATCH`, `LOT_TRACKING_LOCKED` y
 `QUALITY_REQUIRES_LOT_TRACKING`. Cambiar la trazabilidad luego del primer movimiento devuelve
@@ -750,5 +766,5 @@ Errores: 400 DTO/UUID/paginación; 401 sesión; 403 rol; 404 OC/referencia de co
 409 transición/catálogo inactivo/sobre-recepción (`RECEIPT_EXCEEDS_PENDING`);
 422 producto no comprable, almacén/origen de Inventario inválido o límite monetario.
 
-La UI usa los flags de trazabilidad/calidad ya existentes del catálogo. Esta rama no añade
-su configuración, que pertenece a A-2, ni una acción para liberar lotes en cuarentena.
+La UI de Compras usa los flags de trazabilidad/calidad del catálogo, configurables en
+Productos mediante A-2 antes del primer movimiento. No hay acción para liberar lotes en cuarentena.
