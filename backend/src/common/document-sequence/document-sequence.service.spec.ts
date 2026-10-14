@@ -115,3 +115,31 @@ describe('DocumentSequenceService', () => {
     expect(update).not.toHaveBeenCalled();
   });
 });
+
+it('reserves REC and all LOTs together in stable order and uses Managua year', async () => {
+  const { tx, createMany } = makeTransaction([2, 7]);
+  const result = await new DocumentSequenceService().nextCodes(
+    tx,
+    ['PURCHASE_RECEIPT', 'LOT', 'LOT'],
+    new Date('2027-01-01T05:30:00Z'),
+  );
+  expect([...result.keys()]).toEqual(['LOT', 'PURCHASE_RECEIPT']);
+  expect(result.get('LOT')).toEqual(['LOT-2026-000001', 'LOT-2026-000002']);
+  expect(result.get('PURCHASE_RECEIPT')).toEqual(['REC-2026-000007']);
+  expect(createMany).toHaveBeenNthCalledWith(1, {
+    data: [{ documentType: 'LOT', year: 2026 }],
+    skipDuplicates: true,
+  });
+  expect(createMany).toHaveBeenNthCalledWith(2, {
+    data: [{ documentType: 'PURCHASE_RECEIPT', year: 2026 }],
+    skipDuplicates: true,
+  });
+  const oc = makeTransaction([4]);
+  expect(
+    await new DocumentSequenceService().nextCode(
+      oc.tx,
+      'PURCHASE_ORDER',
+      new Date('2027-01-01T05:30:00Z'),
+    ),
+  ).toBe('OC-2026-000004');
+});
