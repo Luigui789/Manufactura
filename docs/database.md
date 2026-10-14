@@ -9,17 +9,17 @@
 
 ### Estado físico y diseño de la siguiente ronda
 
-En `develop` (`53b7402`) están versionadas las migraciones Foundation, auth, proveedores y
-clientes. En A-1, `InventoryMovement.reason` sigue siendo obligatorio y las migraciones físicas
-solo admiten ajustes. Compras añadirá posteriormente la nulabilidad de `reason` junto con su origen
-empresarial verificable y las restricciones correspondientes.
-`Lot` aún no tiene columnas de origen empresarial. Órdenes, recepciones, BOM, ejecución y
-calidad siguen siendo **modelo planificado**, no tablas/endpoints existentes.
+`develop` ya incluye A-1 y C-1: ledger/saldos, ajustes, BOM/versiones y órdenes de
+producción DRAFT. `feature/purchases` añade órdenes de compra y recepciones; no está
+integrada todavía. El apartado «Modelo físico de Compras» registra sus migraciones y
+restricciones verificadas en PostgreSQL 18. `reason` sigue siendo obligatorio para ajustes
+mediante CHECK y es nulo para entradas de compra con FK empresarial. Los lotes operativos
+de esta entrega requieren origen de compra; Producción C-2 ampliará esa regla.
 
 El [diseño de Inventario, Compras y Producción](specs/2026-10-10-inventory-purchases-production-design.md)
-consolida la siguiente ronda. Sus ADR 011–014 están `Aceptado` conceptualmente tras la revisión
-local del 2026-10-10. Esta página describe su modelo planificado; la aceptación no acredita
-migraciones aplicadas ni funcionalidad implementada. Las políticas de alcance siguen separadas.
+conserva los ADR 011–014 aceptados. El resto de esta página también describe el objetivo
+conceptual; ejecución de Producción, Calidad y Ventas continúan pendientes. La existencia
+del diseño conceptual no acredita implementación de esos flujos.
 
 Define el **modelo conceptual completo** de los cuatro dominios, aunque su implementación física
 sea incremental. `InventoryMovement` es el punto donde convergen Compras, Producción y Ventas:
@@ -875,3 +875,41 @@ DATABASE_URL=postgresql://ecosoap:<password>@localhost:5433/ecosoap_erp?schema=p
 
 El contenedor expone PostgreSQL en el puerto 5433 para no chocar con instalaciones nativas. Ver
 [`setup.md`](setup.md), sección 4.
+
+## Modelo físico de Compras (rama `feature/purchases`)
+
+`PurchaseOrder` referencia proveedor/usuario y almacena número, estado, emisión y fecha esperada.
+`PurchaseOrderItem` contiene producto, `quantityOrdered Decimal(18,4)`, `unitPrice Decimal(14,4)`
+y `lineTotal Decimal(14,2)`. El CHECK verifica cantidad positiva, precio no negativo y
+`lineTotal = round(quantityOrdered * unitPrice, 2)`. El total se deriva de las líneas.
+`PurchaseReceipt` referencia OC/usuario con número, timestamp y notas; `PurchaseReceiptItem`
+referencia línea de OC, producto, almacén y cantidad positiva. No existe `quantityReceived`
+persistida; recibido y pendiente se calculan desde las recepciones.
+
+La migración compartida `20261013031753_purchase_receipt` se conserva sin cambios.
+`20261014010000_purchases_invariants` completa la habilitación de recepciones en una transacción:
+
+- Sustituye el CHECK de ajustes por una matriz de signos, motivos y origen: ajustes con motivo
+  y sin recepción; `PURCHASE_RECEIPT` positivo, sin motivo y con FK de recepción.
+- Unicidad de `InventoryMovement.purchaseReceiptItemId` (a lo sumo una entrada por fila recibida).
+- FK compuesta recepción → línea OC/producto; FK lote → recepción/producto; FK movimiento →
+  recepción/producto/almacén/cantidad. Se conserva la FK lote/producto del ledger.
+- `Lot.purchaseReceiptItemId` único y obligatorio mediante CHECK. No se duplica `lotId` en
+  `PurchaseReceiptItem`; el lote se obtiene desde el origen.
+- Índices para OC por estado/fecha y proveedor, líneas por OC, recepciones por OC/fecha y
+  líneas recibidas por recepción/línea OC. Ledger y auditoría siguen append-only.
+
+Antes de habilitar lotes operativos la migración detecta lotes sin origen y se detiene.
+No elimina datos ni inventa recepciones para validarlos. Se requiere resolución explícita del
+operador y reintento de la migración; no ejecutar un backfill automático. C-2 ampliará el CHECK
+al XOR con Producción cuando exista ese origen; esta rama no lo implementa. Para rollback de
+un despliegue que ya registró recepciones, no volver al binario A-1 ni borrar estas columnas:
+el lector/escritor anterior no conoce los nuevos movimientos. Revertir el despliegue exige
+una versión compatible o restauración explícita desde backup; no hay down migration destructiva.
+
+La transacción del caso de uso bloquea OC → secuencias ordenadas → productos ordenados →
+almacenes ordenados → balances `(productId, warehouseId)` → lotes existentes. Inventario
+reserva los locks de catálogo antes de insertar líneas con FKs y reutiliza esos mismos locks
+al aplicar entradas. Los flags del producto se releen después de esperar. Un cambio concurrente
+de trazabilidad/calidad detectado entre planificación y lock exige reintentar; no solicita nuevas
+secuencias después de bloquear catálogos. Compras no escribe lotes, movimientos ni saldos directamente.

@@ -33,4 +33,3 @@ CREATE INDEX purchase_receipt_items_purchase_receipt_id_idx ON purchase_receipt_
 CREATE UNIQUE INDEX lots_purchase_receipt_item_id_product_id_key ON lots(purchase_receipt_item_id, product_id);
 CREATE UNIQUE INDEX inventory_movements_receipt_line_key ON inventory_movements(purchase_receipt_item_id, product_id, warehouse_id, quantity);
 COMMIT;
-
