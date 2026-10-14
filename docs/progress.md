@@ -890,8 +890,8 @@ y Producción C-2; C-2 requiere además Compras.
 | ----- | ------------------------------------------------------------ | ---------------------------------------------------------------------------------- |
 | 3     | Autenticación JWT y RBAC                                     | Integrada en `develop` (PR #3)                                                     |
 | 4     | Datos maestros: productos, almacenes, proveedores y clientes | Integrados en `develop` (PR #6, #8 y #9), CI con 433 pruebas                       |
-| 5     | Compras y recepción                                          | Verificada en `feature/purchases`; pendiente integración                           |
-| 6     | Inventario y movimientos                                     | A-1 integrado en `develop` (PR #12); A-2 pendiente                                 |
+| 5     | Compras y recepción                                          | Integrada en `develop` mediante PR #16 (`f73cf89`)                                 |
+| 6     | Inventario y movimientos                                     | A-1 integrado (PR #12); A-2 verificada en PR #15; pendiente revisión/merge         |
 | 7     | BOM y producción                                             | C-1 integrado en `develop` (PR #13): BOM, OP DRAFT y disponibilidad; C-2 pendiente |
 | 8     | Lotes, trazabilidad y calidad                                | Pendiente                                                                          |
 | 9     | Clientes, ventas y despacho                                  | Pendiente                                                                          |
@@ -934,3 +934,26 @@ aserciones ni límites de CI. [Informe y manifiesto de archivos](purchases-valid
 
 Compras queda **Verified en feature/purchases y lista para PR contra develop**. No acredita
 merge ni checks remotos todavía. El PR se abre solo después de esta validación local.
+
+### Compras integrada y A-2 actualizada (2026-10-13)
+
+El PR #16 se integró en `develop` mediante `f73cf89094414e17faebfc36cdc081e1cfcd4968`.
+La rama `feature/inventory-movements` incorpora esa base con merge `89a0ce5`, conservando
+los tres commits originales de A-2 (`49d9104`, `c4efea3`, `0f27076`). Se resuelve el único
+conflicto en `AppRoutes.tsx` conservando todas las rutas de Compras e Inventario.
+
+A-2 consulta el origen físico PurchaseReceiptItem → REC → OC → proveedor, muestra
+referencias empresariales en movimientos y lotes, conserva fechas DATE sin cambio de día
+e invalida inventory/lots solo después de recibir. Las pruebas realizan recepciones reales
+sin trazabilidad, RELEASED y QUARANTINED, separan stock físico/consumible y comprueban
+bloqueos de configuración incluso tras agotar el saldo. No se añaden migraciones.
+
+[Informe de validación y manifiesto de archivos de PR #15](inventory-a2-validation.md).
+El PR #15 queda abierto para revisión del responsable; esta actualización no lo fusiona
+en `develop` ni incluye C-2, ventas, transferencias o liberación de calidad.
+
+Regresión de A-1 + C-1 + Compras + A-2: **184 unitarias backend + 444 frontend + 355 E2E =
+983 pruebas aprobadas**. Las 8 migraciones aplican desde base vacía en PostgreSQL 18; las
+pruebas de upgrade, rechazo atómico de orígenes legados y drift sin diferencias también pasan.
+Lint, formato y builds completos están verdes. El informe enlazado registra Docker y la
+verificación final del HEAD remoto de PR #15.

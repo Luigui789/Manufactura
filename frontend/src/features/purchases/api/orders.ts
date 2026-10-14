@@ -109,6 +109,12 @@ export function usePurchaseAction(id: string, action: 'confirm' | 'cancel' | 're
         client.invalidateQueries({ queryKey: ['purchase-orders'] }),
         client.invalidateQueries({ queryKey: ['products'] }),
         client.invalidateQueries({ queryKey: ['production-orders', 'requirements'] }),
+        ...(action === 'receive'
+          ? [
+              client.invalidateQueries({ queryKey: ['inventory'] }),
+              client.invalidateQueries({ queryKey: ['lots'] }),
+            ]
+          : []),
       ]);
     },
   });

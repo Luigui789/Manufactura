@@ -112,6 +112,78 @@ describe('Productos: API, permisos y auditoría', () => {
     },
   );
 
+  it('crea el producto con trazabilidad e inspección configuradas', async () => {
+    const payload = {
+      ...newProduct(),
+      isLotTracked: true,
+      requiresQualityInspection: true,
+    };
+
+    const response = await kit
+      .http()
+      .post('/api/products')
+      .set('Cookie', cookie)
+      .send(payload)
+      .expect(201);
+
+    const product = productData(response);
+    expect(product).toMatchObject(payload);
+    expect(await kit.prisma.product.findUniqueOrThrow({ where: { id: product.id } })).toMatchObject(
+      payload,
+    );
+
+    const logs = await auditFor(response);
+    expect(logs).toHaveLength(1);
+    expect(logs[0].newValues).toMatchObject(payload);
+  });
+
+  it('rechaza inspección de calidad sin trazabilidad por lote al crear', async () => {
+    const payload = {
+      ...newProduct(),
+      isLotTracked: false,
+      requiresQualityInspection: true,
+    };
+
+    const response = await kit
+      .http()
+      .post('/api/products')
+      .set('Cookie', cookie)
+      .send(payload)
+      .expect(422);
+    expect((response.body as { code: string }).code).toBe('QUALITY_REQUIRES_LOT_TRACKING');
+
+    expect(await kit.prisma.product.findUnique({ where: { code: payload.code } })).toBeNull();
+  });
+
+  it('rechaza quitar trazabilidad si el producto requiere inspección', async () => {
+    const payload = {
+      ...newProduct(),
+      isLotTracked: true,
+      requiresQualityInspection: true,
+    };
+    const response = await kit
+      .http()
+      .post('/api/products')
+      .set('Cookie', cookie)
+      .send(payload)
+      .expect(201);
+    const product = productData(response);
+
+    await kit
+      .http()
+      .patch(`/api/products/${product.id}`)
+      .set('Cookie', cookie)
+      .send({ isLotTracked: false })
+      .expect(422);
+
+    expect(await kit.prisma.product.findUniqueOrThrow({ where: { id: product.id } })).toMatchObject(
+      {
+        isLotTracked: true,
+        requiresQualityInspection: true,
+      },
+    );
+  });
+
   it('consulta el detalle y pagina desde el servidor', async () => {
     const product = await createProduct();
     await createProduct();

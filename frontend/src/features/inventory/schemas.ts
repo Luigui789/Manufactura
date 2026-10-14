@@ -45,31 +45,38 @@ export const PRODUCT_TYPES = [
 
 export const UNITS_OF_MEASURE = ['UNIT', 'GRAM', 'KILOGRAM', 'MILLILITER', 'LITER'] as const;
 
-export const createProductSchema = z.object({
-  code: z
-    .string()
-    .trim()
-    .min(1, 'El código es obligatorio')
-    .max(50, 'El código admite hasta 50 caracteres'),
-  name: z
-    .string()
-    .trim()
-    .min(1, 'El nombre es obligatorio')
-    .max(200, 'El nombre admite hasta 200 caracteres'),
-  category: z
-    .string()
-    .trim()
-    .min(1, 'La categoría es obligatoria')
-    .max(100, 'La categoría admite hasta 100 caracteres'),
-  type: z.enum(PRODUCT_TYPES, {
-    error: 'Selecciona un tipo de producto válido',
-  }),
-  unit: z.enum(UNITS_OF_MEASURE, {
-    error: 'Selecciona una unidad de medida válida',
-  }),
-});
+export const createProductSchema = z
+  .object({
+    code: z
+      .string()
+      .trim()
+      .min(1, 'El código es obligatorio')
+      .max(50, 'El código admite hasta 50 caracteres'),
+    name: z
+      .string()
+      .trim()
+      .min(1, 'El nombre es obligatorio')
+      .max(200, 'El nombre admite hasta 200 caracteres'),
+    category: z
+      .string()
+      .trim()
+      .min(1, 'La categoría es obligatoria')
+      .max(100, 'La categoría admite hasta 100 caracteres'),
+    type: z.enum(PRODUCT_TYPES, {
+      error: 'Selecciona un tipo de producto válido',
+    }),
+    unit: z.enum(UNITS_OF_MEASURE, {
+      error: 'Selecciona una unidad de medida válida',
+    }),
+    isLotTracked: z.boolean().optional(),
+    requiresQualityInspection: z.boolean().optional(),
+  })
+  .refine((product) => !product.requiresQualityInspection || product.isLotTracked === true, {
+    path: ['requiresQualityInspection'],
+    message: 'Para requerir inspección de calidad, activa la trazabilidad por lote',
+  });
 
-export const productSchema = createProductSchema.extend({
+export const productSchema = createProductSchema.safeExtend({
   id: z.string().uuid(),
   isActive: z.boolean(),
   isLotTracked: z.boolean(),

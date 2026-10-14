@@ -603,7 +603,48 @@ Acciones `CREATE`, `UPDATE`, `ENABLE` y `DISABLE` sobre la entidad `CUSTOMER`, e
 El cambio y su evento comparten transacción; los cambios sobre un mismo cliente se serializan con
 un bloqueo de fila. La desactivación es lógica: no hay `DELETE`.
 
-## 12. Producción C-1
+## 12. Inventario A-2
+
+Implementación en `feature/inventory-movements`, posterior a A-1 integrado. Todos los
+listados y detalles requieren sesión. Los ajustes requieren `ADMIN` o `INVENTARIO`; la
+auditoría del ajuste y el movimiento se escriben en la misma transacción. No se crea ni
+se edita un lote desde esta etapa. Las recepciones de Compras crean lotes con su FK concreta
+`purchaseReceiptItemId`; las consultas A-2 exponen esa relación como `origin` con
+`type: PURCHASE_RECEIPT`, `purchaseReceiptItemId`, `purchaseReceipt { id, number, receivedAt }`,
+`purchaseOrder { id, number }` y `supplier { id, code, name }`. La lista y el detalle muestran REC,
+OC y proveedor. Un vínculo roto no se disimula como un origen nulo.
+
+| Método | Ruta                         | Operación                                                                                                            |
+| ------ | ---------------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| GET    | `/api/inventory/stock`       | Existencia física paginada por producto/almacén; filtros por tipo, búsqueda y `hasStock`.                            |
+| GET    | `/api/inventory/movements`   | Historial paginado filtrable por producto, almacén, lote, tipo y ventana UTC.                                        |
+| POST   | `/api/inventory/adjustments` | Ajuste de entrada/salida; solo ADMIN/INVENTARIO; requiere cantidad decimal string positiva y motivo.                 |
+| GET    | `/api/inventory/lots`        | Consulta paginada de lotes existentes con filtros por producto, almacén, estado y existencia calculada desde ledger. |
+| GET    | `/api/inventory/lots/:id`    | Detalle de lote con saldos por almacén e historial.                                                                  |
+
+El listado de existencias representa saldo físico e incluye lotes liberados, en cuarentena y
+rechazados. La disponibilidad consumible para producción es un contrato diferente y cuenta
+solo lotes `RELEASED`. No se deben insertar lotes operativos sin origen empresarial; la validación
+de ese vínculo está implementada por Compras y las restricciones físicas de PostgreSQL.
+
+Los movimientos devuelven `purchaseReceiptItemId` y `businessReference`:
+para recepciones, `{ type: PURCHASE_RECEIPT, id, number, purchaseOrder: { id, number } }`
+identifica la REC y la OC. Para ajustes ambos campos son `null`.
+El filtro `type` admite `PURCHASE_RECEIPT`, `ADJUSTMENT_IN` y `ADJUSTMENT_OUT`;
+`POST /inventory/adjustments` acepta exclusivamente los dos tipos de ajuste.
+El historial del detalle de lote también incluye la referencia empresarial.
+
+`expiresAt` se serializa como `YYYY-MM-DD` (PostgreSQL DATE) o `null`, y la UI conserva
+el día sin convertirlo a la zona horaria local. `originatedAt`, `occurredAt` y `receivedAt`
+siguen siendo instantes ISO. Solo una recepción exitosa invalida, además de las queries
+existentes de Compras, los prefijos `['inventory']` y `['lots']`; confirmar o cancelar
+no invalida esos prefijos.
+
+Errores de dominio estables incluyen `LOT_TRACKING_MISMATCH`, `LOT_TRACKING_LOCKED` y
+`QUALITY_REQUIRES_LOT_TRACKING`. Cambiar la trazabilidad luego del primer movimiento devuelve
+409; requerir inspección sin trazabilidad devuelve 422.
+
+## 13. Producción C-1
 
 Implementado en `feature/production-core`, sobre A-1 integrado (`develop` en `e7f12bc`).
 Todas las lecturas requieren autenticación; las escrituras requieren `ADMIN` o `PRODUCCION`.
@@ -725,5 +766,5 @@ Errores: 400 DTO/UUID/paginación; 401 sesión; 403 rol; 404 OC/referencia de co
 409 transición/catálogo inactivo/sobre-recepción (`RECEIPT_EXCEEDS_PENDING`);
 422 producto no comprable, almacén/origen de Inventario inválido o límite monetario.
 
-La UI usa los flags de trazabilidad/calidad ya existentes del catálogo. Esta rama no añade
-su configuración, que pertenece a A-2, ni una acción para liberar lotes en cuarentena.
+La UI de Compras usa los flags de trazabilidad/calidad del catálogo, configurables en
+Productos mediante A-2 antes del primer movimiento. No hay acción para liberar lotes en cuarentena.

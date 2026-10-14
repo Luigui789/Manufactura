@@ -37,6 +37,8 @@ export function CreateProductDialog({
       category: '',
       type: 'RAW_MATERIAL',
       unit: 'UNIT',
+      isLotTracked: false,
+      requiresQualityInspection: false,
     },
   });
 
@@ -132,6 +134,44 @@ export function CreateProductDialog({
               {errors.unit && (
                 <p id="new-product-unit-error" className="text-sm text-destructive">
                   {errors.unit.message}
+                </p>
+              )}
+            </div>
+
+            <div className="space-y-3 rounded-md border p-3">
+              <label htmlFor="new-product-lot-tracked" className="flex items-center gap-2 text-sm">
+                <input
+                  id="new-product-lot-tracked"
+                  type="checkbox"
+                  className="size-4 accent-primary"
+                  {...register('isLotTracked')}
+                />
+                Trazabilidad por lote
+              </label>
+              <p className="text-xs text-muted-foreground">
+                Cada movimiento de este producto deberá identificar su lote.
+              </p>
+              <label
+                htmlFor="new-product-quality-inspection"
+                className="flex items-center gap-2 text-sm"
+              >
+                <input
+                  id="new-product-quality-inspection"
+                  type="checkbox"
+                  className="size-4 accent-primary"
+                  aria-invalid={!!errors.requiresQualityInspection}
+                  aria-describedby={
+                    errors.requiresQualityInspection
+                      ? 'new-product-quality-inspection-error'
+                      : undefined
+                  }
+                  {...register('requiresQualityInspection')}
+                />
+                Requiere inspección de calidad
+              </label>
+              {errors.requiresQualityInspection && (
+                <p id="new-product-quality-inspection-error" className="text-sm text-destructive">
+                  {errors.requiresQualityInspection.message}
                 </p>
               )}
             </div>

@@ -72,6 +72,10 @@ export class ProductsController {
     status: 409,
     description: 'Ya existe un producto con ese código',
   })
+  @ApiResponse({
+    status: 422,
+    description: 'QUALITY_REQUIRES_LOT_TRACKING: inspección de calidad exige trazabilidad por lote',
+  })
   async create(@CurrentUser() actor: AuthenticatedUser, @Body() dto: CreateProductDto) {
     return {
       data: await this.products.create(actor, dto),
@@ -87,8 +91,9 @@ export class ProductsController {
   @ApiResponse({
     status: 409,
     description:
-      'Código duplicado o cambio de unidad o tipo bloqueado por movimientos de inventario',
+      'Código duplicado o cambio de unidad, tipo o trazabilidad bloqueado por uso existente (LOT_TRACKING_LOCKED)',
   })
+  @ApiResponse({ status: 422, description: 'QUALITY_REQUIRES_LOT_TRACKING' })
   async update(
     @CurrentUser() actor: AuthenticatedUser,
     @Param('id', new ParseUUIDPipe()) id: string,

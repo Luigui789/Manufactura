@@ -30,4 +30,7 @@ export const navigation: {
     label: 'Almacenes',
     roles: ROLE_CODES,
   },
+  { to: '/inventory/stock', label: 'Existencias', roles: ROLE_CODES },
+  { to: '/inventory/movements', label: 'Movimientos', roles: ROLE_CODES },
+  { to: '/inventory/lots', label: 'Lotes', roles: ROLE_CODES },
 ];

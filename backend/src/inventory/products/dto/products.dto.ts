@@ -1,5 +1,5 @@
-import { ApiProperty, PartialType } from '@nestjs/swagger';
-import { IsEnum, IsString, Length } from 'class-validator';
+import { ApiProperty, ApiPropertyOptional, PartialType } from '@nestjs/swagger';
+import { IsBoolean, IsEnum, IsString, Length, ValidateIf } from 'class-validator';
 
 import { ProductType, UnitOfMeasure } from '../../../generated/prisma/client.js';
 import { RawValue, TrimText, TrimUpperCase } from '../../../common/catalog.dto.js';
@@ -41,6 +41,18 @@ export class CreateProductDto {
   @RawValue()
   @IsEnum(UnitOfMeasure)
   unit: UnitOfMeasure;
+
+  @ApiPropertyOptional({ type: Boolean, default: false })
+  @RawValue()
+  @ValidateIf((_object: unknown, value: unknown) => value !== undefined)
+  @IsBoolean({ message: 'isLotTracked debe ser true o false' })
+  isLotTracked?: boolean;
+
+  @ApiPropertyOptional({ type: Boolean, default: false })
+  @RawValue()
+  @ValidateIf((_object: unknown, value: unknown) => value !== undefined)
+  @IsBoolean({ message: 'requiresQualityInspection debe ser true o false' })
+  requiresQualityInspection?: boolean;
 }
 
 export class UpdateProductDto extends PartialType(CreateProductDto, {

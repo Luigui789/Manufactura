@@ -40,6 +40,8 @@ export function EditProductDialog({
       category: product.category,
       type: product.type,
       unit: product.unit,
+      isLotTracked: product.isLotTracked,
+      requiresQualityInspection: product.requiresQualityInspection,
     },
   });
 
@@ -145,6 +147,44 @@ export function EditProductDialog({
               {errors.unit && (
                 <p id="edit-product-unit-error" className="text-sm text-destructive">
                   {errors.unit.message}
+                </p>
+              )}
+            </div>
+
+            <div className="space-y-3 rounded-md border p-3">
+              <label htmlFor="edit-product-lot-tracked" className="flex items-center gap-2 text-sm">
+                <input
+                  id="edit-product-lot-tracked"
+                  type="checkbox"
+                  className="size-4 accent-primary"
+                  {...register('isLotTracked')}
+                />
+                Trazabilidad por lote
+              </label>
+              <p className="text-xs text-muted-foreground">
+                Solo se puede cambiar antes de registrar movimientos para este producto.
+              </p>
+              <label
+                htmlFor="edit-product-quality-inspection"
+                className="flex items-center gap-2 text-sm"
+              >
+                <input
+                  id="edit-product-quality-inspection"
+                  type="checkbox"
+                  className="size-4 accent-primary"
+                  aria-invalid={!!errors.requiresQualityInspection}
+                  aria-describedby={
+                    errors.requiresQualityInspection
+                      ? 'edit-product-quality-inspection-error'
+                      : undefined
+                  }
+                  {...register('requiresQualityInspection')}
+                />
+                Requiere inspección de calidad
+              </label>
+              {errors.requiresQualityInspection && (
+                <p id="edit-product-quality-inspection-error" className="text-sm text-destructive">
+                  {errors.requiresQualityInspection.message}
                 </p>
               )}
             </div>

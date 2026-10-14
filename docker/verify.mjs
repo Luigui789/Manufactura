@@ -64,6 +64,9 @@ for (const route of [
   '/suppliers',
   '/customers',
   '/purchase-orders',
+  '/inventory/stock',
+  '/inventory/movements',
+  '/inventory/lots',
 ]) {
   const authenticated = await fetch(`${api}${route}`, { headers: { Cookie, Origin: origin } });
   assert.equal(authenticated.status, 200, route);
@@ -156,6 +159,63 @@ try {
 }
 console.log(
   'Docker: Purchase DRAFT/edit/confirm, split partial/full receipts, origins and reconciled ledger verified.',
+);
+
+// A-2 reads real receipts, including lot provenance and a DATE without timezone drift.
+const stock = await request('/inventory/stock?productId=' + product.id);
+assert.equal(stock[0].quantity, '100.0000');
+const movements = await request(
+  '/inventory/movements?productId=' + product.id + '&type=PURCHASE_RECEIPT',
+);
+assert.equal(movements.length, 3);
+assert.ok(
+  movements.every(
+    (movement) =>
+      movement.businessReference.number.startsWith('REC-') &&
+      movement.businessReference.purchaseOrder.id === order.id &&
+      movement.reason === null,
+  ),
+);
+const tracked = await request('/products', 'POST', {
+  code: 'DOCKER-LOT-' + suffix,
+  name: 'Docker tracked material',
+  category: 'Validation',
+  type: 'RAW_MATERIAL',
+  unit: 'KILOGRAM',
+  isLotTracked: true,
+  requiresQualityInspection: true,
+});
+const trackedOrder = await request('/purchase-orders', 'POST', {
+  supplierId: supplier.id,
+  items: [{ productId: tracked.id, quantity: '2', unitPrice: '1' }],
+});
+await request('/purchase-orders/' + trackedOrder.id + '/confirm', 'POST', {});
+const trackedReceived = await request('/purchase-orders/' + trackedOrder.id + '/receive', 'POST', {
+  items: [
+    {
+      purchaseOrderItemId: trackedOrder.items[0].id,
+      warehouseId: warehouse.id,
+      quantity: '2',
+      expiresAt: '2026-10-14',
+    },
+  ],
+});
+const lots = await request('/inventory/lots?productId=' + tracked.id);
+assert.equal(lots.length, 1);
+assert.equal(lots[0].status, 'QUARANTINED');
+assert.equal(lots[0].expiresAt, '2026-10-14');
+assert.equal(lots[0].quantityOnHand, '2.0000');
+assert.equal(lots[0].origin.purchaseReceipt.id, trackedReceived.receipts[0].id);
+assert.equal(lots[0].origin.purchaseOrder.id, trackedOrder.id);
+assert.equal(lots[0].origin.supplier.id, supplier.id);
+const detailResponse = await fetch(api + '/inventory/lots/' + lots[0].id, { headers: { Cookie } });
+assert.equal(detailResponse.status, 200);
+const detail = await detailResponse.json();
+assert.deepEqual(detail.origin, lots[0].origin);
+assert.equal(detail.balances[0].quantity, '2.0000');
+assert.equal(detail.movements[0].businessReference.id, trackedReceived.receipts[0].id);
+console.log(
+  'Docker: A-2 stock, receipt movement references, quarantined lot origin and calendar DATE verified.',
 );
 
 const logout = await fetch(`${api}/auth/logout`, {

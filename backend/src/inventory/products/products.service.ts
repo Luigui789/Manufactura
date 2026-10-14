@@ -17,6 +17,7 @@ import {
 import { PrismaService } from '../../prisma/prisma.service.js';
 import type { CreateProductDto, UpdateProductDto } from './dto/products.dto.js';
 import type { ProductsQueryDto } from './dto/products-query.dto.js';
+import { inventoryError } from '../movements/inventory-errors.js';
 
 type Tx = Prisma.TransactionClient;
 
@@ -72,6 +73,11 @@ export class ProductsService {
   }
 
   async create(actor: AuthenticatedUser, dto: CreateProductDto) {
+    assertLotQualityConfiguration(
+      dto.isLotTracked ?? false,
+      dto.requiresQualityInspection ?? false,
+    );
+
     try {
       return await this.prisma.$transaction(async (tx) => {
         const product = await tx.product.create({
@@ -81,6 +87,8 @@ export class ProductsService {
             category: dto.category,
             type: dto.type,
             unit: dto.unit,
+            isLotTracked: dto.isLotTracked,
+            requiresQualityInspection: dto.requiresQualityInspection,
           },
         });
 
@@ -115,8 +123,15 @@ export class ProductsService {
       return await this.prisma.$transaction(async (tx) => {
         const before = await lockProduct(tx, id);
 
+        assertLotQualityConfiguration(
+          dto.isLotTracked ?? before.isLotTracked,
+          dto.requiresQualityInspection ?? before.requiresQualityInspection,
+        );
+
         const changesUnit = dto.unit !== undefined && dto.unit !== before.unit;
         const changesType = dto.type !== undefined && dto.type !== before.type;
+        const changesLotTracking =
+          dto.isLotTracked !== undefined && dto.isLotTracked !== before.isLotTracked;
 
         if (changesUnit || changesType) {
           const used = await tx.inventoryMovement.findFirst({
@@ -140,6 +155,20 @@ export class ProductsService {
           }
         }
 
+        if (changesLotTracking) {
+          const used = await tx.inventoryMovement.findFirst({
+            where: { productId: id },
+            select: { id: true },
+          });
+
+          if (used) {
+            throw inventoryError(
+              'LOT_TRACKING_LOCKED',
+              'No se puede cambiar la trazabilidad por lote de un producto con movimientos de inventario',
+            );
+          }
+        }
+
         const after = await tx.product.update({
           where: { id },
           data: {
@@ -148,6 +177,8 @@ export class ProductsService {
             category: dto.category,
             type: dto.type,
             unit: dto.unit,
+            isLotTracked: dto.isLotTracked,
+            requiresQualityInspection: dto.requiresQualityInspection,
           },
         });
 
@@ -234,6 +265,18 @@ export class ProductsService {
   }
 }
 
+function assertLotQualityConfiguration(
+  isLotTracked: boolean,
+  requiresQualityInspection: boolean,
+): void {
+  if (requiresQualityInspection && !isLotTracked) {
+    throw inventoryError(
+      'QUALITY_REQUIRES_LOT_TRACKING',
+      'Un producto que requiere inspección de calidad debe tener trazabilidad por lote',
+    );
+  }
+}
+
 // Campos permitidos en la auditoría del producto.
 function productSnapshot(product: Product) {
   return {
@@ -242,6 +285,8 @@ function productSnapshot(product: Product) {
     category: product.category,
     type: product.type,
     unit: product.unit,
+    isLotTracked: product.isLotTracked,
+    requiresQualityInspection: product.requiresQualityInspection,
     isActive: product.isActive,
   };
 }

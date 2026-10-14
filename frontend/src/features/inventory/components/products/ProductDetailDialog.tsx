@@ -49,6 +49,10 @@ export function ProductDetailDialog({
             <dd>{PRODUCT_TYPE_LABELS[product.type]}</dd>
             <dt className="font-medium">Unidad</dt>
             <dd>{PRODUCT_UNIT_LABELS[product.unit]}</dd>
+            <dt className="font-medium">Trazabilidad por lote</dt>
+            <dd>{product.isLotTracked ? 'Sí' : 'No'}</dd>
+            <dt className="font-medium">Inspección de calidad</dt>
+            <dd>{product.requiresQualityInspection ? 'Requerida' : 'No requerida'}</dd>
             <dt className="font-medium">Estado</dt>
             <dd>
               <Badge variant={product.isActive ? 'secondary' : 'outline'}>

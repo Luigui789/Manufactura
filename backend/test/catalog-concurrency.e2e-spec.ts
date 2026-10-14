@@ -171,7 +171,15 @@ describe.each(catalogs)('$label: concurrencia y auditoría', ({ path, entityType
       entityId: created.id,
       action: AuditAction.CREATE,
       previousValues: null,
-      newValues: { ...payload, isActive: true },
+      newValues:
+        entityType === AuditEntityType.PRODUCT
+          ? {
+              ...payload,
+              isLotTracked: false,
+              requiresQualityInspection: false,
+              isActive: true,
+            }
+          : { ...payload, isActive: true },
     });
   });
 
