@@ -1,35 +1,21 @@
-import { IsOptional, IsString, IsUUID, IsEnum, IsInt, Min } from 'class-validator';
-import { Type } from 'class-transformer';
+import { IsEnum, IsString, IsUUID, Length, ValidateIf } from 'class-validator';
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { PurchaseOrderStatus } from '../../../generated/prisma/client.js';
-
-export class PurchaseOrdersQueryDto {
-    @ApiPropertyOptional()
-    @IsOptional()
-    @Type(() => Number)
-    @IsInt()
-    @Min(1)
-    page?: number;
-
-    @ApiPropertyOptional()
-    @IsOptional()
-    @Type(() => Number)
-    @IsInt()
-    @Min(1)
-    limit?: number;
-
-    @ApiPropertyOptional({ enum: PurchaseOrderStatus })
-    @IsOptional()
-    @IsEnum(PurchaseOrderStatus)
-    status?: PurchaseOrderStatus;
-
-    @ApiPropertyOptional()
-    @IsOptional()
-    @IsUUID()
-    supplierId?: string;
-
-    @ApiPropertyOptional({ description: 'Búsqueda por número de orden' })
-    @IsOptional()
-    @IsString()
-    search?: string;
+import { PaginationQueryDto } from '../../../common/pagination/pagination.js';
+import { TrimText } from '../../../common/catalog.dto.js';
+export class PurchaseOrdersQueryDto extends PaginationQueryDto {
+  @ApiPropertyOptional({ enum: PurchaseOrderStatus })
+  @ValidateIf((_o: unknown, v: unknown) => v !== undefined)
+  @IsEnum(PurchaseOrderStatus)
+  status?: PurchaseOrderStatus;
+  @ApiPropertyOptional()
+  @ValidateIf((_o: unknown, v: unknown) => v !== undefined)
+  @IsUUID()
+  supplierId?: string;
+  @ApiPropertyOptional()
+  @TrimText()
+  @ValidateIf((_o: unknown, v: unknown) => v !== undefined)
+  @IsString()
+  @Length(1, 100)
+  search?: string;
 }

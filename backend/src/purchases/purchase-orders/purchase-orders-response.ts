@@ -1,5 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { PurchaseOrderStatus } from '../../generated/prisma/client.js';
+import { PurchaseOrderStatus, LotStatus } from '../../generated/prisma/client.js';
 
 /**
  * DTO anidado para la información resumida del proveedor.
@@ -34,8 +34,8 @@ export class PurchaseOrderListItemResponse {
   @ApiProperty()
   orderedAt: Date;
 
-  @ApiPropertyOptional()
-  expectedDate?: Date | null;
+  @ApiPropertyOptional({ type: String, format: 'date', nullable: true })
+  expectedDate?: string | null;
 
   @ApiProperty({ description: 'Suma de los lineTotal', example: '2000.00' })
   total: string;
@@ -63,6 +63,8 @@ export class PurchaseOrderItemDetailResponse {
 
   @ApiProperty()
   productUnit: string;
+  @ApiProperty() isLotTracked: boolean;
+  @ApiProperty() requiresQualityInspection: boolean;
 
   @ApiProperty({ example: '100.0000' })
   quantityOrdered: string;
@@ -83,6 +85,21 @@ export class PurchaseOrderItemDetailResponse {
 /**
  * Historial resumido de recepciones asociadas a la orden.
  */
+export class PurchaseReceiptLotResponse {
+  @ApiProperty() id: string;
+  @ApiProperty() code: string;
+  @ApiProperty({ enum: LotStatus }) status: LotStatus;
+  @ApiPropertyOptional({ type: String, format: 'date', nullable: true }) expiresAt: string | null;
+}
+export class PurchaseReceiptItemResponse {
+  @ApiProperty() id: string;
+  @ApiProperty() purchaseOrderItemId: string;
+  @ApiProperty() productId: string;
+  @ApiProperty({ type: PurchaseOrderSupplierResponse }) warehouse: PurchaseOrderSupplierResponse;
+  @ApiProperty({ type: String }) quantity: string;
+  @ApiPropertyOptional({ type: PurchaseReceiptLotResponse, nullable: true })
+  lot: PurchaseReceiptLotResponse | null;
+}
 export class PurchaseOrderReceiptSummaryResponse {
   @ApiProperty()
   id: string;
@@ -95,12 +112,17 @@ export class PurchaseOrderReceiptSummaryResponse {
 
   @ApiProperty()
   receivedByFullName: string;
+  @ApiPropertyOptional({ nullable: true, type: String }) notes: string | null;
+  @ApiProperty({ type: [PurchaseReceiptItemResponse] }) items: PurchaseReceiptItemResponse[];
 }
 
 /**
  * Estructura de respuesta para el endpoint de detalle (GET /api/purchase-orders/:id).
  */
 export class PurchaseOrderDetailResponse {
+  @ApiProperty() itemsCount: number;
+  @ApiProperty() createdAt: Date;
+  @ApiProperty() updatedAt: Date;
   @ApiProperty()
   id: string;
 
@@ -116,8 +138,8 @@ export class PurchaseOrderDetailResponse {
   @ApiProperty()
   orderedAt: Date;
 
-  @ApiPropertyOptional()
-  expectedDate?: Date | null;
+  @ApiPropertyOptional({ type: String, format: 'date', nullable: true })
+  expectedDate?: string | null;
 
   @ApiProperty({ example: '2000.00' })
   total: string;
@@ -127,4 +149,21 @@ export class PurchaseOrderDetailResponse {
 
   @ApiProperty({ type: [PurchaseOrderReceiptSummaryResponse] })
   receipts: PurchaseOrderReceiptSummaryResponse[];
+}
+export class PurchaseOrderResultResponse {
+  @ApiProperty({ type: PurchaseOrderDetailResponse }) data: PurchaseOrderDetailResponse;
+  @ApiProperty() message: string;
+}
+export class PurchaseOrdersListResponse {
+  @ApiProperty({ type: [PurchaseOrderListItemResponse] }) data: PurchaseOrderListItemResponse[];
+  @ApiProperty({ example: { page: 1, limit: 20, total: 1 } }) meta: {
+    page: number;
+    limit: number;
+    total: number;
+  };
+}
+export class PurchaseReceiptsResultResponse {
+  @ApiProperty({ type: [PurchaseOrderReceiptSummaryResponse] })
+  data: PurchaseOrderReceiptSummaryResponse[];
+  @ApiProperty() message: string;
 }
