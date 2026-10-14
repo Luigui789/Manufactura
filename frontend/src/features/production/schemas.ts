@@ -1,9 +1,6 @@
 import { z } from 'zod';
 
-const quantitySchema = z
-  .string()
-  .regex(/^\d{1,14}(?:\.\d{1,4})?$/, 'Usa hasta 14 enteros y 4 decimales')
-  .refine((value) => /[1-9]/.test(value), 'La cantidad debe ser mayor que cero');
+import { positiveQuantitySchema as quantitySchema } from '@/lib/decimal';
 
 export const createBomSchema = z.object({
   productId: z.string().uuid('Selecciona un producto válido'),
