@@ -8,6 +8,7 @@ import {
   PrismaClient,
   RoleCode,
 } from '../src/generated/prisma/client.js';
+import { createInventoryLot } from './support/inventory-fixtures.js';
 import { applyAdjustment } from '../src/inventory/apply-adjustment.js';
 
 const databaseUrl = process.env.DATABASE_URL;
@@ -64,14 +65,7 @@ beforeAll(async () => {
     },
   });
   otherProductId = otherProduct.id;
-  const lot = await prisma.lot.create({
-    data: {
-      code: `LOT-TEST-${suffix}`,
-      productId: otherProductId,
-      status: 'QUARANTINED',
-      originatedAt: new Date(),
-    },
-  });
+  const lot = await createInventoryLot(prisma, otherProductId, 'QUARANTINED');
   lotId = lot.id;
 });
 

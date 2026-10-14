@@ -251,9 +251,9 @@ edición manual del catálogo.
 
 Entidades planificadas: `PurchaseOrder`, `PurchaseOrderItem`, `PurchaseReceipt` y
 `PurchaseReceiptItem`, relacionadas con proveedor, productos y almacenes existentes.
-Como política de alcance propuesta para esta ronda, Compras se limita a `RAW_MATERIAL` y
-`CONSUMABLE`. El equipo puede ajustar los tipos elegibles antes de implementar su validación;
-esta limitación no forma parte de los ADR aprobados ni es una invariante arquitectónica.
+Política de alcance cerrada por la solicitud de implementación de Compras (2026-10-13):
+solo `RAW_MATERIAL` y `CONSUMABLE`. Esta selección es una regla funcional de esta entrega,
+no una nueva invariante arquitectónica ni un cambio de los ADR aceptados.
 
 Estados: `DRAFT`, `CONFIRMED`, `PARTIALLY_RECEIVED`, `RECEIVED`, `CANCELLED`.
 Solo se edita `DRAFT`. Confirmar valida proveedor y productos activos, sin stock ni lotes.
@@ -506,3 +506,15 @@ Decisiones que aún requieren resolución antes de implementar el punto afectado
 
 Estas cuestiones no invalidan las cuatro decisiones aceptadas. Deben resolverse antes de
 implementar el punto afectado; esta revisión de documentación no inicia código ni migraciones.
+
+### Decisiones de implementación de Compras (2026-10-13)
+
+La recepción devuelve el detalle actualizado de OC y expone además `GET /api/purchase-orders/:id/receipts`.
+`expectedDate: null` permite borrar la fecha al editar; `items` reemplaza las líneas solo en DRAFT.
+`receivedAt` requiere zona si se envía; el frontend interpreta su entrada en Managua.
+`expiresAt` solo aplica a trazables; `originatedAt = receivedAt`. Los importes de línea fuera de
+`Decimal(14,2)` se rechazan sin truncamiento. Las mutaciones pertenecen a ADMIN/COMPRAS.
+Se conserva la migración compartida y se añade una correctiva transaccional para el origen físico.
+No se incorpora idempotencia HTTP parcial; sigue abierta para una etapa posterior.
+Compras precede A-2: las vistas de stock, movimientos y lotes de PR #15 deberán adaptarse
+tras actualizarse contra `develop` con Compras integrada. Esta rama no depende de A-2.

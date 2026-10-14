@@ -8,6 +8,8 @@ const BUSINESS_TIME_ZONE = 'America/Managua';
 const DOCUMENT_PREFIX: Record<DocumentType, string> = {
   LOT: 'LOT',
   OP: 'OP',
+  PURCHASE_ORDER: 'OC',
+  PURCHASE_RECEIPT: 'REC',
 };
 
 @Injectable()

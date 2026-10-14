@@ -11,6 +11,21 @@ import { AppLayout } from '@/layouts/AppLayout';
 import { HomePage } from './HomePage';
 import { NotFoundPage } from './NotFoundPage';
 import CustomersPage from '@/features/sales/pages/CustomersPage';
+const PurchaseOrdersPage = lazy(() =>
+  import('@/features/purchases/pages/PurchaseOrdersPage').then((m) => ({
+    default: m.PurchaseOrdersPage,
+  })),
+);
+const NewPurchaseOrderPage = lazy(() =>
+  import('@/features/purchases/pages/NewPurchaseOrderPage').then((m) => ({
+    default: m.NewPurchaseOrderPage,
+  })),
+);
+const PurchaseOrderDetailPage = lazy(() =>
+  import('@/features/purchases/pages/PurchaseOrderDetailPage').then((m) => ({
+    default: m.PurchaseOrderDetailPage,
+  })),
+);
 import SuppliersPage from '@/features/purchases/pages/SuppliersPage';
 const BomsPage = lazy(() =>
   import('@/features/production/pages/BomsPage').then((module) => ({ default: module.BomsPage })),
@@ -91,6 +106,14 @@ export function AppRoutes() {
               <Route path="/sales/customers" element={<CustomersPage />} />
             </Route>
             <Route element={<RequireRole roles={['ADMIN', 'COMPRAS']} />}>
+              <Route
+                path="/purchases/orders/new"
+                element={
+                  <Suspense fallback={<p role="status">Cargando formulario…</p>}>
+                    <NewPurchaseOrderPage />
+                  </Suspense>
+                }
+              />
               <Route path="/purchases/suppliers" element={<SuppliersPage />} />
             </Route>
 
@@ -136,7 +159,22 @@ export function AppRoutes() {
                 </Suspense>
               }
             />
-
+            <Route
+              path="/purchases/orders"
+              element={
+                <Suspense fallback={<p role="status">Cargando compras…</p>}>
+                  <PurchaseOrdersPage />
+                </Suspense>
+              }
+            />
+            <Route
+              path="/purchases/orders/:id"
+              element={
+                <Suspense fallback={<p role="status">Cargando orden…</p>}>
+                  <PurchaseOrderDetailPage />
+                </Suspense>
+              }
+            />
             <Route path="*" element={<NotFoundPage />} />
             <Route
               path="/production/orders"
