@@ -45,7 +45,7 @@ async function addStock(productId: string, warehouseId: string, lotId: string, q
 }
 
 describe('GET /api/inventory/lots', () => {
-  it('pagina, filtra por estado y producto, suma saldos y deja explícito el origen pendiente de Compras', async () => {
+  it('pagina, filtra por estado y producto, suma saldos y expone el origen de Compras', async () => {
     const product = await createInventoryProduct(kit.prisma, { isLotTracked: true });
     const warehouse = await createInventoryWarehouse(kit.prisma);
     const released = await createInventoryLot(kit.prisma, product.id, LotStatus.RELEASED);
@@ -59,13 +59,18 @@ describe('GET /api/inventory/lots', () => {
       .query({ productId: product.id, status: LotStatus.RELEASED, hasStock: true, limit: 1 })
       .expect(200);
     const listBody = response.body as {
-      data: Array<{ id: string; origin: null; quantityOnHand: string; product: { id: string } }>;
+      data: Array<{
+        id: string;
+        origin: { type: 'PURCHASE_RECEIPT'; purchaseReceiptItemId: string };
+        quantityOnHand: string;
+        product: { id: string };
+      }>;
       meta: { page: number; limit: number; total: number };
     };
     expect(listBody.meta).toEqual({ page: 1, limit: 1, total: 1 });
     expect(listBody.data[0]).toMatchObject({
       id: released.id,
-      origin: null,
+      origin: { type: 'PURCHASE_RECEIPT', purchaseReceiptItemId: released.purchaseReceiptItemId },
       quantityOnHand: '4.2500',
       product: { id: product.id },
     });
@@ -83,11 +88,14 @@ describe('GET /api/inventory/lots', () => {
       .set('Cookie', cookie)
       .expect(200);
     const detailBody = response.body as {
-      origin: null;
+      origin: { type: 'PURCHASE_RECEIPT'; purchaseReceiptItemId: string };
       balances: Array<{ warehouse: { id: string; code: string; name: string }; quantity: string }>;
       movements: unknown[];
     };
-    expect(detailBody.origin).toBeNull();
+    expect(detailBody.origin).toMatchObject({
+      type: 'PURCHASE_RECEIPT',
+      purchaseReceiptItemId: lot.purchaseReceiptItemId,
+    });
     expect(detailBody.balances).toEqual([
       expect.objectContaining({
         warehouse: { id: warehouse.id, code: warehouse.code, name: warehouse.name },
