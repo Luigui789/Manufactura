@@ -72,3 +72,18 @@ describe('Reglas de movimientos de inventario', () => {
     expect((thrown as InventoryDomainException).code).toBe(InventoryErrorCode.INVALID_REFERENCE);
   });
 });
+
+it('purchase receipt requires a typed UUID origin and persists a positive entry without reason', () => {
+  const origin = {
+    kind: 'PURCHASE_RECEIPT',
+    purchaseReceiptItemId: '00000000-0000-4000-8000-000000000001',
+  } as const;
+  const result = resolveMovement('PURCHASE_RECEIPT', '2.5000', origin);
+  expect(result.reason).toBeNull();
+  expect(result.signedQuantity.toFixed(4)).toBe('2.5000');
+  expect(() => resolveMovement('PURCHASE_RECEIPT', '1', adjustment)).toThrow();
+  expect(() => resolveMovement('ADJUSTMENT_IN', '1', origin)).toThrow();
+  expect(() =>
+    resolveMovement('PURCHASE_RECEIPT', '1', { ...origin, purchaseReceiptItemId: 'invalid' }),
+  ).toThrow();
+});

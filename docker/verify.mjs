@@ -1,5 +1,7 @@
 import assert from 'node:assert/strict';
 import { get } from 'node:http';
+import { randomUUID } from 'node:crypto';
+import { createRequire } from 'node:module';
 
 // Solo contra el stack efimero de verificacion; usa el ADMIN creado por la CI.
 assert.ok(process.env.POSTGRES_DB?.endsWith('_test'), 'Se requiere una base _test');
@@ -61,12 +63,100 @@ for (const route of [
   '/warehouses',
   '/suppliers',
   '/customers',
+  '/purchase-orders',
 ]) {
   const authenticated = await fetch(`${api}${route}`, { headers: { Cookie, Origin: origin } });
   assert.equal(authenticated.status, 200, route);
   const unauthenticated = await fetch(`${api}${route}`);
   assert.equal(unauthenticated.status, 401, `${route} debe exigir sesion`);
 }
+
+// Business smoke: run Purchases through the actual Docker API and reconcile its SQL ledger.
+async function request(route, method = 'GET', body) {
+  const result = await fetch(api + route, {
+    method,
+    headers: { Cookie, Origin: origin, 'Content-Type': 'application/json' },
+    body: body === undefined ? undefined : JSON.stringify(body),
+  });
+  assert.ok(result.ok, `${method} ${route}: HTTP ${result.status}`);
+  return (await result.json()).data;
+}
+const suffix = randomUUID().slice(0, 8);
+const supplier = await request('/suppliers', 'POST', {
+  code: 'DOCKER-' + suffix,
+  name: 'Docker purchase supplier',
+});
+const product = await request('/products', 'POST', {
+  code: 'DOCKER-' + suffix,
+  name: 'Docker raw material',
+  category: 'Validation',
+  type: 'RAW_MATERIAL',
+  unit: 'KILOGRAM',
+});
+const warehouse = (await request('/warehouses'))[0];
+const order = await request('/purchase-orders', 'POST', {
+  supplierId: supplier.id,
+  items: [{ productId: product.id, quantity: '100', unitPrice: '1.005' }],
+});
+assert.equal(order.status, 'DRAFT');
+assert.equal(order.total, '100.50');
+assert.match(order.number, /^OC-\d{4}-\d{6,}$/);
+await request('/purchase-orders/' + order.id, 'PATCH', { expectedDate: '2026-12-01' });
+await request('/purchase-orders/' + order.id + '/confirm', 'POST', {});
+const item = { purchaseOrderItemId: order.items[0].id, warehouseId: warehouse.id };
+const partial = await request('/purchase-orders/' + order.id + '/receive', 'POST', {
+  items: [
+    { ...item, quantity: '30' },
+    { ...item, quantity: '20' },
+  ],
+});
+assert.equal(partial.status, 'PARTIALLY_RECEIVED');
+assert.equal(partial.items[0].quantityReceived, '50.0000');
+const complete = await request('/purchase-orders/' + order.id + '/receive', 'POST', {
+  items: [{ ...item, quantity: '50' }],
+});
+assert.equal(complete.status, 'RECEIVED');
+assert.equal(complete.items[0].quantityPending, '0.0000');
+assert.equal((await request('/purchase-orders/' + order.id + '/receipts')).length, 2);
+assert.equal(
+  (
+    await fetch(api + '/purchase-orders/' + order.id + '/cancel', {
+      method: 'POST',
+      headers: { Cookie, Origin: origin },
+    })
+  ).status,
+  409,
+);
+const backendRequire = createRequire('/app/backend/package.json');
+const adapterRequire = createRequire(backendRequire.resolve('@prisma/adapter-pg'));
+const { Client } = adapterRequire('pg');
+const database = new Client({ connectionString: process.env.DATABASE_URL });
+await database.connect();
+try {
+  const ledger = (
+    await database.query('SELECT * FROM inventory_movements WHERE product_id=$1', [product.id])
+  ).rows;
+  assert.equal(ledger.length, 3);
+  for (const movement of ledger) {
+    assert.equal(movement.type, 'PURCHASE_RECEIPT');
+    assert.equal(movement.reason, null);
+    assert.equal(movement.lot_id, null);
+    assert.ok(movement.purchase_receipt_item_id);
+  }
+  const result = (
+    await database.query(
+      'SELECT quantity::text AS quantity, quantity=(SELECT sum(quantity) FROM inventory_movements WHERE product_id=$1 AND warehouse_id=$2) AS reconciled FROM stock_balances WHERE product_id=$1 AND warehouse_id=$2',
+      [product.id, warehouse.id],
+    )
+  ).rows[0];
+  assert.equal(result.quantity, '100.0000');
+  assert.equal(result.reconciled, true);
+} finally {
+  await database.end();
+}
+console.log(
+  'Docker: Purchase DRAFT/edit/confirm, split partial/full receipts, origins and reconciled ledger verified.',
+);
 
 const logout = await fetch(`${api}/auth/logout`, {
   method: 'POST',

@@ -87,11 +87,11 @@ detecte sin interpretar el JSON.
 
 ## 5. Endpoints previstos
 
-Rutas que el sistema expondrá conforme avancen las etapas. Aún no existen. Productos y
-almacenes están implementados (§9), al igual que proveedores (§10) y clientes (§11).
+Rutas pendientes conforme avancen las etapas. Productos y almacenes están implementados
+(§9), al igual que proveedores (§10) y clientes (§11). Órdenes y recepciones de Compras
+están implementadas en `feature/purchases`; su contrato vigente figura al final de esta página.
 
 ```text
-/api/purchase-orders
 /api/inventory
 /api/inventory/movements
 /api/boms
@@ -120,7 +120,7 @@ empresa:
 Cada módulo declara su tag al incorporarse para agrupar su documentación.
 
 Están implementados los tags `Health`, `Auth`, `Users`, `Products`, `Warehouses`
-y `Suppliers`, junto con `Customers`.
+y `Suppliers`, junto con `Customers` y `Purchase Orders` (en `feature/purchases`).
 
 Los previstos para etapas posteriores son:
 
@@ -677,3 +677,53 @@ de versión no permitidos, `422` incoherencia de producto/catálogo/ventana/cál
 Auditoría transaccional: CREATE/UPDATE/CANCEL_PRODUCTION sobre PRODUCTION_ORDER,
 con diferencias permitidas, actor y requestId. C-1 no escribe stock, movimientos ni lotes.
 `start`, `complete`, inspecciones y trazabilidad pertenecen a C-2.
+
+## Compras: órdenes y recepciones (RF-COM-002/003)
+
+Implementado en `feature/purchases`, sobre A-1 + C-1 de `develop`. Todas las rutas
+requieren sesión y contraseña vigente. Lecturas: cualquier rol autenticado.
+Mutaciones: exclusivamente `ADMIN` y `COMPRAS`; `INVENTARIO` no recibe ese permiso.
+
+| Método/ruta                             | Contrato                                                                                        | Resultado                                                |
+| --------------------------------------- | ----------------------------------------------------------------------------------------------- | -------------------------------------------------------- |
+| GET `/api/purchase-orders`              | `page=1`, `limit=20` (máx. 100), `status`, `supplierId`, `search` por número                    | `{ data: summaries[], meta: { page, limit, total } }`    |
+| POST `/api/purchase-orders`             | `{ supplierId, expectedDate?, items: [{ productId, quantity, unitPrice }] }`                    | 201, OC `DRAFT`                                          |
+| GET `/api/purchase-orders/:id`          | UUID                                                                                            | Detalle, cantidades derivadas e historial completo       |
+| PATCH `/api/purchase-orders/:id`        | Campos de creación parciales; `items` reemplaza las líneas; `expectedDate: null` borra la fecha | 200; solo `DRAFT`                                        |
+| POST `/api/purchase-orders/:id/confirm` | `{}`                                                                                            | 200; `DRAFT → CONFIRMED`                                 |
+| POST `/api/purchase-orders/:id/cancel`  | `{}`                                                                                            | 200; `DRAFT` o `CONFIRMED` sin recepciones → `CANCELLED` |
+| POST `/api/purchase-orders/:id/receive` | `{ receivedAt?, notes?, items: [{ purchaseOrderItemId, warehouseId, quantity, expiresAt? }] }`  | 201; devuelve detalle actualizado de OC                  |
+| GET `/api/purchase-orders/:id/receipts` | UUID                                                                                            | `{ data: receipts[], message }`                          |
+
+Las respuestas individuales usan `{ data, message }`. Proveedor/productos deben existir,
+estar activos y ser comprables (`RAW_MATERIAL` o `CONSUMABLE`). Las cantidades son strings
+positivos `Decimal(18,4)`, los precios strings no negativos `Decimal(14,4)`. Las listas de
+líneas requieren al menos un elemento. `lineTotal = quantity × unitPrice`, redondeado a dos
+decimales con `ROUND_HALF_UP`; se rechaza un importe fuera de `Decimal(14,2)` con 422.
+El total suma importes por línea. `expectedDate` y `expiresAt` son fechas calendario
+`YYYY-MM-DD`; `receivedAt` es timestamp ISO con zona; omitirlo usa el instante actual.
+`expiresAt` solo se acepta para productos trazables. Notas: hasta 500 caracteres.
+
+Crear/editar/confirmar/cancelar no altera existencias ni lotes. Recibir solo se permite en
+`CONFIRMED` o `PARTIALLY_RECEIVED`. Las filas repetidas de una misma línea se suman antes de
+compararlas con el pendiente, incluso si se reparten en distintos almacenes. El bloqueo de
+la OC serializa las recepciones simultáneas. El estado se deriva por línea de la suma de
+`PurchaseReceiptItem`: todas completas → `RECEIVED`; queda pendiente → `PARTIALLY_RECEIVED`.
+Estas dos últimas etapas no admiten edición ni cancelación; no existe reversa de recepción.
+
+Numeración: `OC-YYYY-NNNNNN`, `REC-YYYY-NNNNNN`, `LOT-YYYY-NNNNNN`, con año de
+`America/Managua`. REC y todos los LOT se reservan juntos. Cada fila recibida tiene exactamente
+una entrada `PURCHASE_RECEIPT` positiva, `reason=null` y FK `purchaseReceiptItemId`.
+Inventario crea un lote por fila trazable: `originatedAt=receivedAt`, origen FK único,
+`QUARANTINED` si exige inspección, `RELEASED` en otro caso. No trazables: `lotId=null`.
+La cabecera REC, líneas, lotes, movimientos, saldos, estado y auditorías RECEIVE se confirman
+juntos o se revierten completamente. El historial muestra almacén, cantidad, lote, vencimiento,
+estado inicial, usuario, notas y fecha. No hay idempotencia HTTP para recepciones parciales:
+antes de repetir una solicitud cuyo resultado sea incierto, consultar el historial.
+
+Errores: 400 DTO/UUID/paginación; 401 sesión; 403 rol; 404 OC/referencia de compra;
+409 transición/catálogo inactivo/sobre-recepción (`RECEIPT_EXCEEDS_PENDING`);
+422 producto no comprable, almacén/origen de Inventario inválido o límite monetario.
+
+La UI usa los flags de trazabilidad/calidad ya existentes del catálogo. Esta rama no añade
+su configuración, que pertenece a A-2, ni una acción para liberar lotes en cuarentena.

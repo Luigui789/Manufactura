@@ -1,6 +1,10 @@
 import { Injectable } from '@nestjs/common';
-
-import { type InventoryMovement, Prisma } from '../../generated/prisma/client.js';
+import {
+  type InventoryMovement,
+  LotStatus,
+  ProductType,
+  Prisma,
+} from '../../generated/prisma/client.js';
 import { InventoryErrorCode, inventoryError } from './inventory-errors.js';
 import { assertUuid, resolveMovement } from './movement-rules.js';
 import type { MovementOrigin } from './movement-origin.js';
@@ -10,6 +14,12 @@ export type MovementLine = {
   productId: string;
   warehouseId: string;
   lotId?: string | null;
+  newLot?: {
+    code: string;
+    expiresAt?: Date | null;
+    status: LotStatus;
+    purchaseReceiptItemId: string;
+  };
   quantity: Prisma.Decimal | string;
   origin: MovementOrigin;
 };
@@ -32,6 +42,16 @@ type LotBalanceKey = { lotId: string; warehouseId: string };
 
 @Injectable()
 export class InventoryService {
+  /** Reserve catalog locks before receipt item FK inserts, following ADR 012. */
+  async lockPurchaseCatalog(
+    tx: Prisma.TransactionClient,
+    productIds: string[],
+    warehouseIds: string[],
+  ) {
+    await this.lockCatalogRows(tx, 'products', uniqueSorted(productIds));
+    await this.lockCatalogRows(tx, 'warehouses', uniqueSorted(warehouseIds));
+    return tx.product.findMany({ where: { id: { in: productIds } } });
+  }
   /** Uses the caller's transaction; it never opens or commits one itself. */
   async applyMovements(
     tx: Prisma.TransactionClient,
@@ -112,11 +132,64 @@ export class InventoryService {
 
     for (const line of lines) {
       const product = productsById.get(line.productId)!;
-      if (product.isLotTracked !== Boolean(line.lotId)) {
+      if (product.isLotTracked !== Boolean(line.lotId || line.newLot)) {
         throw inventoryError(
           InventoryErrorCode.LOT_TRACKING_MISMATCH,
           'La presencia de lote debe coincidir con la trazabilidad del producto',
         );
+      }
+    }
+    // Validate business origins after catalog locks and before writing inventory.
+    const receiptOrigins = new Set<string>();
+    for (const line of lines) {
+      if (line.origin.kind !== 'PURCHASE_RECEIPT') {
+        if (line.newLot)
+          throw inventoryError(InventoryErrorCode.INVALID_ORIGIN, 'Un ajuste no puede crear lotes');
+        continue;
+      }
+      const originId = line.origin.purchaseReceiptItemId;
+      if (receiptOrigins.has(originId) || line.lotId) {
+        throw inventoryError(
+          InventoryErrorCode.INVALID_ORIGIN,
+          'Una recepción requiere una entrada por línea y un lote nuevo',
+        );
+      }
+      receiptOrigins.add(originId);
+      const item = await tx.purchaseReceiptItem.findUnique({
+        where: { id: originId },
+        include: { orderItem: true, receipt: { include: { purchaseOrder: true } } },
+      });
+      const product = productsById.get(line.productId)!;
+      if (
+        !item ||
+        item.productId !== line.productId ||
+        item.warehouseId !== line.warehouseId ||
+        !item.quantity.equals(line.signedQuantity) ||
+        item.orderItem.productId !== item.productId ||
+        item.orderItem.purchaseOrderId !== item.receipt.purchaseOrderId ||
+        !['CONFIRMED', 'PARTIALLY_RECEIVED'].includes(item.receipt.purchaseOrder.status) ||
+        ![ProductType.RAW_MATERIAL, ProductType.CONSUMABLE].includes(
+          product.type as 'RAW_MATERIAL' | 'CONSUMABLE',
+        )
+      ) {
+        throw inventoryError(
+          InventoryErrorCode.INVALID_ORIGIN,
+          'La entrada no coincide con la línea y orden de recepción',
+        );
+      }
+      if (line.newLot) {
+        const lot = line.newLot;
+        const expectedStatus = product.requiresQualityInspection
+          ? LotStatus.QUARANTINED
+          : LotStatus.RELEASED;
+        if (
+          lot.purchaseReceiptItemId !== originId ||
+          lot.status !== expectedStatus ||
+          !/^LOT-\d{4}-\d{6,}$/.test(lot.code) ||
+          (lot.expiresAt && Number.isNaN(lot.expiresAt.getTime()))
+        ) {
+          throw inventoryError(InventoryErrorCode.INVALID_ORIGIN, 'Descripción de lote inválida');
+        }
       }
     }
 
@@ -162,6 +235,21 @@ export class InventoryService {
         );
       }
     }
+    // New lots are inserted only after sequences, catalogs, balances and existing lots.
+    for (const line of lines) {
+      if (!line.newLot) continue;
+      const lot = await tx.lot.create({
+        data: {
+          code: line.newLot.code,
+          productId: line.productId,
+          status: line.newLot.status,
+          originatedAt: occurredAt,
+          expiresAt: line.newLot.expiresAt ?? null,
+          purchaseReceiptItemId: line.newLot.purchaseReceiptItemId,
+        },
+      });
+      line.lotId = lot.id;
+    }
 
     this.assertSufficientStock(lines, balanceKeys, balancesByKey);
     await this.assertSufficientLotStock(tx, lines, lotBalanceKeys);
@@ -177,6 +265,8 @@ export class InventoryService {
             type: line.type,
             quantity: line.signedQuantity,
             reason: line.reason,
+            purchaseReceiptItemId:
+              line.origin.kind === 'PURCHASE_RECEIPT' ? line.origin.purchaseReceiptItemId : null,
             occurredAt,
             performedByUserId: command.performedByUserId,
             requestId: command.requestId ?? null,

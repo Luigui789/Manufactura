@@ -890,7 +890,7 @@ y Producción C-2; C-2 requiere además Compras.
 | ----- | ------------------------------------------------------------ | ---------------------------------------------------------------------------------- |
 | 3     | Autenticación JWT y RBAC                                     | Integrada en `develop` (PR #3)                                                     |
 | 4     | Datos maestros: productos, almacenes, proveedores y clientes | Integrados en `develop` (PR #6, #8 y #9), CI con 433 pruebas                       |
-| 5     | Compras y recepción                                          | Pendiente                                                                          |
+| 5     | Compras y recepción                                          | Verificada en `feature/purchases`; pendiente integración                           |
 | 6     | Inventario y movimientos                                     | A-1 integrado en `develop` (PR #12); A-2 pendiente                                 |
 | 7     | BOM y producción                                             | C-1 integrado en `develop` (PR #13): BOM, OP DRAFT y disponibilidad; C-2 pendiente |
 | 8     | Lotes, trazabilidad y calidad                                | Pendiente                                                                          |
@@ -904,3 +904,33 @@ datos, autenticación y datos maestros—, no al terminar cada etapa.
 La bóveda de Obsidian no estuvo disponible durante el diseño de la Etapa 3 (el servidor no
 respondió) y no fue fuente de ese diseño. Las fuentes fueron la Entrega 1 oficial, `docs/`, los
 ADR, el código, las migraciones, las pruebas y el historial de Git.
+
+### Compras — implementación en `feature/purchases` (2026-10-13)
+
+Se parte de `887d2a1` (dos commits sobre `origin/develop`, sin divergencia), conservando
+las entidades, migración inicial, DTOs/reglas/responses válidos. Se implementan OC DRAFT,
+edición, confirmación, cancelación permitida, consulta con filtros/paginación, recepción
+parcial/completa, reparto de líneas entre almacenes, lotes operativos por Inventario y
+entrada empresarial con auditoría atómica. API y UI solo permiten mutar a ADMIN/COMPRAS.
+
+La migración compartida se conserva; la correctiva `20261014010000_purchases_invariants`
+cierra signos/motivos/orígenes, unicidad y FKs compuestas y bloquea lotes previos sin origen.
+Se reutilizan `DocumentSequenceService`, `InventoryService` y `AuditService`, sin duplicar
+providers. Los fixtures de A-1/C-1 ahora incluyen origen explícito para cumplir el CHECK.
+Los detalles del contrato constan en `api.md`, `database.md` y la especificación.
+
+Orden de integración confirmado por el responsable: **A-1 → C-1 → Compras → A-2 → C-2**.
+No se incorpora PR #15 ni código de `feature/inventory-movements`. Después de integrar
+Compras, A-2 deberá actualizar su rama y añadir visualización/filtros de REC y origen de lotes.
+No hay ejecución de Producción, liberación de Calidad, reversas ni idempotencia HTTP parcial.
+
+Validación local completa verde: 183 unitarias backend, 406 frontend y 309 E2E en
+PostgreSQL 18 (898 pruebas). Instalación limpia, upgrade con datos, rechazo de lotes previos
+sin origen, drift sin diferencias y ledger append-only comprobados. Lint, formato y builds
+backend/frontend pasaron. Docker construyó imágenes y verificó frontend, salud, CORS,
+autenticación, OC/recepciones reales y reconciliación SQL. Las pruebas se ejecutaron
+secuencialmente y con más tiempo por prueba por la memoria disponible, sin cambiar
+aserciones ni límites de CI. [Informe y manifiesto de archivos](purchases-validation.md).
+
+Compras queda **Verified en feature/purchases y lista para PR contra develop**. No acredita
+merge ni checks remotos todavía. El PR se abre solo después de esta validación local.

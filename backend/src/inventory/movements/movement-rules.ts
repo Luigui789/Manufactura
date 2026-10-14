@@ -11,7 +11,7 @@ import type { MovementOrigin } from './movement-origin.js';
 export type ResolvedMovement = {
   quantity: Prisma.Decimal;
   signedQuantity: Prisma.Decimal;
-  reason: AdjustmentReason;
+  reason: AdjustmentReason | null;
 };
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -28,6 +28,13 @@ export function resolveMovement(
   origin: MovementOrigin,
 ): ResolvedMovement {
   const quantity = parsePositiveQuantity(value);
+  if (type === InventoryMovementType.PURCHASE_RECEIPT) {
+    if (!origin || origin.kind !== 'PURCHASE_RECEIPT') {
+      throw inventoryError(InventoryErrorCode.INVALID_ORIGIN, 'Se requiere origen de recepción');
+    }
+    assertUuid(origin.purchaseReceiptItemId, 'purchaseReceiptItemId');
+    return { quantity, signedQuantity: quantity, reason: null };
+  }
   const reason = resolveAdjustmentReason(origin);
 
   switch (type) {

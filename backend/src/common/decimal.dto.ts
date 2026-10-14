@@ -33,3 +33,20 @@ export function IsPositiveDecimalString(options?: ValidationOptions): PropertyDe
     ),
   );
 }
+// Decimal(14,4) money input, including zero; preserves JSON type.
+export function isPriceDecimalString(value: unknown): value is string {
+  return typeof value === 'string' && /^[0-9]{1,10}(?:\.[0-9]{1,4})?$/.test(value);
+}
+export function IsPriceDecimalString(): PropertyDecorator {
+  return applyDecorators(
+    RawValue(),
+    ValidateBy({
+      name: 'isPriceDecimalString',
+      validator: {
+        validate: isPriceDecimalString,
+        defaultMessage: () =>
+          'El precio debe ser texto decimal no negativo, con hasta 10 enteros y 4 decimales',
+      },
+    }),
+  );
+}
