@@ -21,7 +21,8 @@
     "prisma:generate": "prisma generate",
     "prisma:studio": "prisma studio",
     "db:seed": "pnpm build && node dist/prisma/seed.js",
-    "admin:create": "pnpm build && node dist/cli/create-admin.js"
+    "admin:create": "pnpm build && node dist/cli/create-admin.js",
+    "test:migrations": "node test/purchases-migrations.mjs"
   },
   "dependencies": {
     "@nestjs/common": "^12.0.1",
