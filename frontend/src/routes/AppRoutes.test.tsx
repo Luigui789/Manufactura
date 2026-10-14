@@ -340,3 +340,39 @@ describe('Administración de usuarios', () => {
     );
   });
 });
+
+describe('Purchase and inventory routes after merging develop', () => {
+  it.each([
+    ['/purchases/orders', 'Órdenes de compra'],
+    ['/purchases/orders/new', 'Nueva orden de compra'],
+    ['/purchases/orders/order', 'OC-2026-000001'],
+  ])('preserves purchase route %s and both navigation groups', async (path, heading) => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url: string) =>
+        response(
+          url.endsWith('/purchase-orders/order')
+            ? {
+                data: {
+                  id: 'order',
+                  number: 'OC-2026-000001',
+                  supplier: { code: 'PROV', name: 'Proveedor' },
+                  status: 'CONFIRMED',
+                  orderedAt: '2026-10-13T20:00:00Z',
+                  expectedDate: '2026-10-14',
+                  total: '0.00',
+                  items: [],
+                  receipts: [],
+                },
+              }
+            : { data: [], meta: { page: 1, limit: 20, total: 0 } },
+        ),
+      ),
+    );
+    const client = mount(path);
+    expect(await screen.findByRole('heading', { name: heading })).toBeTruthy();
+    for (const name of ['Compras', 'Existencias', 'Movimientos', 'Lotes'])
+      expect(screen.getByRole('link', { name })).toBeTruthy();
+    client.clear();
+  });
+});
