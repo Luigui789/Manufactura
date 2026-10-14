@@ -15,10 +15,24 @@ export type InventoryStockRow = {
   };
   warehouse: { id: string; code: string; name: string };
 };
+export type PurchaseOrigin = {
+  type: 'PURCHASE_RECEIPT';
+  purchaseReceiptItemId: string;
+  purchaseReceipt: { id: string; number: string; receivedAt: string };
+  purchaseOrder: { id: string; number: string };
+  supplier: { id: string; code: string; name: string };
+};
 export type InventoryMovementRow = {
   id: string;
   type: string;
   quantity: string;
+  purchaseReceiptItemId: string | null;
+  businessReference: {
+    type: 'PURCHASE_RECEIPT';
+    id: string;
+    number: string;
+    purchaseOrder: { id: string; number: string };
+  } | null;
   reason: string | null;
   occurredAt: string;
   requestId: string | null;
@@ -33,7 +47,7 @@ export type InventoryLotRow = {
   status: string;
   originatedAt: string;
   expiresAt: string | null;
-  origin: null;
+  origin: PurchaseOrigin | null;
   quantityOnHand: string;
   product: { id: string; code: string; name: string; unit: string };
 };
@@ -75,9 +89,9 @@ export const getInventoryLots = (
   });
 export const getInventoryLot = (id: string, signal?: AbortSignal) =>
   apiFetch<
-    InventoryLotRow & {
+    Omit<InventoryLotRow, 'quantityOnHand'> & {
       balances: Array<{ warehouse: { id: string; code: string; name: string }; quantity: string }>;
-      movements: InventoryMovementRow[];
+      movements: Omit<InventoryMovementRow, 'product' | 'lot'>[];
     }
   >(`/inventory/lots/${id}`, { signal });
 export const createInventoryAdjustment = (data: {

@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from 'react';
 import { Button } from '@/components/ui/button';
 import { ErrorNotice } from '@/components/ErrorNotice';
+import { positiveQuantitySchema } from '@/lib/decimal';
 import { useProducts } from '../../api/product-hooks';
 import { useWarehouses } from '../../api/hooks';
 import { useInventoryLots, useCreateInventoryAdjustment } from '../../api/inventory-hooks';
@@ -20,6 +21,7 @@ export function AdjustmentDialog({
     'INITIAL_LOAD' | 'PHYSICAL_COUNT' | 'DAMAGE' | 'LOSS' | 'EXPIRY' | 'CORRECTION'
   >('INITIAL_LOAD');
   const [lotId, setLotId] = useState('');
+  const [validationError, setValidationError] = useState('');
   const products = useProducts(1, { isActive: true }, 100);
   const warehouses = useWarehouses(1, { isActive: true }, 100);
   const selected = products.data?.data.find((item) => item.id === productId);
@@ -34,13 +36,16 @@ export function AdjustmentDialog({
   const mutation = useCreateInventoryAdjustment();
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    setValidationError('');
     if (
       !productId ||
       !warehouseId ||
-      !quantity ||
-      !/^(?=.*[1-9])[0-9]{1,14}(?:\.[0-9]{1,4})?$/.test(quantity) ||
+      !positiveQuantitySchema.safeParse(quantity).success ||
       (selected?.isLotTracked && !lotId)
     ) {
+      setValidationError(
+        'Selecciona producto, almacén y lote cuando corresponda, e indica una cantidad positiva con hasta 4 decimales.',
+      );
       return;
     }
     try {
@@ -72,6 +77,27 @@ export function AdjustmentDialog({
           Nuevo ajuste
         </h2>
         <form onSubmit={submit} className="space-y-4">
+          {(products.isPending ||
+            warehouses.isPending ||
+            (selected?.isLotTracked && lots.isPending)) && <p role="status">Cargando opciones…</p>}
+          <ErrorNotice
+            error={
+              products.error ?? warehouses.error ?? (selected?.isLotTracked ? lots.error : null)
+            }
+          />
+          {(products.isError || warehouses.isError || (selected?.isLotTracked && lots.isError)) && (
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => {
+                void products.refetch();
+                void warehouses.refetch();
+                if (selected?.isLotTracked) void lots.refetch();
+              }}
+            >
+              Reintentar
+            </Button>
+          )}
           <label className="block space-y-1 text-sm">
             Producto
             <select
@@ -115,7 +141,10 @@ export function AdjustmentDialog({
             <select
               className="h-9 w-full rounded-md border bg-background px-2"
               value={type}
-              onChange={(e) => setType(e.target.value as typeof type)}
+              onChange={(e) => {
+                setType(e.target.value as typeof type);
+                setLotId('');
+              }}
             >
               <option value="ADJUSTMENT_IN">Entrada</option>
               <option value="ADJUSTMENT_OUT">Salida</option>
@@ -172,6 +201,7 @@ export function AdjustmentDialog({
             </select>
           </label>
           <ErrorNotice error={mutation.error} />
+          {validationError && <p role="alert">{validationError}</p>}
           <div className="flex justify-end gap-2">
             <Button type="button" variant="outline" onClick={onClose}>
               Cancelar

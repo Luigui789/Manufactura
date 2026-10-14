@@ -1,3 +1,4 @@
+import { MOVEMENT_LABELS, movementLabel } from '../inventory-labels';
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -70,8 +71,10 @@ export function MovementsPage() {
             onChange={(e) => setType(e.target.value)}
           >
             <option value="">Todos</option>
-            {['ADJUSTMENT_IN', 'ADJUSTMENT_OUT'].map((v) => (
-              <option key={v}>{v}</option>
+            {Object.entries(MOVEMENT_LABELS).map(([value, label]) => (
+              <option key={value} value={value}>
+                {label}
+              </option>
             ))}
           </select>
         </label>
@@ -101,6 +104,11 @@ export function MovementsPage() {
       </form>
       {q.isPending && <p role="status">Cargando movimientos…</p>}
       <ErrorNotice error={q.error} />
+      {q.isError && (
+        <Button variant="outline" onClick={() => void q.refetch()}>
+          Reintentar
+        </Button>
+      )}
       {q.data && (
         <div className="rounded-lg border bg-background">
           <Table aria-label="Movimientos">
@@ -121,7 +129,7 @@ export function MovementsPage() {
               {q.data.data.map((m) => (
                 <TableRow key={m.id}>
                   <TableCell>{new Date(m.occurredAt).toLocaleString('es-NI')}</TableCell>
-                  <TableCell>{m.type}</TableCell>
+                  <TableCell>{movementLabel(m.type)}</TableCell>
                   <TableCell>
                     {m.product.code} · {m.product.name}
                   </TableCell>
@@ -132,7 +140,7 @@ export function MovementsPage() {
                   </TableCell>
                   <TableCell>{m.reason ?? '—'}</TableCell>
                   <TableCell>{m.performedByUser.fullName}</TableCell>
-                  <TableCell>—</TableCell>
+                  <TableCell>{m.businessReference?.number ?? '—'}</TableCell>
                 </TableRow>
               ))}
               {q.data.data.length === 0 && (

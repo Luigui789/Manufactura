@@ -1,3 +1,6 @@
+import { formatCalendarDate } from '@/lib/calendar-date';
+import type { PurchaseOrigin } from '../api/inventory-data';
+import { movementLabel } from '../inventory-labels';
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -11,6 +14,18 @@ import {
 } from '@/components/ui/table';
 import { ErrorNotice } from '@/components/ErrorNotice';
 import { useInventoryLots, useInventoryLot } from '../api/inventory-hooks';
+function LotOrigin({ origin }: { origin: PurchaseOrigin | null }) {
+  if (!origin) return <span>Sin origen de compra</span>;
+  return (
+    <div className="space-y-1 text-sm">
+      <div>Recepción {origin.purchaseReceipt.number}</div>
+      <div>{origin.purchaseOrder.number}</div>
+      <div>
+        Proveedor: {origin.supplier.code} · {origin.supplier.name}
+      </div>
+    </div>
+  );
+}
 function LotDetail({ id, onClose }: { id: string; onClose: () => void }) {
   const q = useInventoryLot(id);
   return (
@@ -31,6 +46,11 @@ function LotDetail({ id, onClose }: { id: string; onClose: () => void }) {
         </div>
         {q.isPending && <p role="status">Cargando lote…</p>}
         <ErrorNotice error={q.error} />
+        {q.isError && (
+          <Button variant="outline" onClick={() => void q.refetch()}>
+            Reintentar
+          </Button>
+        )}
         {q.data && (
           <>
             <p>
@@ -38,10 +58,10 @@ function LotDetail({ id, onClose }: { id: string; onClose: () => void }) {
               {q.data.status}
             </p>
             <p>
-              Origen: No registrado por el sistema actual. Fecha de origen:{' '}
-              {new Date(q.data.originatedAt).toLocaleDateString('es-NI')} · Vencimiento:{' '}
-              {q.data.expiresAt ? new Date(q.data.expiresAt).toLocaleDateString('es-NI') : '—'}
+              Fecha de origen: {new Date(q.data.originatedAt).toLocaleDateString('es-NI')} ·
+              Vencimiento: {q.data.expiresAt ? formatCalendarDate(q.data.expiresAt) : '—'}
             </p>
+            <LotOrigin origin={q.data.origin} />
             <h3 className="font-medium">Existencia por almacén</h3>
             {q.data.balances.map((b) => (
               <p key={b.warehouse.id}>
@@ -52,8 +72,9 @@ function LotDetail({ id, onClose }: { id: string; onClose: () => void }) {
             <ul className="space-y-1 text-sm">
               {q.data.movements.map((m) => (
                 <li key={m.id}>
-                  {new Date(m.occurredAt).toLocaleString('es-NI')} · {m.type} · {m.quantity} ·{' '}
-                  {m.warehouse.code} · {m.performedByUser.fullName}
+                  {new Date(m.occurredAt).toLocaleString('es-NI')} · {movementLabel(m.type)} ·{' '}
+                  {m.businessReference?.number ?? '—'} · {m.quantity} · {m.warehouse.code} ·{' '}
+                  {m.performedByUser.fullName}
                 </li>
               ))}
             </ul>
@@ -87,8 +108,7 @@ export function LotsPage() {
       <header>
         <h1 className="text-2xl font-semibold">Lotes</h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          Consulta lotes y su saldo calculado desde el ledger. El origen estará disponible al
-          integrarse Compras.
+          Consulta lotes, existencias y su origen en recepción, orden de compra y proveedor.
         </p>
       </header>
       <form
@@ -147,6 +167,11 @@ export function LotsPage() {
       </form>
       {q.isPending && <p role="status">Cargando lotes…</p>}
       <ErrorNotice error={q.error} />
+      {q.isError && (
+        <Button variant="outline" onClick={() => void q.refetch()}>
+          Reintentar
+        </Button>
+      )}
       {q.data && (
         <div className="rounded-lg border bg-background">
           <Table aria-label="Lotes">
@@ -170,11 +195,11 @@ export function LotsPage() {
                     {l.product.code} · {l.product.name}
                   </TableCell>
                   <TableCell>{l.status}</TableCell>
-                  <TableCell>No registrado</TableCell>
-                  <TableCell>{new Date(l.originatedAt).toLocaleDateString('es-NI')}</TableCell>
                   <TableCell>
-                    {l.expiresAt ? new Date(l.expiresAt).toLocaleDateString('es-NI') : '—'}
+                    <LotOrigin origin={l.origin} />
                   </TableCell>
+                  <TableCell>{new Date(l.originatedAt).toLocaleDateString('es-NI')}</TableCell>
+                  <TableCell>{l.expiresAt ? formatCalendarDate(l.expiresAt) : '—'}</TableCell>
                   <TableCell>
                     {l.quantityOnHand} {l.product.unit}
                   </TableCell>
