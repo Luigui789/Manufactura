@@ -518,3 +518,22 @@ Se conserva la migración compartida y se añade una correctiva transaccional pa
 No se incorpora idempotencia HTTP parcial; sigue abierta para una etapa posterior.
 Compras precede A-2: las vistas de stock, movimientos y lotes de PR #15 deberán adaptarse
 tras actualizarse contra `develop` con Compras integrada. Esta rama no depende de A-2.
+
+### Decisiones de implementación C-2 (2026-10-18)
+
+El alcance de [C-2](../production-c2-validation.md) conserva los ADR aceptados y concreta:
+
+- START usa una instantánea REPEATABLE READ de la disponibilidad canónica de Inventario;
+  no crea reservas. Un conflicto de serialización se informa como 409 y requiere actualizar.
+- COMPLETE recibe `allocations: [{ productId, lots: [{ lotId, quantity }] }]` y `expiresAt`
+  opcional DATE. Rechaza duplicados y sumas distintas del requerimiento; consume el plan y
+  registra el output real. Inventario exige una OP y exactamente un output en el plan completo.
+- Calidad admite solo lotes producidos QUARANTINED y una única decisión. Observaciones son
+  obligatorias; rechazo exige no conformidades. Se registran creación, inspección y actor.
+- Trazabilidad devuelve un grafo `{ rootLotId, lots }` con enlaces por `lotId`, sin repetir
+  antecesores compartidos. DFS iterativo distingue ruta activa de visitados y rechaza ciclos.
+  Cada consumo identifica movimiento, almacén y OP, aun cuando el componente no use lote.
+- Los enums se agregan en una migración previa a los CHECKs que los utilizan. El rollback
+  de aplicación conserva los datos y requiere un build que entienda los tipos nuevos.
+
+Estas son decisiones de implementación y alcance de C-2, sin reescribir ADR 011–014.

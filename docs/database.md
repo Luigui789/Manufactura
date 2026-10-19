@@ -9,17 +9,16 @@
 
 ### Estado físico y diseño de la siguiente ronda
 
-`develop` ya incluye A-1 y C-1: ledger/saldos, ajustes, BOM/versiones y órdenes de
-producción DRAFT. `feature/purchases` añade órdenes de compra y recepciones; no está
-integrada todavía. El apartado «Modelo físico de Compras» registra sus migraciones y
-restricciones verificadas en PostgreSQL 18. `reason` sigue siendo obligatorio para ajustes
-mediante CHECK y es nulo para entradas de compra con FK empresarial. Los lotes operativos
-de esta entrega requieren origen de compra; Producción C-2 ampliará esa regla.
+`develop` en `f5fcc28` incluye A-1, C-1, Compras (PR #16) y A-2 (PR #15): ledger/saldos,
+ajustes, BOM/versiones, OP DRAFT, recepciones y consultas conectadas. C-2 se implementa en
+`feature/production-execution`; su modelo físico se describe al final de esta página.
+`reason` sigue siendo obligatorio para ajustes mediante CHECK y nulo para movimientos
+empresariales con FK. C-2 amplía el origen de lote Purchase a Purchase XOR Production.
 
 El [diseño de Inventario, Compras y Producción](specs/2026-10-10-inventory-purchases-production-design.md)
 conserva los ADR 011–014 aceptados. El resto de esta página también describe el objetivo
-conceptual; ejecución de Producción, Calidad y Ventas continúan pendientes. La existencia
-del diseño conceptual no acredita implementación de esos flujos.
+conceptual; la ejecución/Calidad de C-2 todavía no se atribuye a `develop`, y Ventas sigue
+pendiente. La existencia del diseño conceptual no acredita implementación de esos flujos.
 
 Define el **modelo conceptual completo** de los cuatro dominios, aunque su implementación física
 sea incremental. `InventoryMovement` es el punto donde convergen Compras, Producción y Ventas:
@@ -913,3 +912,37 @@ reserva los locks de catálogo antes de insertar líneas con FKs y reutiliza eso
 al aplicar entradas. Los flags del producto se releen después de esperar. Un cambio concurrente
 de trazabilidad/calidad detectado entre planificación y lock exige reintentar; no solicita nuevas
 secuencias después de bloquear catálogos. Compras no escribe lotes, movimientos ni saldos directamente.
+
+## Modelo físico C-2 — ejecución y calidad
+
+En `feature/production-execution`, dos migraciones nuevas preservan todas las compartidas
+de la base `develop` al crear la rama. `20261014020000_production_execution_enums` incorpora
+PRODUCTION_CONSUMPTION/PRODUCTION_OUTPUT, START/COMPLETE, QUALITY_APPROVE/QUALITY_REJECT,
+QUALITY_INSPECTION y QualityResult. Sus enums se confirman antes de que la migración
+`20261014021000_production_execution` los use en CHECKs.
+
+- `Lot.purchaseReceiptItemId XOR Lot.productionOrderId` es un CHECK físico. Ambos orígenes
+  son únicos; la FK compuesta lote–OP garantiza que el producto sea el de la orden.
+- `InventoryMovement.productionOrderId` tiene FK compuesta OP/almacén e índice de consulta.
+  No es globalmente único: una OP admite múltiples consumos. Un índice único parcial sobre OP
+  WHERE type = PRODUCTION_OUTPUT admite como máximo un output. Un trigger de INSERT exige
+  que el lote del output sea el originado por esa OP; se conserva la FK lote/producto.
+- CHECK de movimiento conserva signos/motivos/FKs de ajustes y compras y añade consumo
+  negativo/output positivo con OP, sin motivo ni origen de compra. Output exige lote.
+- CHECK de OP limita producción real al plan y exige estados/fechas/cantidades coherentes:
+  DRAFT/CANCELLED sin ejecución; IN_PROGRESS con inicio y producción cero; COMPLETED con
+  cantidad positiva e inicio/fin no nulos, fin >= inicio.
+- `QualityInspection` tiene `lotId` único, `result` APPROVED/REJECTED, `observations`
+  obligatorias, `nonConformities` opcional y obligatorias en rechazo, `inspectedAt`, `createdAt`
+  y responsable con FK a User.
+  Una inspección por lote cierra el alcance sin habilitar reinspección.
+
+Los lotes de Compras, sus FKs, movimientos y saldos permanecen intactos. La prueba de upgrade
+en PostgreSQL 18 compara las filas de 18 tablas anteriores, incluidos lotes recibidos, y
+verifica directamente las restricciones nuevas, append-only y reconciliación. No transforma
+manual ni silenciosamente estados de OP inválidos: los CHECKs deben poder validarse.
+
+Rollback compatible: preservar migraciones, enums, documentos y datos. Una aplicación anterior
+que desconozca producción no es un downgrade seguro después de registrar estos movimientos.
+Para retirar pantallas/rutas se necesita un build compatible con los enums y el schema instalado;
+no borrar lotes, consumos, inspecciones ni auditoría, ni ejecutar migraciones destructivas.
