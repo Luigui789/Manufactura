@@ -48,5 +48,5 @@ export default tseslint.config(
     },
   },
   // Standalone SQL migration proof runs as native Node JavaScript, outside tsconfig.
-  { ...tseslint.configs.disableTypeChecked, files: ['test/purchases-migrations.mjs'] },
+  { ...tseslint.configs.disableTypeChecked, files: ['test/*-migrations.mjs'] },
 );

@@ -509,8 +509,17 @@ describe('C-1: planificación de órdenes y disponibilidad informativa', () => {
     await patch(order.id).send({ quantityPlanned: '11' }).expect(409);
     for (const status of [ProductionOrderStatus.IN_PROGRESS, ProductionOrderStatus.COMPLETED]) {
       const execution = await create(f);
-      // C-2 is absent: install its status directly to prove the C-1 state boundary.
-      await kit.prisma.productionOrder.update({ where: { id: execution.id }, data: { status } });
+      // Install a physically valid execution snapshot to prove the C-1 state boundary.
+      await kit.prisma.productionOrder.update({
+        where: { id: execution.id },
+        data: {
+          status,
+          startedAt: new Date(),
+          ...(status === ProductionOrderStatus.COMPLETED
+            ? { completedAt: new Date(), quantityProduced: '10' }
+            : {}),
+        },
+      });
       await post(base + '/' + execution.id + '/cancel')
         .send({})
         .expect(409);
