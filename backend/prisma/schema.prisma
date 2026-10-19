@@ -41,6 +41,8 @@ enum InventoryMovementType {
   ADJUSTMENT_IN
   ADJUSTMENT_OUT
   PURCHASE_RECEIPT
+  PRODUCTION_CONSUMPTION
+  PRODUCTION_OUTPUT
 }
 
 enum AdjustmentReason {
@@ -75,6 +77,10 @@ enum AuditAction {
   CONFIRM
   CANCEL
   RECEIVE
+  START
+  COMPLETE
+  QUALITY_APPROVE
+  QUALITY_REJECT
 }
 
 enum AuditEntityType {
@@ -91,6 +97,12 @@ enum AuditEntityType {
   PRODUCTION_ORDER
   PURCHASE_ORDER
   PURCHASE_RECEIPT
+  QUALITY_INSPECTION
+}
+
+enum QualityResult {
+  APPROVED
+  REJECTED
 }
 
 enum DocumentType {
@@ -145,6 +157,7 @@ model User {
   productionOrders   ProductionOrder[]
   purchaseOrders     PurchaseOrder[]
   purchaseReceipts   PurchaseReceipt[]
+  qualityInspections QualityInspection[]
 
   @@map("users")
 }
@@ -256,7 +269,11 @@ model ProductionOrder {
   bomVersion       BomVersion            @relation(fields: [bomVersionId], references: [id], onDelete: Restrict)
   warehouse        Warehouse             @relation(fields: [warehouseId], references: [id], onDelete: Restrict)
   createdBy        User                  @relation(fields: [createdByUserId], references: [id], onDelete: Restrict)
+  lot              Lot?
+  movements        InventoryMovement[]
 
+  @@unique([id, productId])
+  @@unique([id, warehouseId])
   @@index([status, createdAt])
   @@index([productId])
   @@index([warehouseId])
@@ -275,10 +292,14 @@ model Lot {
   movements             InventoryMovement[]
   purchaseReceiptItemId String?              @unique @map("purchase_receipt_item_id") @db.Uuid
   purchaseReceiptItem   PurchaseReceiptItem? @relation(fields: [purchaseReceiptItemId, productId], references: [id, productId], onDelete: Restrict)
+  productionOrderId     String?              @unique @map("production_order_id") @db.Uuid
+  productionOrder       ProductionOrder?     @relation(fields: [productionOrderId, productId], references: [id, productId], onDelete: Restrict)
+  qualityInspection     QualityInspection?
 
   // Referencia compuesta de InventoryMovement: el lote debe ser del producto.
   @@unique([id, productId])
   @@unique([purchaseReceiptItemId, productId])
+  @@unique([productionOrderId, productId])
   @@index([productId])
   @@index([status])
   @@map("lots")
@@ -314,13 +335,32 @@ model InventoryMovement {
   lot                   Lot?                  @relation(fields: [lotId, productId], references: [id, productId], onDelete: Restrict)
   performedByUser       User                  @relation(fields: [performedByUserId], references: [id], onDelete: Restrict)
   purchaseReceiptItem   PurchaseReceiptItem?  @relation(fields: [purchaseReceiptItemId, productId, warehouseId, quantity], references: [id, productId, warehouseId, quantity], onDelete: Restrict, map: "inventory_movements_receipt_line_fkey")
+  productionOrderId     String?               @map("production_order_id") @db.Uuid
+  productionOrder       ProductionOrder?      @relation(fields: [productionOrderId, warehouseId], references: [id, warehouseId], onDelete: Restrict)
 
   @@unique([purchaseReceiptItemId, productId, warehouseId, quantity], map: "inventory_movements_receipt_line_key")
   @@index([productId, occurredAt])
   @@index([lotId, warehouseId])
   @@index([warehouseId, occurredAt])
   @@index([requestId])
+  @@index([productionOrderId])
   @@map("inventory_movements")
+}
+
+model QualityInspection {
+  id                String        @id @default(uuid(7)) @db.Uuid
+  lotId             String        @unique @map("lot_id") @db.Uuid
+  result            QualityResult
+  observations      String        @db.VarChar(1000)
+  nonConformities   String?       @map("non_conformities") @db.VarChar(1000)
+  inspectedAt       DateTime      @default(now()) @map("inspected_at") @db.Timestamptz(6)
+  createdAt         DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
+  inspectedByUserId String        @map("inspected_by_user_id") @db.Uuid
+  lot               Lot           @relation(fields: [lotId], references: [id], onDelete: Restrict)
+  inspectedBy       User          @relation(fields: [inspectedByUserId], references: [id], onDelete: Restrict)
+
+  @@index([inspectedAt])
+  @@map("quality_inspections")
 }
 
 model AuditLog {
