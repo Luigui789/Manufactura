@@ -24,6 +24,7 @@ import {
   UpdateProductionOrderDto,
 } from './dto/orders.dto.js';
 import { OrdersService } from './orders.service.js';
+import { CompleteOrderDto } from './dto/complete-order.dto.js';
 
 @ApiTags('Production Orders')
 @ApiCookieAuth(SESSION_COOKIE)
@@ -65,6 +66,31 @@ export class OrdersController {
     @Body() dto: UpdateProductionOrderDto,
   ) {
     return { data: await this.orders.update(actor, id, dto), message: 'Borrador actualizado' };
+  }
+
+  @Post(':id/start')
+  @HttpCode(200)
+  @Roles(RoleCode.ADMIN, RoleCode.PRODUCCION)
+  @ApiOperation({
+    summary: 'Inicia la orden después de validar disponibilidad, sin reservar stock',
+  })
+  async start(
+    @CurrentUser() actor: AuthenticatedUser,
+    @Param('id', new ParseUUIDPipe()) id: string,
+  ) {
+    return { data: await this.orders.start(actor, id), message: 'Orden iniciada' };
+  }
+
+  @Post(':id/complete')
+  @HttpCode(200)
+  @Roles(RoleCode.ADMIN, RoleCode.PRODUCCION)
+  @ApiOperation({ summary: 'Completa atómicamente consumos, output y lote de la orden' })
+  async complete(
+    @CurrentUser() actor: AuthenticatedUser,
+    @Param('id', new ParseUUIDPipe()) id: string,
+    @Body() dto: CompleteOrderDto,
+  ) {
+    return { data: await this.orders.complete(actor, id, dto), message: 'Orden completada' };
   }
 
   @Post(':id/cancel')
