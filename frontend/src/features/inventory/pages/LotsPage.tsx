@@ -1,5 +1,8 @@
 import { formatCalendarDate } from '@/lib/calendar-date';
-import type { PurchaseOrigin } from '../api/inventory-data';
+import type { InventoryLotOrigin } from '../api/inventory-data';
+import { Link, useSearchParams } from 'react-router';
+import { BusinessReference } from '../components/BusinessReference';
+import { LotProductionDetail } from '@/features/production/components/LotProductionDetail';
 import { movementLabel } from '../inventory-labels';
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
@@ -14,8 +17,17 @@ import {
 } from '@/components/ui/table';
 import { ErrorNotice } from '@/components/ErrorNotice';
 import { useInventoryLots, useInventoryLot } from '../api/inventory-hooks';
-function LotOrigin({ origin }: { origin: PurchaseOrigin | null }) {
-  if (!origin) return <span>Sin origen de compra</span>;
+function LotOrigin({ origin }: { origin: InventoryLotOrigin | null }) {
+  if (!origin) return <span>Sin origen empresarial</span>;
+  if (origin.type === 'PRODUCTION_ORDER')
+    return (
+      <div className="space-y-1 text-sm">
+        <Link className="underline" to={`/production/orders/${origin.productionOrder.id}`}>
+          {origin.productionOrder.number}
+        </Link>
+        {origin.bomVersion && <p>BOM v{origin.bomVersion.version}</p>}
+      </div>
+    );
   return (
     <div className="space-y-1 text-sm">
       <div>Recepción {origin.purchaseReceipt.number}</div>
@@ -73,11 +85,14 @@ function LotDetail({ id, onClose }: { id: string; onClose: () => void }) {
               {q.data.movements.map((m) => (
                 <li key={m.id}>
                   {new Date(m.occurredAt).toLocaleString('es-NI')} · {movementLabel(m.type)} ·{' '}
-                  {m.businessReference?.number ?? '—'} · {m.quantity} · {m.warehouse.code} ·{' '}
-                  {m.performedByUser.fullName}
+                  <BusinessReference reference={m.businessReference} /> · {m.quantity} ·{' '}
+                  {m.warehouse.code} · {m.performedByUser.fullName}
                 </li>
               ))}
             </ul>
+            {q.data.origin?.type === 'PRODUCTION_ORDER' && (
+              <LotProductionDetail lotId={q.data.id} status={q.data.status} />
+            )}
           </>
         )}
       </section>
@@ -85,13 +100,20 @@ function LotDetail({ id, onClose }: { id: string; onClose: () => void }) {
   );
 }
 export function LotsPage() {
+  const [params, setParams] = useSearchParams();
+  const selected = params.get('lotId') ?? '';
+  const setSelected = (id: string) => {
+    const next = new URLSearchParams(params);
+    if (id) next.set('lotId', id);
+    else next.delete('lotId');
+    setParams(next);
+  };
   const [page, setPage] = useState(1),
     [search, setSearch] = useState(''),
     [productId, setProductId] = useState(''),
     [warehouseId, setWarehouseId] = useState(''),
     [status, setStatus] = useState(''),
-    [hasStock, setHasStock] = useState(false),
-    [selected, setSelected] = useState('');
+    [hasStock, setHasStock] = useState(false);
   const q = useInventoryLots(
     {
       ...(search ? { search } : {}),
@@ -108,7 +130,7 @@ export function LotsPage() {
       <header>
         <h1 className="text-2xl font-semibold">Lotes</h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          Consulta lotes, existencias y su origen en recepción, orden de compra y proveedor.
+          Consulta lotes, existencias y su origen en compras o producción.
         </p>
       </header>
       <form

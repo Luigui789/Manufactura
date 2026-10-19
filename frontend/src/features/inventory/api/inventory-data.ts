@@ -22,17 +22,28 @@ export type PurchaseOrigin = {
   purchaseOrder: { id: string; number: string };
   supplier: { id: string; code: string; name: string };
 };
+export type ProductionOrigin = {
+  type: 'PRODUCTION_ORDER';
+  productionOrder: { id: string; number: string };
+  bomVersion?: { id: string; version: number };
+};
+export type InventoryLotOrigin = PurchaseOrigin | ProductionOrigin;
+export type BusinessReference =
+  | {
+      type: 'PURCHASE_RECEIPT';
+      id: string;
+      number: string;
+      purchaseOrder: { id: string; number: string };
+    }
+  | { type: 'PRODUCTION_ORDER'; id: string; number: string }
+  | null;
 export type InventoryMovementRow = {
   id: string;
   type: string;
   quantity: string;
   purchaseReceiptItemId: string | null;
-  businessReference: {
-    type: 'PURCHASE_RECEIPT';
-    id: string;
-    number: string;
-    purchaseOrder: { id: string; number: string };
-  } | null;
+  productionOrderId: string | null;
+  businessReference: BusinessReference;
   reason: string | null;
   occurredAt: string;
   requestId: string | null;
@@ -47,7 +58,7 @@ export type InventoryLotRow = {
   status: string;
   originatedAt: string;
   expiresAt: string | null;
-  origin: PurchaseOrigin | null;
+  origin: InventoryLotOrigin | null;
   quantityOnHand: string;
   product: { id: string; code: string; name: string; unit: string };
 };

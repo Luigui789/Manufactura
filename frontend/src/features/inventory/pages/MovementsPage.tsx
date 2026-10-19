@@ -1,5 +1,6 @@
 import { MOVEMENT_LABELS, movementLabel } from '../inventory-labels';
 import { useState } from 'react';
+import { BusinessReference } from '../components/BusinessReference';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
@@ -140,7 +141,9 @@ export function MovementsPage() {
                   </TableCell>
                   <TableCell>{m.reason ?? '—'}</TableCell>
                   <TableCell>{m.performedByUser.fullName}</TableCell>
-                  <TableCell>{m.businessReference?.number ?? '—'}</TableCell>
+                  <TableCell>
+                    <BusinessReference reference={m.businessReference} />
+                  </TableCell>
                 </TableRow>
               ))}
               {q.data.data.length === 0 && (
