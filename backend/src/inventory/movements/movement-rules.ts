@@ -35,6 +35,20 @@ export function resolveMovement(
     assertUuid(origin.purchaseReceiptItemId, 'purchaseReceiptItemId');
     return { quantity, signedQuantity: quantity, reason: null };
   }
+  if (
+    type === InventoryMovementType.PRODUCTION_CONSUMPTION ||
+    type === InventoryMovementType.PRODUCTION_OUTPUT
+  ) {
+    if (!origin || origin.kind !== 'PRODUCTION_ORDER')
+      throw inventoryError(InventoryErrorCode.INVALID_ORIGIN, 'Se requiere origen de producción');
+    assertUuid(origin.productionOrderId, 'productionOrderId');
+    return {
+      quantity,
+      signedQuantity:
+        type === InventoryMovementType.PRODUCTION_CONSUMPTION ? quantity.negated() : quantity,
+      reason: null,
+    };
+  }
   const reason = resolveAdjustmentReason(origin);
 
   switch (type) {

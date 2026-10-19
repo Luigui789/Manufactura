@@ -10,10 +10,14 @@ export class StockQueryService {
   constructor(private readonly prisma: PrismaService) {}
 
   /** Physical on-hand quantity, including tracked lots in every status. */
-  async getOnHandQuantity(productId: string, warehouseId: string): Promise<Prisma.Decimal> {
-    await this.assertReferencesExist(productId, warehouseId);
+  async getOnHandQuantity(
+    productId: string,
+    warehouseId: string,
+    tx: Prisma.TransactionClient = this.prisma,
+  ): Promise<Prisma.Decimal> {
+    await this.assertReferencesExist(productId, warehouseId, tx);
 
-    const balance = await this.prisma.stockBalance.findUnique({
+    const balance = await tx.stockBalance.findUnique({
       where: { productId_warehouseId: { productId, warehouseId } },
       select: { quantity: true },
     });
@@ -21,20 +25,24 @@ export class StockQueryService {
   }
 
   /** Quantity available for consumption; tracked products include only RELEASED lots. */
-  async getConsumableQuantity(productId: string, warehouseId: string): Promise<Prisma.Decimal> {
-    const product = await this.prisma.product.findUnique({
+  async getConsumableQuantity(
+    productId: string,
+    warehouseId: string,
+    tx: Prisma.TransactionClient = this.prisma,
+  ): Promise<Prisma.Decimal> {
+    const product = await tx.product.findUnique({
       where: { id: productId },
       select: { id: true, isLotTracked: true },
     });
     if (!product) throw new NotFoundException('Producto no encontrado');
 
-    await this.assertWarehouseExists(warehouseId);
+    await this.assertWarehouseExists(warehouseId, tx);
 
     if (!product.isLotTracked) {
-      return this.getOnHandQuantity(productId, warehouseId);
+      return this.getOnHandQuantity(productId, warehouseId, tx);
     }
 
-    const releasedLotLedger = await this.prisma.inventoryMovement.aggregate({
+    const releasedLotLedger = await tx.inventoryMovement.aggregate({
       where: {
         productId,
         warehouseId,
@@ -120,17 +128,24 @@ export class StockQueryService {
     };
   }
 
-  private async assertReferencesExist(productId: string, warehouseId: string): Promise<void> {
-    const product = await this.prisma.product.findUnique({
+  private async assertReferencesExist(
+    productId: string,
+    warehouseId: string,
+    tx: Prisma.TransactionClient,
+  ): Promise<void> {
+    const product = await tx.product.findUnique({
       where: { id: productId },
       select: { id: true },
     });
     if (!product) throw new NotFoundException('Producto no encontrado');
-    await this.assertWarehouseExists(warehouseId);
+    await this.assertWarehouseExists(warehouseId, tx);
   }
 
-  private async assertWarehouseExists(warehouseId: string): Promise<void> {
-    const warehouse = await this.prisma.warehouse.findUnique({
+  private async assertWarehouseExists(
+    warehouseId: string,
+    tx: Prisma.TransactionClient,
+  ): Promise<void> {
+    const warehouse = await tx.warehouse.findUnique({
       where: { id: warehouseId },
       select: { id: true },
     });
