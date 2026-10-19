@@ -2,11 +2,7 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 
 import { Prisma } from '../../generated/prisma/client.js';
 import { PrismaService } from '../../prisma/prisma.service.js';
-import {
-  purchaseOriginSelect,
-  purchaseOrigin,
-  purchaseBusinessReference,
-} from '../purchase-origin.js';
+import { businessOriginSelect, businessOrigin, businessReference } from '../business-origin.js';
 import type { LotsQueryDto } from './dto/lots-query.dto.js';
 
 type LotLedgerGroup = {
@@ -62,8 +58,7 @@ export class LotsService {
           status: true,
           originatedAt: true,
           expiresAt: true,
-          purchaseReceiptItemId: true,
-          purchaseReceiptItem: { select: purchaseOriginSelect },
+          ...businessOriginSelect,
           product: { select: { id: true, code: true, name: true, unit: true } },
         },
       }),
@@ -76,14 +71,27 @@ export class LotsService {
       byLot.set(entry.lotId, list);
     }
     return {
-      data: lots.map(({ purchaseReceiptItem, purchaseReceiptItemId, ...lot }) => ({
-        ...lot,
-        expiresAt: lot.expiresAt?.toISOString().slice(0, 10) ?? null,
-        origin: purchaseOrigin(purchaseReceiptItem, purchaseReceiptItemId),
-        quantityOnHand: (byLot.get(lot.id) ?? [])
-          .reduce((total, entry) => total.add(entry.quantity), new Prisma.Decimal(0))
-          .toFixed(4),
-      })),
+      data: lots.map(
+        ({
+          purchaseReceiptItem,
+          purchaseReceiptItemId,
+          productionOrder,
+          productionOrderId,
+          ...lot
+        }) => ({
+          ...lot,
+          expiresAt: lot.expiresAt?.toISOString().slice(0, 10) ?? null,
+          origin: businessOrigin({
+            purchaseReceiptItem,
+            purchaseReceiptItemId,
+            productionOrder,
+            productionOrderId,
+          }),
+          quantityOnHand: (byLot.get(lot.id) ?? [])
+            .reduce((total, entry) => total.add(entry.quantity), new Prisma.Decimal(0))
+            .toFixed(4),
+        }),
+      ),
       meta: { page, limit, total },
     };
   }
@@ -97,8 +105,7 @@ export class LotsService {
         status: true,
         originatedAt: true,
         expiresAt: true,
-        purchaseReceiptItemId: true,
-        purchaseReceiptItem: { select: purchaseOriginSelect },
+        ...businessOriginSelect,
         product: { select: { id: true, code: true, name: true, unit: true } },
         movements: {
           orderBy: [{ occurredAt: 'desc' }, { id: 'desc' }],
@@ -109,8 +116,7 @@ export class LotsService {
             reason: true,
             occurredAt: true,
             requestId: true,
-            purchaseReceiptItemId: true,
-            purchaseReceiptItem: { select: purchaseOriginSelect },
+            ...businessOriginSelect,
             warehouse: { select: { id: true, code: true, name: true } },
             performedByUser: { select: { id: true, fullName: true } },
           },
@@ -141,19 +147,27 @@ export class LotsService {
       ];
     });
 
-    const { purchaseReceiptItem, purchaseReceiptItemId, ...details } = lot;
+    const {
+      purchaseReceiptItem,
+      purchaseReceiptItemId,
+      productionOrder,
+      productionOrderId,
+      ...details
+    } = lot;
     return {
       ...details,
       expiresAt: lot.expiresAt?.toISOString().slice(0, 10) ?? null,
-      origin: purchaseOrigin(purchaseReceiptItem, purchaseReceiptItemId),
+      origin: businessOrigin({
+        purchaseReceiptItem,
+        purchaseReceiptItemId,
+        productionOrder,
+        productionOrderId,
+      }),
       balances,
-      movements: lot.movements.map(({ purchaseReceiptItem, ...movement }) => ({
+      movements: lot.movements.map(({ purchaseReceiptItem, productionOrder, ...movement }) => ({
         ...movement,
         quantity: movement.quantity.toFixed(4),
-        businessReference: purchaseBusinessReference(
-          purchaseReceiptItem,
-          movement.purchaseReceiptItemId,
-        ),
+        businessReference: businessReference({ ...movement, purchaseReceiptItem, productionOrder }),
       })),
     };
   }

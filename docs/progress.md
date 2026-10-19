@@ -957,3 +957,21 @@ Regresión de A-1 + C-1 + Compras + A-2: **184 unitarias backend + 444 frontend 
 pruebas de upgrade, rechazo atómico de orígenes legados y drift sin diferencias también pasan.
 Lint, formato y builds completos están verdes. El informe enlazado registra Docker y la
 verificación final del HEAD remoto de PR #15.
+
+### A-2 integrada y ejecución C-2 — 2026-10-14
+
+PR #15 se integró en `develop` mediante `f5fcc28b0bc2c5f30a4a7b839301d6eb921257ba`.
+El estado contiene A-1, C-1, Compras y A-2; sus dependencias dejan de bloquear C-2.
+`feature/production-execution` se creó desde esa base con worktree limpio.
+
+C-2 implementa START consistente sin reserva, COMPLETE atómico con consumo planificado y
+output real, asignación explícita, lote único por OP, inspección de lotes producidos y
+trazabilidad histórica protegida contra ciclos. Inventario conserva la escritura exclusiva,
+se generaliza el origen empresarial de A-2 y se reutilizan sus consultas/UI de lotes/movimientos.
+
+Validación final del 2026-10-18: **197 unitarias backend, 453 frontend y 384 E2E completas**
+aprobadas (**1.034 pruebas**), incluidos 29 casos E2E C-2. Instalación vacía, upgrade con datos y restricciones SQL
+probados en PostgreSQL 18.6; drift sin diferencias. Lint, formato y builds pasan. Docker valida
+Compra → Inventario → Producción → Calidad → proveedor en un proyecto y volumen aislados.
+[Informe C-2](production-c2-validation.md). C-2 todavía no se atribuye a `develop`;
+PR/CI remota y merge se registran cuando ocurran.

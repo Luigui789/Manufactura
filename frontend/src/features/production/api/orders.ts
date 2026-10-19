@@ -26,6 +26,7 @@ export type ProductionOrder = {
   createdAt: string;
   updatedAt: string;
   createdByUserId: string;
+  lot: { id: string; code: string; status: string } | null;
   product: BomProduct;
   warehouse: { id: string; code: string; name: string; isActive: boolean };
   bomVersion: BomVersion & { bom: { id: string; name: string; isActive: boolean } };
@@ -39,7 +40,12 @@ export type OrderRequirements = {
   updatedAt: string;
   canStart: boolean;
   eligibilityIssues: string[];
-  items: { product: BomProduct; required: string; available: string; shortage: string }[];
+  items: {
+    product: BomProduct & { isLotTracked: boolean };
+    required: string;
+    available: string;
+    shortage: string;
+  }[];
 };
 const base = '/production/orders';
 async function data<T>(path: string, options?: RequestInit) {
@@ -113,5 +119,36 @@ export function useCancelOrder(id: string) {
     mutationFn: () =>
       data<ProductionOrder>(base + '/' + id + '/cancel', { method: 'POST', body: '{}' }),
     onSuccess: useRefreshOrders(),
+  });
+}
+
+export type CompleteOrderPayload = {
+  quantityProduced: string;
+  expiresAt?: string;
+  allocations: Array<{ productId: string; lots: Array<{ lotId: string; quantity: string }> }>;
+};
+
+export function useStartOrder(id: string) {
+  return useMutation({
+    mutationFn: () =>
+      data<ProductionOrder>(base + '/' + id + '/start', { method: 'POST', body: '{}' }),
+    onSuccess: useRefreshOrders(),
+  });
+}
+export function useCompleteOrder(id: string) {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: (value: CompleteOrderPayload) =>
+      data<ProductionOrder>(base + '/' + id + '/complete', {
+        method: 'POST',
+        body: JSON.stringify(value),
+      }),
+    onSuccess: async () => {
+      await Promise.all([
+        client.invalidateQueries({ queryKey: ['production-orders'] }),
+        client.invalidateQueries({ queryKey: ['inventory'] }),
+        client.invalidateQueries({ queryKey: ['lots'] }),
+      ]);
+    },
   });
 }

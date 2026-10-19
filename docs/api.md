@@ -717,7 +717,79 @@ Errores: `400` validación/edición vacía, `404` referencia inexistente, `409` 
 de versión no permitidos, `422` incoherencia de producto/catálogo/ventana/cálculo.
 Auditoría transaccional: CREATE/UPDATE/CANCEL_PRODUCTION sobre PRODUCTION_ORDER,
 con diferencias permitidas, actor y requestId. C-1 no escribe stock, movimientos ni lotes.
-`start`, `complete`, inspecciones y trazabilidad pertenecen a C-2.
+La ejecución C-2 amplía este contrato según el apartado siguiente.
+
+## Producción C-2: ejecución, calidad y trazabilidad
+
+Implementado en `feature/production-execution`, desde `develop` con A-1 + C-1 + Purchase +
+A-2 integrado (`f5fcc28`). Toda lectura exige sesión vigente; las mutaciones admiten únicamente
+`ADMIN`/`PRODUCCION`.
+
+| Método | Ruta                                    | Resultado                                                               |
+| ------ | --------------------------------------- | ----------------------------------------------------------------------- |
+| POST   | `/api/production/orders/:id/start`      | 200, OP IN_PROGRESS; disponibilidad consistente, sin consumo ni reserva |
+| POST   | `/api/production/orders/:id/complete`   | 200, OP COMPLETED con cantidad real y `lot: { id, code, status }`       |
+| GET    | `/api/production/lots/:id/inspection`   | 200, inspección del lote o `null` si no existe                          |
+| POST   | `/api/production/lots/:id/inspection`   | 201, inspección y transición del lote producido en cuarentena           |
+| GET    | `/api/production/lots/:id/traceability` | 200, grafo histórico de lotes y consumos hasta recepción/proveedor      |
+
+Operaciones individuales conservan `{ data, message }`. La OP incorpora `lot` también en
+lista/detalle: `null` antes de producir. START recibe `{}` y registra `startedAt`. Usa una
+transacción REPEATABLE READ y la consulta canónica de Inventario con ese cliente; un conflicto
+de serialización se comunica como 409. La disponibilidad permanece libre después del commit.
+
+COMPLETE recibe, por ejemplo:
+
+```json
+{
+  "quantityProduced": "95.0000",
+  "allocations": [
+    {
+      "productId": "UUID del componente trazable",
+      "lots": [{ "lotId": "UUID del lote liberado", "quantity": "200.0000" }]
+    }
+  ],
+  "expiresAt": "2027-10-14"
+}
+```
+
+Cantidades son strings positivas de hasta 14 enteros y 4 decimales; referencias son UUID.
+`quantityProduced` no supera `quantityPlanned`; el consumo usa el plan y la versión histórica
+de BOM. `allocations` es obligatorio, con una entrada por componente trazable y suma exacta
+del requerimiento. Componentes no trazables no se asignan: usan lote nulo internamente.
+Se rechazan componentes ajenos, duplicados de componente/lote, cantidades inválidas y lotes
+de producto/almacén incorrecto, insuficientes, QUARANTINED o REJECTED.
+
+`expiresAt` es opcional, fecha calendario DATE; omitir deja `null`. Inventario crea un único
+lote con origen OP, RELEASED sin inspección requerida o QUARANTINED si se requiere. Una sola
+llamada de movimientos recibe todos los consumos y output. Movimientos, saldos, lote, secuencia,
+OP y auditoría COMPLETE se confirman o revierten juntos. COMPLETE repetido/concurrente devuelve
+409 sin duplicar efectos. La cancelación sigue limitada a DRAFT.
+
+Selección visual usa exclusivamente `/api/inventory/lots` con `productId`, `warehouseId`,
+`status=RELEASED`, `hasStock=true` y paginación. Esta consulta no garantiza el resultado de COMPLETE.
+
+Inspección recibe `result: APPROVED | REJECTED`, `observations` no vacías (máximo 1000) y
+`nonConformities` opcional (máximo 1000), obligatorio y no vacío para rechazo. El servidor
+registra `inspectedAt`, `createdAt`, `inspectedByUserId` y el responsable resumido `inspectedBy`.
+Una inspección por lote; se inspeccionan únicamente lotes producidos QUARANTINED. Aprobar
+solicita RELEASED a Inventario; rechazar solicita REJECTED. No hay reinspección ni inspección
+de compras en este alcance. Inspección, estado y auditoría específica comparten transacción.
+
+Trazabilidad retorna `{ rootLotId, lots }`. Cada nodo incluye `id`, `code`, `status`, producto,
+`origin` y `consumptions` con `id`, producto, cantidad positiva, almacén, OP consumidora y `lotId` o `null`. Los nodos
+Purchase conservan REC/OC/proveedor; Production incorpora OP y `bomVersion`. Los intermedios
+enlazan OP anteriores. El grafo evita duplicar antecesores compartidos, no impone una profundidad
+pequeña y detecta ciclos/corrupción explícitamente. Componentes no trazables no inventan proveedor.
+
+Inventario A-2 conserva sus rutas, filtros, paginación y DATE. `business-origin.ts` sustituye el
+resolver Purchase-only: origen de lote es unión PURCHASE_RECEIPT/PRODUCTION_ORDER; movimientos
+incorporan `productionOrderId` y `businessReference` OP. Ajustes conservan referencia nula;
+REC/OC conservan exactamente su respuesta anterior. Relaciones ausentes con FK presente fallan.
+
+Errores: 400 para DTO inválido; 404 para OP/lote inexistente; 409 para transición, conflicto
+concurrente, stock insuficiente o lote no liberado; 422 para producción/asignación/catálogo
+incoherentes. Una falla interna revierte la transacción y comunica error sin revelar detalles.
 
 ## Compras: órdenes y recepciones (RF-COM-002/003)
 

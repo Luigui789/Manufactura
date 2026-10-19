@@ -13,11 +13,19 @@ import {
   AuditAction,
   AuditEntityType,
   DocumentType,
+  InventoryMovementType,
+  LotStatus,
   Prisma,
   ProductionOrderStatus,
   type ProductionOrder,
 } from '../../generated/prisma/client.js';
 import { StockQueryService } from '../../inventory/stock/stock-query.service.js';
+import {
+  InventoryService,
+  type MovementLine,
+} from '../../inventory/movements/inventory.service.js';
+import { currentRequestContext } from '../../common/request-context/request-context.js';
+import type { CompleteOrderDto } from './dto/complete-order.dto.js';
 import { PrismaService } from '../../prisma/prisma.service.js';
 import { BomCalculatorService, bomQuantity } from '../boms/bom-calculator.service.js';
 import type {
@@ -34,8 +42,10 @@ const productSelect = {
   unit: true,
   isActive: true,
   isLotTracked: true,
+  requiresQualityInspection: true,
 } satisfies Prisma.ProductSelect;
 const orderInclude = {
+  lot: { select: { id: true, code: true, status: true } },
   product: { select: productSelect },
   warehouse: { select: { id: true, code: true, name: true, isActive: true } },
   bomVersion: {
@@ -59,6 +69,7 @@ export class OrdersService {
     private readonly sequence: DocumentSequenceService,
     private readonly stock: StockQueryService,
     private readonly calculator: BomCalculatorService,
+    private readonly inventory: InventoryService,
   ) {}
 
   async list(query: OrdersQueryDto) {
@@ -185,6 +196,154 @@ export class OrdersService {
     });
   }
 
+  async start(actor: AuthenticatedUser, id: string) {
+    try {
+      return await this.prisma.$transaction(
+        async (tx) => {
+          const before = await this.lockOrder(tx, id);
+          assertDraft(before);
+          const version = await this.lockVersion(tx, before.productId, before.bomVersionId, false);
+          await this.validateCatalog(tx, version, before.warehouseId);
+          const required = this.calculate(version, before.quantityPlanned);
+          for (const item of required) {
+            const available = await this.stock.getConsumableQuantity(
+              item.productId,
+              before.warehouseId,
+              tx,
+            );
+            if (available.lt(item.required))
+              throw new ConflictException(
+                'Existencia consumible insuficiente para iniciar la orden',
+              );
+          }
+          const after = await tx.productionOrder.update({
+            where: { id },
+            data: { status: ProductionOrderStatus.IN_PROGRESS, startedAt: new Date() },
+          });
+          await this.record(tx, actor, AuditAction.START, after, before);
+          return serialize(await this.read(tx, id));
+        },
+        { isolationLevel: Prisma.TransactionIsolationLevel.RepeatableRead, timeout: 15000 },
+      );
+    } catch (error) {
+      if (error instanceof Prisma.PrismaClientKnownRequestError) {
+        const adapter = error.meta?.driverAdapterError as
+          { cause?: { originalCode?: string } } | undefined;
+        if (
+          error.code === 'P2034' ||
+          (error.code === 'P2010' &&
+            (adapter?.cause?.originalCode === '40001' || error.meta?.code === '40001'))
+        )
+          throw new ConflictException(
+            'La orden o su disponibilidad cambió; actualizá e intentá de nuevo',
+          );
+      }
+      throw error;
+    }
+  }
+
+  async complete(actor: AuthenticatedUser, id: string, dto: CompleteOrderDto) {
+    const produced = bomQuantity(dto.quantityProduced);
+    return this.prisma.$transaction(
+      async (tx) => {
+        const before = await this.lockOrder(tx, id);
+        if (before.status !== ProductionOrderStatus.IN_PROGRESS)
+          throw new ConflictException('Solo se puede completar una orden en proceso');
+        if (produced.gt(before.quantityPlanned))
+          throw new UnprocessableEntityException(
+            'La cantidad producida no puede superar la planificada',
+          );
+        const version = await this.lockVersion(tx, before.productId, before.bomVersionId, false);
+        const completedAt = new Date();
+        const code = await this.sequence.nextCode(tx, DocumentType.LOT, completedAt);
+        await this.validateCatalog(tx, version, before.warehouseId);
+        const order = await this.read(tx, id);
+        const calculated = this.calculate(order.bomVersion, before.quantityPlanned);
+        const assigned = new Map<string, CompleteOrderDto['allocations'][number]>();
+        for (const allocation of dto.allocations) {
+          const productId = allocation.productId.toLowerCase();
+          if (
+            assigned.has(productId) ||
+            !order.bomVersion.items.some(
+              (item) => item.componentProductId === productId && item.componentProduct.isLotTracked,
+            )
+          )
+            throw new UnprocessableEntityException(
+              'Asignación duplicada o componente no trazable de esta orden',
+            );
+          assigned.set(productId, allocation);
+        }
+        const origin = { kind: 'PRODUCTION_ORDER' as const, productionOrderId: before.id };
+        const lines: MovementLine[] = [];
+        for (const [index, component] of order.bomVersion.items.entries()) {
+          const required = bomQuantity(calculated[index].required);
+          const base = {
+            type: InventoryMovementType.PRODUCTION_CONSUMPTION,
+            productId: component.componentProductId,
+            warehouseId: before.warehouseId,
+            origin,
+          };
+          if (!component.componentProduct.isLotTracked) {
+            lines.push({ ...base, quantity: required });
+            continue;
+          }
+          const allocation = assigned.get(component.componentProductId);
+          if (!allocation)
+            throw new UnprocessableEntityException(
+              'Se requieren lotes para cada componente trazable',
+            );
+          const lotIds = new Set<string>();
+          let total = new Prisma.Decimal(0);
+          for (const item of allocation.lots) {
+            const lotId = item.lotId.toLowerCase();
+            if (lotIds.has(lotId))
+              throw new UnprocessableEntityException('Lote duplicado en la asignación');
+            lotIds.add(lotId);
+            const quantity = bomQuantity(item.quantity);
+            total = total.add(quantity);
+            lines.push({ ...base, lotId, quantity });
+          }
+          if (!total.eq(required))
+            throw new UnprocessableEntityException(
+              'La suma de lotes debe coincidir exactamente con el consumo planificado',
+            );
+        }
+        lines.push({
+          type: InventoryMovementType.PRODUCTION_OUTPUT,
+          productId: before.productId,
+          warehouseId: before.warehouseId,
+          quantity: produced,
+          origin,
+          newLot: {
+            code,
+            productionOrderId: before.id,
+            status: order.product.requiresQualityInspection
+              ? LotStatus.QUARANTINED
+              : LotStatus.RELEASED,
+            expiresAt: dto.expiresAt ? new Date(dto.expiresAt + 'T00:00:00Z') : null,
+          },
+        });
+        await this.inventory.applyMovements(tx, {
+          performedByUserId: actor.id,
+          occurredAt: completedAt,
+          requestId: currentRequestContext()?.requestId,
+          lines,
+        });
+        const after = await tx.productionOrder.update({
+          where: { id },
+          data: {
+            status: ProductionOrderStatus.COMPLETED,
+            quantityProduced: produced,
+            completedAt,
+          },
+        });
+        await this.record(tx, actor, AuditAction.COMPLETE, after, before);
+        return serialize(await this.read(tx, id));
+      },
+      { timeout: 15000 },
+    );
+  }
+
   async requirements(id: string) {
     const order = await this.read(this.prisma, id);
     const calculated = this.calculate(order.bomVersion, order.quantityPlanned);
@@ -294,8 +453,9 @@ export class OrdersService {
     order: ProductionOrder,
     before?: ProductionOrder,
   ) {
-    const current = snapshot(order);
-    const previous = before ? snapshot(before) : undefined;
+    const execution = action === AuditAction.START || action === AuditAction.COMPLETE;
+    const current = snapshot(order, execution);
+    const previous = before ? snapshot(before, execution) : undefined;
     const keys = Object.keys(current) as Array<keyof typeof current>;
     const changed = previous ? keys.filter((key) => previous[key] !== current[key]) : keys;
     if (changed.length === 0) return;
@@ -350,13 +510,20 @@ function assertWindow(start: Date | null, end: Date | null) {
       'El fin planificado debe ser igual o posterior al inicio',
     );
 }
-function snapshot(order: ProductionOrder) {
+function snapshot(order: ProductionOrder, execution = false) {
   return {
     number: order.number,
     productId: order.productId,
     bomVersionId: order.bomVersionId,
     warehouseId: order.warehouseId,
     quantityPlanned: order.quantityPlanned.toFixed(4),
+    ...(execution
+      ? {
+          quantityProduced: order.quantityProduced.toFixed(4),
+          startedAt: order.startedAt?.toISOString() ?? null,
+          completedAt: order.completedAt?.toISOString() ?? null,
+        }
+      : {}),
     status: order.status,
     plannedStartAt: order.plannedStartAt?.toISOString() ?? null,
     plannedEndAt: order.plannedEndAt?.toISOString() ?? null,

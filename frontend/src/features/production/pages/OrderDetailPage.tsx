@@ -11,6 +11,8 @@ import {
   useUpdateOrder,
 } from '../api/orders';
 import { OrderForm } from '../components/OrderForm';
+import { OrderExecution } from '../components/OrderExecution';
+import { LotProductionDetail } from '../components/LotProductionDetail';
 import { formatPlanningDate, planningInputValue } from '../planning-dates';
 
 export function OrderDetailPage() {
@@ -125,6 +127,29 @@ export function OrderDetailPage() {
             </>
           )}
           <ErrorNotice error={cancel.error} />
+          {canManage && !editing && !confirmCancel && availability && (
+            <OrderExecution
+              key={`${current.id}:${current.updatedAt}`}
+              order={current}
+              requirements={availability}
+            />
+          )}
+          {current.status === 'COMPLETED' && (
+            <div className="space-y-3">
+              <p>
+                Cantidad producida: {current.quantityProduced} · Lote:{' '}
+                <Link className="underline" to={`/inventory/lots?lotId=${current.lot?.id ?? ''}`}>
+                  {current.lot?.code ?? 'Consultar lotes'}
+                </Link>
+                {' · '}
+                {current.lot?.status}
+              </p>
+              <p>Completada: {formatPlanningDate(current.completedAt)} (Managua)</p>
+              {current.lot && (
+                <LotProductionDetail lotId={current.lot.id} status={current.lot.status} />
+              )}
+            </div>
+          )}
           <div className="space-y-3">
             <h2 className="text-lg font-semibold">Requerimientos y disponibilidad</h2>
             <p>

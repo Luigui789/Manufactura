@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import {
   type InventoryMovement,
+  InventoryMovementType,
   LotStatus,
   ProductType,
   Prisma,
@@ -18,8 +19,10 @@ export type MovementLine = {
     code: string;
     expiresAt?: Date | null;
     status: LotStatus;
-    purchaseReceiptItemId: string;
-  };
+  } & (
+    | { purchaseReceiptItemId: string; productionOrderId?: never }
+    | { productionOrderId: string; purchaseReceiptItemId?: never }
+  );
   quantity: Prisma.Decimal | string;
   origin: MovementOrigin;
 };
@@ -84,6 +87,38 @@ export class InventoryService {
       };
     });
 
+    const productionLines = lines.filter((line) => line.origin.kind === 'PRODUCTION_ORDER');
+    if (productionLines.length) {
+      const origins = new Set(
+        productionLines.map((line) =>
+          line.origin.kind === 'PRODUCTION_ORDER' ? line.origin.productionOrderId : '',
+        ),
+      );
+      if (
+        productionLines.length !== lines.length ||
+        origins.size !== 1 ||
+        productionLines.filter((line) => line.type === InventoryMovementType.PRODUCTION_OUTPUT)
+          .length !== 1
+      )
+        throw inventoryError(
+          InventoryErrorCode.INVALID_ORIGIN,
+          'La ejecución requiere una sola orden y exactamente un output',
+        );
+      if (
+        await tx.inventoryMovement.findFirst({
+          where: {
+            productionOrderId: [...origins][0],
+            type: InventoryMovementType.PRODUCTION_OUTPUT,
+          },
+          select: { id: true },
+        })
+      )
+        throw inventoryError(
+          InventoryErrorCode.INVALID_ORIGIN,
+          'La orden ya tiene un output de producción',
+        );
+    }
+
     const productIds = uniqueSorted(lines.map(({ productId }) => productId));
     const warehouseIds = uniqueSorted(lines.map(({ warehouseId }) => warehouseId));
     const lotIds = uniqueSorted(lines.flatMap(({ lotId }) => (lotId ? [lotId] : [])));
@@ -142,6 +177,44 @@ export class InventoryService {
     // Validate business origins after catalog locks and before writing inventory.
     const receiptOrigins = new Set<string>();
     for (const line of lines) {
+      if (line.origin.kind === 'PRODUCTION_ORDER') {
+        const order = await tx.productionOrder.findUnique({
+          where: { id: line.origin.productionOrderId },
+          include: { bomVersion: { include: { items: true } } },
+        });
+        const output = line.type === InventoryMovementType.PRODUCTION_OUTPUT;
+        const product = productsById.get(line.productId)!;
+        if (
+          !order ||
+          order.status !== 'IN_PROGRESS' ||
+          order.warehouseId !== line.warehouseId ||
+          (output
+            ? order.productId !== line.productId ||
+              line.signedQuantity.gt(order.quantityPlanned) ||
+              !line.newLot ||
+              line.lotId ||
+              !['INTERMEDIATE', 'FINISHED_GOOD'].includes(product.type)
+            : !order.bomVersion.items.some((item) => item.componentProductId === line.productId) ||
+              Boolean(line.newLot))
+        )
+          throw inventoryError(
+            InventoryErrorCode.INVALID_ORIGIN,
+            'El movimiento no coincide con la orden de producción',
+          );
+        if (
+          line.newLot &&
+          (line.newLot.productionOrderId !== order.id ||
+            line.newLot.status !==
+              (product.requiresQualityInspection ? LotStatus.QUARANTINED : LotStatus.RELEASED) ||
+            !/^LOT-\d{4}-\d{6,}$/.test(line.newLot.code) ||
+            (line.newLot.expiresAt && Number.isNaN(line.newLot.expiresAt.getTime())))
+        )
+          throw inventoryError(
+            InventoryErrorCode.INVALID_ORIGIN,
+            'Descripción de lote producido inválida',
+          );
+        continue;
+      }
       if (line.origin.kind !== 'PURCHASE_RECEIPT') {
         if (line.newLot)
           throw inventoryError(InventoryErrorCode.INVALID_ORIGIN, 'Un ajuste no puede crear lotes');
@@ -234,6 +307,14 @@ export class InventoryService {
           'El lote no pertenece al producto del movimiento',
         );
       }
+      if (
+        line.type === InventoryMovementType.PRODUCTION_CONSUMPTION &&
+        lot.status !== LotStatus.RELEASED
+      )
+        throw inventoryError(
+          InventoryErrorCode.LOT_NOT_RELEASED,
+          'Solo se consumen lotes liberados',
+        );
     }
     // New lots are inserted only after sequences, catalogs, balances and existing lots.
     for (const line of lines) {
@@ -246,6 +327,7 @@ export class InventoryService {
           originatedAt: occurredAt,
           expiresAt: line.newLot.expiresAt ?? null,
           purchaseReceiptItemId: line.newLot.purchaseReceiptItemId,
+          productionOrderId: line.newLot.productionOrderId,
         },
       });
       line.lotId = lot.id;
@@ -267,6 +349,8 @@ export class InventoryService {
             reason: line.reason,
             purchaseReceiptItemId:
               line.origin.kind === 'PURCHASE_RECEIPT' ? line.origin.purchaseReceiptItemId : null,
+            productionOrderId:
+              line.origin.kind === 'PRODUCTION_ORDER' ? line.origin.productionOrderId : null,
             occurredAt,
             performedByUserId: command.performedByUserId,
             requestId: command.requestId ?? null,
@@ -285,6 +369,39 @@ export class InventoryService {
     }
 
     return movements;
+  }
+
+  /** Quality follows the same catalog → balance → lot protocol as movements. */
+  async inspectProducedLot(
+    tx: Prisma.TransactionClient,
+    lotId: string,
+    status: 'RELEASED' | 'REJECTED',
+  ) {
+    const before = await tx.lot.findUnique({ where: { id: lotId } });
+    if (!before?.productionOrderId)
+      throw inventoryError(InventoryErrorCode.INVALID_ORIGIN, 'Calidad requiere un lote producido');
+    await this.lockCatalogRows(tx, 'products', [before.productId]);
+    const balances = await tx.stockBalance.findMany({
+      where: { productId: before.productId },
+      orderBy: { warehouseId: 'asc' },
+    });
+    await this.lockCatalogRows(
+      tx,
+      'warehouses',
+      balances.map((b) => b.warehouseId),
+    );
+    await this.lockBalances(
+      tx,
+      balances.map((b) => ({ productId: b.productId, warehouseId: b.warehouseId })),
+    );
+    await tx.$queryRaw`SELECT id FROM lots WHERE id = ${lotId}::uuid FOR UPDATE`;
+    const lot = await tx.lot.findUniqueOrThrow({ where: { id: lotId } });
+    if (lot.status !== LotStatus.QUARANTINED)
+      throw inventoryError(
+        InventoryErrorCode.LOT_NOT_RELEASED,
+        'Solo se inspeccionan lotes producidos en cuarentena',
+      );
+    return tx.lot.update({ where: { id: lotId }, data: { status } });
   }
 
   private async lockCatalogRows(

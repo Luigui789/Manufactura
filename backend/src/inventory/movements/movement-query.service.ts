@@ -2,7 +2,7 @@ import { BadRequestException, Injectable } from '@nestjs/common';
 
 import { Prisma } from '../../generated/prisma/client.js';
 import { PrismaService } from '../../prisma/prisma.service.js';
-import { purchaseOriginSelect, purchaseBusinessReference } from '../purchase-origin.js';
+import { businessOriginSelect, businessReference } from '../business-origin.js';
 import type { MovementsQueryDto } from './dto/movements-query.dto.js';
 
 @Injectable()
@@ -43,8 +43,7 @@ export class MovementQueryService {
           reason: true,
           occurredAt: true,
           requestId: true,
-          purchaseReceiptItemId: true,
-          purchaseReceiptItem: { select: purchaseOriginSelect },
+          ...businessOriginSelect,
           product: { select: { id: true, code: true, name: true, unit: true } },
           warehouse: { select: { id: true, code: true, name: true } },
           lot: { select: { id: true, code: true, status: true } },
@@ -55,13 +54,10 @@ export class MovementQueryService {
     ]);
 
     return {
-      data: data.map(({ purchaseReceiptItem, ...movement }) => ({
+      data: data.map(({ purchaseReceiptItem, productionOrder, ...movement }) => ({
         ...movement,
         quantity: movement.quantity.toFixed(4),
-        businessReference: purchaseBusinessReference(
-          purchaseReceiptItem,
-          movement.purchaseReceiptItemId,
-        ),
+        businessReference: businessReference({ ...movement, purchaseReceiptItem, productionOrder }),
       })),
       meta: { page, limit, total },
     };

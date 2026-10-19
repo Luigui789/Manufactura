@@ -66,6 +66,7 @@ function setup(
     bomVersion: { ...bom.versions[0], bomId: bom.id, bom },
     quantityPlanned: '10.0000',
     quantityProduced: '0.0000',
+    lot: null,
     status: 'DRAFT',
     plannedStartAt: '2026-10-10T14:30:45.123Z',
     plannedEndAt: null,
@@ -222,7 +223,9 @@ describe('C-1: órdenes y disponibilidad', () => {
       plannedEndAt: null,
     });
     expect(await screen.findByText('3000.0000')).toBeTruthy();
-    expect(screen.queryByRole('button', { name: /iniciar|completar/i })).toBeNull();
+    expect(
+      (screen.getByRole('button', { name: 'Iniciar producción' }) as HTMLButtonElement).disabled,
+    ).toBe(true);
   });
   it('VENTAS consulta disponibilidad sin acciones de escritura y acceso directo a nuevo no crea formulario', async () => {
     const { fetch } = setup('VENTAS', '/production/orders/order');

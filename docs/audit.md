@@ -395,3 +395,16 @@ Cuando se intenta despacharlo o consumirlo en producción
 Entonces la operación es rechazada
 Y      el inventario no cambia
 ```
+
+## Ejecución C-2 — acciones implementadas
+
+C-2 registra START y COMPLETE sobre PRODUCTION_ORDER dentro de la misma transacción
+del caso de uso. START audita la transición e inicio; COMPLETE audita estado, cantidad
+real y finalización. Los campos comunes conservan el criterio de diferencias mínimas
+de C-1; se omiten valores sin cambio. Actor y requestId provienen del contexto real.
+
+QUALITY_APPROVE/QUALITY_REJECT se registran sobre QUALITY_INSPECTION e incluyen lote,
+resultado, observaciones/no conformidades, instante, responsable y estado de lote resultante.
+Inspección y transición por Inventario son atómicas con esa auditoría. Una falla revierte
+todo; ledger y auditoría siguen append-only. No se crean eventos empresariales desde
+InventoryService ni se audita COMPLETE como UPDATE genérico.

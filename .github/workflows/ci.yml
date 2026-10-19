@@ -66,6 +66,8 @@ jobs:
         run: pnpm --filter backend prisma:generate
       - name: Apply migrations to test database
         run: pnpm --filter backend exec prisma migrate deploy
+      - name: Check migration schema drift
+        run: pnpm --filter backend exec prisma migrate diff --from-config-datasource --to-schema prisma/schema.prisma --exit-code
       - name: Lint
         run: pnpm lint
       - name: Check formatting
@@ -78,7 +80,7 @@ jobs:
         run: pnpm --filter backend test
       - name: Frontend tests
         run: pnpm --filter frontend test
-      - name: Purchase migration upgrade and legacy origin proofs
+      - name: Purchase and production migration upgrade and integrity proofs
         run: pnpm --filter backend test:migrations
       - name: Backend end-to-end tests
         run: pnpm --filter backend test:e2e

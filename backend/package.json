@@ -22,7 +22,7 @@
     "prisma:studio": "prisma studio",
     "db:seed": "pnpm build && node dist/prisma/seed.js",
     "admin:create": "pnpm build && node dist/cli/create-admin.js",
-    "test:migrations": "node test/purchases-migrations.mjs"
+    "test:migrations": "node test/purchases-migrations.mjs && node test/production-migrations.mjs"
   },
   "dependencies": {
     "@nestjs/common": "^12.0.1",

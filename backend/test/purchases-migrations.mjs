@@ -120,6 +120,7 @@ try {
   expected.inventory_movements = expected.inventory_movements.map((m) => ({
     ...m,
     purchase_receipt_item_id: null,
+    production_order_id: null,
   }));
   assert.deepEqual(after, expected);
   await assert.rejects(

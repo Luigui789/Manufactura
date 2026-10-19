@@ -87,3 +87,21 @@ it('purchase receipt requires a typed UUID origin and persists a positive entry 
     resolveMovement('PURCHASE_RECEIPT', '1', { ...origin, purchaseReceiptItemId: 'invalid' }),
   ).toThrow();
 });
+
+it('production uses explicit OP origins and opposite signs without adjustment reasons', () => {
+  const origin = {
+    kind: 'PRODUCTION_ORDER',
+    productionOrderId: '00000000-0000-4000-8000-000000000001',
+  } as const;
+  expect(resolveMovement('PRODUCTION_CONSUMPTION', '2.5000', origin)).toMatchObject({
+    reason: null,
+  });
+  expect(
+    resolveMovement('PRODUCTION_CONSUMPTION', '2.5000', origin).signedQuantity.toFixed(4),
+  ).toBe('-2.5000');
+  expect(resolveMovement('PRODUCTION_OUTPUT', '2.5000', origin).signedQuantity.toFixed(4)).toBe(
+    '2.5000',
+  );
+  expect(() => resolveMovement('PRODUCTION_OUTPUT', '1', adjustment)).toThrow();
+  expect(() => resolveMovement('ADJUSTMENT_IN', '1', origin)).toThrow();
+});

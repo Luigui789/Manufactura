@@ -218,6 +218,117 @@ console.log(
   'Docker: A-2 stock, receipt movement references, quarantined lot origin and calendar DATE verified.',
 );
 
+// C-2: real purchase lot → atomic production → quality → supplier traceability.
+const productionRaw = await request('/products', 'POST', {
+  code: 'DOCKER-PROD-RAW-' + suffix,
+  name: 'Docker production component',
+  category: 'Validation',
+  type: 'RAW_MATERIAL',
+  unit: 'KILOGRAM',
+  isLotTracked: true,
+});
+const productionPurchase = await request('/purchase-orders', 'POST', {
+  supplierId: supplier.id,
+  items: [{ productId: productionRaw.id, quantity: '20', unitPrice: '1' }],
+});
+await request('/purchase-orders/' + productionPurchase.id + '/confirm', 'POST', {});
+await request('/purchase-orders/' + productionPurchase.id + '/receive', 'POST', {
+  items: [
+    {
+      purchaseOrderItemId: productionPurchase.items[0].id,
+      warehouseId: warehouse.id,
+      quantity: '20',
+    },
+  ],
+});
+const componentLots = await request(
+  `/inventory/lots?productId=${productionRaw.id}&warehouseId=${warehouse.id}&status=RELEASED&hasStock=true`,
+);
+assert.equal(componentLots.length, 1);
+const outputProduct = await request('/products', 'POST', {
+  code: 'DOCKER-OUTPUT-' + suffix,
+  name: 'Docker output',
+  category: 'Validation',
+  type: 'FINISHED_GOOD',
+  unit: 'UNIT',
+  isLotTracked: true,
+  requiresQualityInspection: true,
+});
+const bom = await request('/production/boms', 'POST', {
+  productId: outputProduct.id,
+  name: 'Docker production BOM',
+});
+const version = await request(`/production/boms/${bom.id}/versions`, 'POST', {
+  outputQuantity: '1',
+  items: [{ productId: productionRaw.id, quantity: '2' }],
+});
+const op = await request('/production/orders', 'POST', {
+  productId: outputProduct.id,
+  bomVersionId: version.id,
+  warehouseId: warehouse.id,
+  quantityPlanned: '10',
+});
+const started = await request(`/production/orders/${op.id}/start`, 'POST', {});
+assert.equal(started.status, 'IN_PROGRESS');
+assert.equal(
+  (await request(`/inventory/stock?productId=${productionRaw.id}`))[0].quantity,
+  '20.0000',
+);
+const completed = await request(`/production/orders/${op.id}/complete`, 'POST', {
+  quantityProduced: '9',
+  allocations: [
+    { productId: productionRaw.id, lots: [{ lotId: componentLots[0].id, quantity: '20' }] },
+  ],
+});
+assert.equal(completed.status, 'COMPLETED');
+assert.equal(completed.quantityProduced, '9.0000');
+assert.equal(completed.lot.status, 'QUARANTINED');
+const produced = await request(`/inventory/lots?productId=${outputProduct.id}`);
+assert.equal(produced[0].origin.type, 'PRODUCTION_ORDER');
+assert.equal(produced[0].origin.productionOrder.id, op.id);
+const productionMovements = await request(`/inventory/movements?productId=${outputProduct.id}`);
+assert.equal(productionMovements[0].businessReference.number, op.number);
+await request(`/production/lots/${completed.lot.id}/inspection`, 'POST', {
+  result: 'APPROVED',
+  observations: 'Docker quality approved',
+});
+const released = await fetch(api + '/inventory/lots/' + completed.lot.id, { headers: { Cookie } });
+assert.equal((await released.json()).status, 'RELEASED');
+const trace = await request(`/production/lots/${completed.lot.id}/traceability`);
+assert.equal(trace.lots.length, 2);
+assert.equal(trace.lots[1].origin.supplier.id, supplier.id);
+assert.equal(
+  (
+    await fetch(api + `/production/orders/${op.id}/complete`, {
+      method: 'POST',
+      headers: { Cookie, Origin: origin, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        quantityProduced: '9',
+        allocations: [
+          { productId: productionRaw.id, lots: [{ lotId: componentLots[0].id, quantity: '20' }] },
+        ],
+      }),
+    })
+  ).status,
+  409,
+);
+const productionDb = new Client({ connectionString: process.env.DATABASE_URL });
+await productionDb.connect();
+try {
+  const reconciled = (
+    await productionDb.query(
+      'SELECT bool_and(b.quantity = (SELECT coalesce(sum(m.quantity),0) FROM inventory_movements m WHERE m.product_id=b.product_id AND m.warehouse_id=b.warehouse_id)) AS ok FROM stock_balances b WHERE b.product_id=ANY($1::uuid[])',
+      [[productionRaw.id, outputProduct.id]],
+    )
+  ).rows[0];
+  assert.equal(reconciled.ok, true);
+} finally {
+  await productionDb.end();
+}
+console.log(
+  'Docker: C-2 START without reservation, atomic planned consumption/actual output, OP queries, quality and supplier traceability verified.',
+);
+
 const logout = await fetch(`${api}/auth/logout`, {
   method: 'POST',
   headers: { Cookie, Origin: origin },
