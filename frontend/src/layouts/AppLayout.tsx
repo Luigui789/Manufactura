@@ -1,49 +1,126 @@
-import { Link, NavLink, Outlet } from 'react-router';
+import { useState } from 'react';
+import { Link, NavLink, Outlet, useLocation } from 'react-router';
+import { Menu, KeyRound } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
+import {
+  Dialog,
+  DialogContent,
+  DialogTitle,
+  DialogDescription,
+  DialogTrigger,
+} from '@/components/ui/dialog';
 import { useSession } from '@/features/auth/hooks/use-auth';
-import { ROLE_LABELS } from '@/features/auth/types';
+import { ROLE_LABELS, type RoleCode } from '@/features/auth/types';
 import { SessionActions } from '@/features/auth/components/SessionActions';
 import { navigation } from './navigation';
-
+function Navigation({ role, onNavigate }: { role: RoleCode; onNavigate?: () => void }) {
+  const allowed = navigation.filter((item) => item.roles.includes(role));
+  return (
+    <nav aria-label="Menú principal" className="space-y-6">
+      {['General', 'Operaciones', 'Inventario', 'Maestros', 'Administración'].map((group) => {
+        const items = allowed.filter((item) => item.group === group);
+        return (
+          items.length > 0 && (
+            <div key={group}>
+              <p className="mb-2 px-3 text-[11px] font-semibold uppercase tracking-widest text-muted-foreground">
+                {group}
+              </p>
+              <ul className="space-y-1">
+                {items.map(({ to, label, icon: Icon }) => (
+                  <li key={to}>
+                    <NavLink
+                      to={to}
+                      end={to === '/'}
+                      onClick={onNavigate}
+                      className={({ isActive }) =>
+                        `flex min-h-10 items-center gap-3 rounded-md px-3 py-2 text-sm font-medium ${isActive ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-muted hover:text-foreground'}`
+                      }
+                    >
+                      <Icon aria-hidden className="size-4 shrink-0" />
+                      {label}
+                    </NavLink>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )
+        );
+      })}
+    </nav>
+  );
+}
 export function AppLayout() {
   const { data: user } = useSession();
+  const [mobileOpen, setMobileOpen] = useState(false);
+  const location = useLocation();
   if (!user) return null;
+  const active = navigation
+    .filter((item) => item.to !== '/' && location.pathname.startsWith(item.to))
+    .at(-1);
   return (
-    <div className="min-h-svh bg-muted/30">
-      <header className="border-b bg-background">
-        <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-4 px-4 py-5 sm:px-8">
-          <Link to="/" className="text-xl font-semibold tracking-tight">
-            EcoSoap <span className="text-muted-foreground">ERP</span>
-          </Link>
-          <div className="flex flex-wrap items-center gap-3">
-            <span className="text-sm">{user.fullName}</span>
-            <Badge variant="secondary">{ROLE_LABELS[user.role]}</Badge>
-            <Button asChild variant="ghost">
-              <Link to="/account/password">Cambiar contraseña</Link>
-            </Button>
-            <SessionActions />
-          </div>
+    <div className="min-h-svh bg-[#fafafa]">
+      <a href="#main-content" className="skip-link">
+        Saltar al contenido
+      </a>
+      <aside className="fixed inset-y-0 left-0 hidden w-60 flex-col border-r bg-background lg:flex">
+        <Link
+          to="/"
+          className="flex h-16 items-center border-b px-6 text-lg font-semibold tracking-tight"
+        >
+          EcoSoap <span className="ml-1.5 font-normal text-muted-foreground">ERP</span>
+        </Link>
+        <div className="flex-1 overflow-y-auto px-3 py-6">
+          <Navigation role={user.role} />
         </div>
-      </header>
-      <div className="mx-auto grid max-w-6xl gap-6 px-4 py-6 sm:grid-cols-[160px_1fr] sm:px-8">
-        <nav aria-label="Menú principal" className="flex gap-2 sm:flex-col">
-          {navigation
-            .filter((item) => item.roles.includes(user.role))
-            .map((item) => (
-              <NavLink
-                key={item.to}
-                to={item.to}
-                end
-                className={({ isActive }) =>
-                  `rounded-lg px-4 py-2 text-sm font-medium ${isActive ? 'bg-primary text-primary-foreground' : 'hover:bg-muted'}`
-                }
-              >
-                {item.label}
-              </NavLink>
-            ))}
-        </nav>
-        <main className="min-w-0">
+        <p className="border-t px-6 py-4 text-xs text-muted-foreground">
+          Compras · Inventario · Producción
+        </p>
+      </aside>
+      <div className="lg:pl-60">
+        <header className="border-b bg-background">
+          <div className="flex min-h-16 flex-wrap items-center justify-between gap-2 px-4 py-3 sm:px-6">
+            <div className="flex items-center gap-3">
+              <Dialog open={mobileOpen} onOpenChange={setMobileOpen}>
+                <DialogTrigger asChild>
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    aria-label="Abrir menú"
+                    className="lg:hidden"
+                  >
+                    <Menu aria-hidden />
+                  </Button>
+                </DialogTrigger>
+                <DialogContent className="!inset-y-0 !left-0 !top-0 !max-h-svh !w-72 !max-w-[90vw] !translate-x-0 !translate-y-0 !rounded-none">
+                  <DialogTitle>EcoSoap ERP</DialogTitle>
+                  <DialogDescription>Navegación por módulos</DialogDescription>
+                  <Navigation role={user.role} onNavigate={() => setMobileOpen(false)} />
+                </DialogContent>
+              </Dialog>
+              <span className="text-sm font-medium">
+                {active?.group ?? 'General'} <span className="mx-2 text-muted-foreground">/</span>{' '}
+                {active?.label ?? 'Inicio'}
+              </span>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="mr-2 text-right">
+                <p className="text-sm font-medium">{user.fullName}</p>
+                <p className="text-xs text-muted-foreground">{ROLE_LABELS[user.role]}</p>
+              </div>
+              <Button asChild variant="ghost" size="icon" title="Cambiar contraseña">
+                <Link to="/account/password" aria-label="Cambiar contraseña">
+                  <KeyRound aria-hidden />
+                </Link>
+              </Button>
+              <SessionActions />
+            </div>
+          </div>
+        </header>
+        <main
+          id="main-content"
+          tabIndex={-1}
+          className="mx-auto w-full max-w-[1440px] min-w-0 px-4 py-6 outline-none sm:px-6 sm:py-8 xl:px-8"
+        >
           <Outlet />
         </main>
       </div>

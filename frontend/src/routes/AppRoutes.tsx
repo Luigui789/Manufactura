@@ -1,3 +1,4 @@
+import { LoadingState } from '@/components/erp';
 import { lazy, Suspense } from 'react';
 import { Route, Routes } from 'react-router';
 import { LoginPage } from '@/features/auth/pages/LoginPage';
@@ -96,7 +97,7 @@ export function AppRoutes() {
               <Route
                 path="/users"
                 element={
-                  <Suspense fallback={<p role="status">Cargando usuarios…</p>}>
+                  <Suspense fallback={<LoadingState label="Cargando usuarios…" />}>
                     <UsersPage />
                   </Suspense>
                 }
@@ -109,7 +110,7 @@ export function AppRoutes() {
               <Route
                 path="/purchases/orders/new"
                 element={
-                  <Suspense fallback={<p role="status">Cargando formulario…</p>}>
+                  <Suspense fallback={<LoadingState label="Cargando formulario…" />}>
                     <NewPurchaseOrderPage />
                   </Suspense>
                 }
@@ -120,7 +121,7 @@ export function AppRoutes() {
             <Route
               path="/inventory/products"
               element={
-                <Suspense fallback={<p role="status">Cargando productos…</p>}>
+                <Suspense fallback={<LoadingState label="Cargando productos…" />}>
                   <ProductsPage />
                 </Suspense>
               }
@@ -129,7 +130,7 @@ export function AppRoutes() {
             <Route
               path="/inventory/warehouses"
               element={
-                <Suspense fallback={<p role="status">Cargando almacenes…</p>}>
+                <Suspense fallback={<LoadingState label="Cargando almacenes…" />}>
                   <WarehousesPage />
                 </Suspense>
               }
@@ -138,7 +139,7 @@ export function AppRoutes() {
             <Route
               path="/inventory/stock"
               element={
-                <Suspense fallback={<p role="status">Cargando existencias…</p>}>
+                <Suspense fallback={<LoadingState label="Cargando existencias…" />}>
                   <StockPage />
                 </Suspense>
               }
@@ -146,7 +147,7 @@ export function AppRoutes() {
             <Route
               path="/inventory/movements"
               element={
-                <Suspense fallback={<p role="status">Cargando movimientos…</p>}>
+                <Suspense fallback={<LoadingState label="Cargando movimientos…" />}>
                   <MovementsPage />
                 </Suspense>
               }
@@ -154,7 +155,7 @@ export function AppRoutes() {
             <Route
               path="/inventory/lots"
               element={
-                <Suspense fallback={<p role="status">Cargando lotes…</p>}>
+                <Suspense fallback={<LoadingState label="Cargando lotes…" />}>
                   <LotsPage />
                 </Suspense>
               }
@@ -162,7 +163,7 @@ export function AppRoutes() {
             <Route
               path="/purchases/orders"
               element={
-                <Suspense fallback={<p role="status">Cargando compras…</p>}>
+                <Suspense fallback={<LoadingState label="Cargando compras…" />}>
                   <PurchaseOrdersPage />
                 </Suspense>
               }
@@ -170,16 +171,15 @@ export function AppRoutes() {
             <Route
               path="/purchases/orders/:id"
               element={
-                <Suspense fallback={<p role="status">Cargando orden…</p>}>
+                <Suspense fallback={<LoadingState label="Cargando orden…" />}>
                   <PurchaseOrderDetailPage />
                 </Suspense>
               }
             />
-            <Route path="*" element={<NotFoundPage />} />
             <Route
               path="/production/orders"
               element={
-                <Suspense fallback={<p role="status">Cargando producción…</p>}>
+                <Suspense fallback={<LoadingState label="Cargando producción…" />}>
                   <OrdersPage />
                 </Suspense>
               }
@@ -188,7 +188,7 @@ export function AppRoutes() {
               <Route
                 path="/production/orders/new"
                 element={
-                  <Suspense fallback={<p role="status">Cargando formulario…</p>}>
+                  <Suspense fallback={<LoadingState label="Cargando formulario…" />}>
                     <NewOrderPage />
                   </Suspense>
                 }
@@ -197,7 +197,7 @@ export function AppRoutes() {
             <Route
               path="/production/orders/:id"
               element={
-                <Suspense fallback={<p role="status">Cargando orden…</p>}>
+                <Suspense fallback={<LoadingState label="Cargando orden…" />}>
                   <OrderDetailPage />
                 </Suspense>
               }
@@ -205,7 +205,7 @@ export function AppRoutes() {
             <Route
               path="/production/boms"
               element={
-                <Suspense fallback={<p role="status">Cargando fórmulas…</p>}>
+                <Suspense fallback={<LoadingState label="Cargando fórmulas…" />}>
                   <BomsPage />
                 </Suspense>
               }
@@ -213,11 +213,12 @@ export function AppRoutes() {
             <Route
               path="/production/boms/:id"
               element={
-                <Suspense fallback={<p role="status">Cargando fórmula…</p>}>
+                <Suspense fallback={<LoadingState label="Cargando fórmula…" />}>
                   <BomDetailPage />
                 </Suspense>
               }
             />
+            <Route path="*" element={<NotFoundPage />} />
           </Route>
         </Route>
       </Route>
