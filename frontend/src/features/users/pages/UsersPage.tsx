@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
+import { StatusBadge, LoadingState, Pagination, PageHeader, SuccessNotice } from '@/components/erp';
 import {
   Table,
   TableBody,
@@ -40,21 +40,18 @@ export function UsersPage() {
   const totalPages = Math.max(1, Math.ceil((users.data?.meta.total ?? 0) / 20));
   return (
     <section className="space-y-5">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-semibold">Usuarios</h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Administra las cuentas y el acceso al ERP.
-          </p>
-        </div>
-        <Button onClick={() => openAction({ type: 'create' })}>Crear usuario</Button>
-      </div>
-      {message && (
-        <p role="status" className="rounded-lg border bg-background p-3 text-sm">
-          {message}
-        </p>
-      )}
-      {users.isPending && <p role="status">Cargando usuarios…</p>}
+      <PageHeader
+        title="Usuarios"
+        description="Administra las cuentas y el acceso al ERP."
+        actions={
+          <>
+            {' '}
+            <Button onClick={() => openAction({ type: 'create' })}>Crear usuario</Button>{' '}
+          </>
+        }
+      />
+      {message && <SuccessNotice>{message}</SuccessNotice>}
+      {users.isPending && <LoadingState label="Cargando usuarios…" />}
       <ErrorNotice error={users.error} />
       {users.isError && (
         <Button variant="outline" onClick={() => void users.refetch()}>
@@ -64,7 +61,7 @@ export function UsersPage() {
       {users.data && (
         <>
           <div className="rounded-lg border bg-background">
-            <Table>
+            <Table aria-label="Usuarios">
               <TableHeader>
                 <TableRow>
                   <TableHead>Usuario</TableHead>
@@ -88,15 +85,19 @@ export function UsersPage() {
                       <TableCell>{ROLE_LABELS[user.role]}</TableCell>
                       <TableCell>
                         <div className="flex flex-col items-start gap-1">
-                          <Badge variant={user.isActive ? 'secondary' : 'outline'}>
-                            {user.isActive ? 'Activo' : 'Inactivo'}
-                          </Badge>
+                          <StatusBadge status={user.isActive} />
                           {user.mustChangePassword && (
                             <span className="text-xs text-muted-foreground">
                               Cambio de contraseña pendiente
                             </span>
                           )}
                         </div>
+                        {own && (
+                          <p className="mt-2 text-xs text-muted-foreground">
+                            Tu cuenta: cambiá tu contraseña desde el menú de sesión. Otra persona
+                            administradora gestiona tu rol y estado.
+                          </p>
+                        )}
                       </TableCell>
                       <TableCell>
                         <div className="flex flex-wrap gap-2">
@@ -125,6 +126,12 @@ export function UsersPage() {
                             Restablecer contraseña
                           </Button>
                         </div>
+                        {own && (
+                          <p className="mt-2 text-xs text-muted-foreground">
+                            Tu cuenta: cambiá tu contraseña desde el menú de sesión. Otra persona
+                            administradora gestiona tu rol y estado.
+                          </p>
+                        )}
                       </TableCell>
                     </TableRow>
                   );
@@ -132,34 +139,22 @@ export function UsersPage() {
                 {users.data.data.length === 0 && (
                   <TableRow>
                     <TableCell colSpan={4} className="py-8 text-center text-muted-foreground">
-                      No hay usuarios en esta página.
+                      No hay usuarios en esta página. Usá el botón de alta para registrar una nueva
+                      cuenta o entidad cuando tu rol lo permita.
                     </TableCell>
                   </TableRow>
                 )}
               </TableBody>
             </Table>
           </div>
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <p className="text-sm text-muted-foreground">
-              Página {page} de {totalPages} · {users.data.meta.total} usuarios
-            </p>
-            <div className="flex gap-2">
-              <Button
-                variant="outline"
-                disabled={page <= 1 || users.isFetching}
-                onClick={() => setPage((value) => value - 1)}
-              >
-                Anterior
-              </Button>
-              <Button
-                variant="outline"
-                disabled={page >= totalPages || users.isFetching}
-                onClick={() => setPage((value) => value + 1)}
-              >
-                Siguiente
-              </Button>
-            </div>
-          </div>
+          <Pagination
+            page={page}
+            pages={totalPages}
+            total={users.data.meta.total}
+            label="Paginación de usuarios"
+            onPageChange={setPage}
+            busy={users.isFetching}
+          />
         </>
       )}
       {action?.type === 'create' && <CreateUserDialog onClose={onClose} onSuccess={onSuccess} />}

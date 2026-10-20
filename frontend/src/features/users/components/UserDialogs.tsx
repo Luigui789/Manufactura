@@ -110,6 +110,7 @@ export function CreateUserDialog({
           <FormField
             id="fullName"
             label="Nombre completo"
+            required
             autoComplete="off"
             error={errors.fullName?.message}
             {...register('fullName')}
@@ -117,6 +118,7 @@ export function CreateUserDialog({
           <FormField
             id="userEmail"
             label="Correo electrónico"
+            required
             type="email"
             autoComplete="off"
             error={errors.email?.message}
@@ -136,6 +138,7 @@ export function CreateUserDialog({
           <FormField
             id="temporaryPassword"
             label="Contraseña temporal"
+            required
             type="password"
             autoComplete="new-password"
             error={errors.temporaryPassword?.message}
@@ -145,6 +148,7 @@ export function CreateUserDialog({
           <FormField
             id="confirmation"
             label="Confirmar contraseña temporal"
+            required
             type="password"
             autoComplete="new-password"
             error={errors.confirmation?.message}
@@ -252,6 +256,7 @@ export function ResetPasswordDialog({
           <FormField
             id="temporaryPassword"
             label="Contraseña temporal"
+            required
             type="password"
             autoComplete="new-password"
             error={errors.temporaryPassword?.message}
@@ -261,6 +266,7 @@ export function ResetPasswordDialog({
           <FormField
             id="confirmation"
             label="Confirmar contraseña temporal"
+            required
             type="password"
             autoComplete="new-password"
             error={errors.confirmation?.message}
