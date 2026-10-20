@@ -9,5 +9,9 @@ export default defineConfig({
     environment: 'jsdom',
     setupFiles: ['./src/test/setup.ts'],
     include: ['src/**/*.test.{ts,tsx}'],
+    // Full-page workflows mount Radix dialogs and paginated catalogs. Avoid
+    // competing jsdom workers and premature timeouts on development machines.
+    fileParallelism: false,
+    testTimeout: 15000,
   },
 });
