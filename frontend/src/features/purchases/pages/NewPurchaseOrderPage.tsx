@@ -1,4 +1,5 @@
-import { Link, useNavigate } from 'react-router';
+import { PageHeader } from '@/components/erp';
+import { useNavigate } from 'react-router';
 import { useSavePurchaseOrder } from '../api/orders';
 import { PurchaseOrderForm } from '../components/PurchaseOrderForm';
 export function NewPurchaseOrderPage() {
@@ -6,10 +7,11 @@ export function NewPurchaseOrderPage() {
   const navigate = useNavigate();
   return (
     <section className="space-y-4">
-      <Link className="underline" to="/purchases/orders">
-        Volver a compras
-      </Link>
-      <h1 className="text-2xl font-semibold">Nueva orden de compra</h1>
+      <PageHeader
+        title="Nueva orden de compra"
+        description="Se guardará como borrador. Confirmar no cambia el inventario; la recepción registra las existencias."
+        breadcrumbs={[{ label: 'Compras', to: '/purchases/orders' }, { label: 'Nueva orden' }]}
+      />
       <PurchaseOrderForm
         initial={{
           supplierId: '',
@@ -20,7 +22,10 @@ export function NewPurchaseOrderPage() {
         error={save.error}
         onSubmit={(value) =>
           save.mutate(value, {
-            onSuccess: (order) => void navigate('/purchases/orders/' + order.id),
+            onSuccess: (order) =>
+              void navigate('/purchases/orders/' + order.id, {
+                state: { notice: 'Orden creada como borrador.' },
+              }),
           })
         }
       />
