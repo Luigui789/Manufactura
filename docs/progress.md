@@ -891,9 +891,9 @@ y Producción C-2; C-2 requiere además Compras.
 | 3     | Autenticación JWT y RBAC                                     | Integrada en `develop` (PR #3)                                                     |
 | 4     | Datos maestros: productos, almacenes, proveedores y clientes | Integrados en `develop` (PR #6, #8 y #9), CI con 433 pruebas                       |
 | 5     | Compras y recepción                                          | Integrada en `develop` mediante PR #16 (`f73cf89`)                                 |
-| 6     | Inventario y movimientos                                     | A-1 integrado (PR #12); A-2 verificada en PR #15; pendiente revisión/merge         |
-| 7     | BOM y producción                                             | C-1 integrado en `develop` (PR #13): BOM, OP DRAFT y disponibilidad; C-2 pendiente |
-| 8     | Lotes, trazabilidad y calidad                                | Pendiente                                                                          |
+| 6     | Inventario y movimientos                                     | A-1 integrado (PR #12); A-2 integrada en `develop` mediante PR #15                 |
+| 7     | BOM y producción                                             | C-1 (PR #13) y C-2 (PR #17) integrados en `develop`                               |
+| 8     | Lotes, trazabilidad y calidad                                | Trazabilidad de producción e inspección de lotes integradas mediante PR #17       |
 | 9     | Clientes, ventas y despacho                                  | Pendiente                                                                          |
 | 10    | Dashboard y reportes básicos                                 | Pendiente                                                                          |
 | 11    | Simulación ISA-95                                            | Pendiente                                                                          |
@@ -973,5 +973,13 @@ Validación final del 2026-10-18: **197 unitarias backend, 453 frontend y 384 E2
 aprobadas (**1.034 pruebas**), incluidos 29 casos E2E C-2. Instalación vacía, upgrade con datos y restricciones SQL
 probados en PostgreSQL 18.6; drift sin diferencias. Lint, formato y builds pasan. Docker valida
 Compra → Inventario → Producción → Calidad → proveedor en un proyecto y volumen aislados.
-[Informe C-2](production-c2-validation.md). C-2 todavía no se atribuye a `develop`;
-PR/CI remota y merge se registran cuando ocurran.
+[Informe C-2](production-c2-validation.md).
+
+### Integración de C-2 y rediseño UI/UX (2026-10-20)
+
+C-2 se integró en `develop` mediante el PR #17, con merge `7a956e9`. El CI de GitHub Actions
+pasó en ambos jobs: `Quality and tests` y `Docker development`.
+
+El rediseño UI/UX se integró mediante el PR #18, con merge `3242e56`. El CI posterior al merge
+también pasó en `Quality and tests` y `Docker development`, incluidos lint, formato, builds,
+pruebas backend/frontend/E2E y verificación del stack Docker.
