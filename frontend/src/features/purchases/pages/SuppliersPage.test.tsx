@@ -138,7 +138,7 @@ describe('Proveedores: interfaz de Compras', () => {
     expect(String(fetch.mock.calls[0][0])).toBe(
       'http://localhost:3000/api/suppliers?page=1&limit=20',
     );
-    expect(screen.getByText('Página 1 de 1 · 1 proveedores')).toBeTruthy();
+    expect(screen.getByText('1 resultados')).toBeTruthy();
   });
 
   it('un rol sin permiso de gestión no ve acciones de modificación', async () => {

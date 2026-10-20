@@ -371,8 +371,134 @@ describe('Purchase and inventory routes after merging develop', () => {
     );
     const client = mount(path);
     expect(await screen.findByRole('heading', { name: heading })).toBeTruthy();
+    const nav = within(screen.getByRole('navigation', { name: 'Menú principal' }));
     for (const name of ['Compras', 'Existencias', 'Movimientos', 'Lotes'])
-      expect(screen.getByRole('link', { name })).toBeTruthy();
+      expect(nav.getByRole('link', { name })).toBeTruthy();
     client.clear();
+  });
+});
+
+describe('Navegación del ERP', () => {
+  it.each(['ADMIN', 'COMPRAS', 'PRODUCCION', 'INVENTARIO', 'VENTAS'] as const)(
+    'agrupa los módulos permitidos sin Administración vacía para %s',
+    (role) => {
+      mount('/', { ...account, role });
+      const nav = within(screen.getByRole('navigation', { name: 'Menú principal' }));
+      for (const group of ['General', 'Operaciones', 'Inventario', 'Maestros']) {
+        expect(nav.getByText(group, { exact: true })).toBeTruthy();
+      }
+      expect(nav.getByRole('link', { name: 'Producción · Órdenes' })).toBeTruthy();
+      expect(nav.getByRole('link', { name: 'Producción · Fórmulas' })).toBeTruthy();
+      if (role === 'ADMIN') {
+        expect(nav.getByText('Administración', { exact: true })).toBeTruthy();
+        expect(nav.getByRole('link', { name: 'Usuarios' })).toBeTruthy();
+      } else {
+        expect(nav.queryByText('Administración', { exact: true })).toBeNull();
+        expect(nav.queryByRole('link', { name: 'Usuarios' })).toBeNull();
+      }
+      expect(!!nav.queryByRole('link', { name: 'Proveedores' })).toBe(
+        role === 'ADMIN' || role === 'COMPRAS',
+      );
+      expect(!!nav.queryByRole('link', { name: 'Clientes' })).toBe(
+        role === 'ADMIN' || role === 'VENTAS',
+      );
+      expect(nav.getByRole('link', { name: 'Inicio' }).getAttribute('aria-current')).toBe('page');
+    },
+  );
+
+  it.each([
+    ['/production/orders/order', 'Producción · Órdenes', 'Orden de producción OP-2026-000001'],
+    ['/production/boms/formula', 'Producción · Fórmulas', 'Fórmula jabón'],
+  ])('mantiene activo el módulo al abrir el detalle %s', async (path, active, heading) => {
+    const product = {
+      id: 'product',
+      code: 'JABON',
+      name: 'Jabón',
+      type: 'FINISHED_GOOD',
+      unit: 'UNIT',
+      isActive: true,
+    };
+    const formula = {
+      id: 'formula',
+      name: 'Fórmula jabón',
+      isActive: true,
+      productId: product.id,
+      product,
+      versions: [],
+    };
+    const updatedAt = '2026-10-10T12:00:00Z';
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: string) => {
+        const url = new URL(input);
+        if (url.pathname.endsWith('/requirements'))
+          return response({
+            data: { updatedAt, canStart: false, eligibilityIssues: [], items: [] },
+          });
+        if (url.pathname.includes('/production/orders/'))
+          return response({
+            data: {
+              id: 'order',
+              number: 'OP-2026-000001',
+              product,
+              warehouse: { id: 'warehouse', code: 'ALM', name: 'Principal' },
+              bomVersion: { id: 'version', version: 1, bom: formula },
+              status: 'CANCELLED',
+              quantityPlanned: '10.0000',
+              quantityProduced: '0.0000',
+              plannedStartAt: null,
+              plannedEndAt: null,
+              lot: null,
+              createdAt: updatedAt,
+              updatedAt,
+            },
+          });
+        return response({ data: formula });
+      }),
+    );
+    mount(path, other);
+    expect(await screen.findByRole('heading', { name: heading, level: 1 })).toBeTruthy();
+    const nav = within(screen.getByRole('navigation', { name: 'Menú principal' }));
+    expect(nav.getByRole('link', { name: active }).getAttribute('aria-current')).toBe('page');
+    const inactive =
+      active === 'Producción · Órdenes' ? 'Producción · Fórmulas' : 'Producción · Órdenes';
+    expect(nav.getByRole('link', { name: inactive }).getAttribute('aria-current')).toBeNull();
+    expect(nav.getByRole('link', { name: 'Inicio' }).getAttribute('aria-current')).toBeNull();
+  });
+
+  it('abre el menú accesible y lo cierra con Escape devolviendo el foco', async () => {
+    mount();
+    const trigger = screen.getByRole('button', { name: 'Abrir menú' });
+    trigger.focus();
+    expect(document.activeElement).toBe(trigger);
+    fireEvent.click(trigger);
+    const dialog = await screen.findByRole('dialog', { name: 'EcoSoap ERP' });
+    expect(within(dialog).getByRole('navigation', { name: 'Menú principal' })).toBeTruthy();
+    expect(within(dialog).getByRole('link', { name: 'Inicio' }).getAttribute('aria-current')).toBe(
+      'page',
+    );
+    fireEvent.keyDown(dialog, { key: 'Escape' });
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+    await waitFor(() => expect(document.activeElement).toBe(trigger));
+  });
+
+  it('cierra el menú al navegar y conserva activa la sección elegida', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => response({ data: [], meta: { page: 1, limit: 20, total: 0 } })),
+    );
+    mount();
+    fireEvent.click(screen.getByRole('button', { name: 'Abrir menú' }));
+    const dialog = await screen.findByRole('dialog', { name: 'EcoSoap ERP' });
+    fireEvent.click(within(dialog).getByRole('link', { name: 'Producción · Fórmulas' }));
+    expect(
+      await screen.findByRole('heading', { name: 'Fórmulas de producción', level: 1 }),
+    ).toBeTruthy();
+    expect(screen.queryByRole('dialog')).toBeNull();
+    expect(
+      within(screen.getByRole('navigation', { name: 'Menú principal' }))
+        .getByRole('link', { name: 'Producción · Fórmulas' })
+        .getAttribute('aria-current'),
+    ).toBe('page');
   });
 });

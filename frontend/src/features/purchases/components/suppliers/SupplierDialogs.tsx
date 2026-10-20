@@ -1,3 +1,4 @@
+import { FormSection } from '@/components/erp';
 import type { ReactNode } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -88,50 +89,57 @@ function SupplierForm({
       className="space-y-4"
       onSubmit={handleSubmit((data) => onSubmit(data, dirtyFields))}
     >
-      <fieldset disabled={pending} className="space-y-4">
-        <FormField
-          id="supplier-code"
-          label="Código"
-          autoComplete="off"
-          error={errors.code?.message}
-          {...register('code')}
-        />
-        <FormField
-          id="supplier-name"
-          label="Razón social"
-          autoComplete="off"
-          error={errors.name?.message}
-          {...register('name')}
-        />
-        <FormField
-          id="supplier-tax-id"
-          label="RUC (opcional)"
-          autoComplete="off"
-          error={errors.taxId?.message}
-          {...register('taxId')}
-        />
-        <FormField
-          id="supplier-email"
-          label="Correo (opcional)"
-          type="email"
-          autoComplete="off"
-          error={errors.email?.message}
-          {...register('email')}
-        />
-        <FormField
-          id="supplier-phone"
-          label="Teléfono (opcional)"
-          autoComplete="off"
-          error={errors.phone?.message}
-          {...register('phone')}
-        />
-        <FormField
-          id="supplier-address"
-          label="Dirección (opcional)"
-          autoComplete="off"
-          error={errors.address?.message}
-          {...register('address')}
-        />
+      <fieldset disabled={pending} className="space-y-5">
+        <FormSection title="Identificación" description="Código y razón social son obligatorios.">
+          <FormField
+            id="supplier-code"
+            label="Código"
+            required
+            autoComplete="off"
+            error={errors.code?.message}
+            {...register('code')}
+          />
+          <FormField
+            id="supplier-name"
+            label="Razón social"
+            required
+            autoComplete="off"
+            error={errors.name?.message}
+            {...register('name')}
+          />
+          <FormField
+            id="supplier-tax-id"
+            label="RUC (opcional)"
+            autoComplete="off"
+            error={errors.taxId?.message}
+            {...register('taxId')}
+          />
+        </FormSection>
+        <FormSection title="Contacto" description="Estos datos son opcionales.">
+          <FormField
+            id="supplier-email"
+            label="Correo (opcional)"
+            type="email"
+            autoComplete="off"
+            error={errors.email?.message}
+            {...register('email')}
+          />
+          <FormField
+            id="supplier-phone"
+            label="Teléfono (opcional)"
+            type="tel"
+            autoComplete="off"
+            error={errors.phone?.message}
+            {...register('phone')}
+          />
+          <FormField
+            id="supplier-address"
+            label="Dirección (opcional)"
+            autoComplete="off"
+            error={errors.address?.message}
+            {...register('address')}
+          />
+        </FormSection>{' '}
       </fieldset>
 
       <ErrorNotice error={error} />

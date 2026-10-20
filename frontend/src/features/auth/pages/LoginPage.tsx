@@ -39,7 +39,7 @@ export function LoginPage() {
             EcoSoap Nicaragua
           </p>
           <CardTitle className="text-2xl">EcoSoap ERP</CardTitle>
-          <CardDescription>Ingresa con tu cuenta para continuar.</CardDescription>
+          <CardDescription>Gestión de compras, inventario y producción.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-5">
           {!!from && (
@@ -53,6 +53,7 @@ export function LoginPage() {
               Reintentar conexión
             </Button>
           )}
+          <h1 className="text-lg font-semibold">Iniciar sesión</h1>
           <LoginForm />
         </CardContent>
       </Card>

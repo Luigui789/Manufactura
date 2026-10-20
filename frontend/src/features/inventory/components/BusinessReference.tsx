@@ -9,5 +9,14 @@ export function BusinessReference({ reference }: { reference: Reference }) {
         {reference.number}
       </Link>
     );
-  return <span title={reference.purchaseOrder.number}>{reference.number}</span>;
+  return (
+    <Link
+      className="underline"
+      title={reference.purchaseOrder.number}
+      to={`/purchases/orders/${reference.purchaseOrder.id}`}
+    >
+      {reference.number}
+      <span className="sr-only"> · {reference.purchaseOrder.number}</span>
+    </Link>
+  );
 }

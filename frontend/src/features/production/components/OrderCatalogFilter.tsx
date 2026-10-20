@@ -1,3 +1,4 @@
+import { LoadingState } from '@/components/erp';
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
@@ -66,14 +67,14 @@ export function OrderCatalogFilter({
           >
             Todos los {kind === 'product' ? 'productos' : 'almacenes'}
           </Button>
-          {catalog.isPending && <p role="status">Cargando opciones…</p>}
+          {catalog.isPending && <LoadingState label="Cargando opciones…" />}
           <ErrorNotice error={catalog.error} />
           {catalog.isError && (
             <Button type="button" variant="outline" onClick={() => void catalog.refetch()}>
               Reintentar opciones
             </Button>
           )}
-          <ul>
+          <ul className="space-y-2">
             {catalog.data?.data.map((item) => (
               <li key={item.id}>
                 <Button
@@ -92,7 +93,10 @@ export function OrderCatalogFilter({
             ))}
           </ul>
           {catalog.data?.data.length === 0 && <p>No hay opciones que coincidan.</p>}
-          <div className="flex gap-3 items-center">
+          <div
+            className="flex flex-wrap gap-3 items-center"
+            hidden={!catalog.data || catalog.data.meta.total <= catalog.data.meta.limit}
+          >
             <Button
               type="button"
               variant="outline"

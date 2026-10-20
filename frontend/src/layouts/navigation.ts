@@ -1,36 +1,90 @@
 import { ROLE_CODES, type RoleCode } from '@/features/auth/types';
-
+import {
+  Home,
+  ShoppingCart,
+  Factory,
+  FlaskConical,
+  Package,
+  ArrowLeftRight,
+  Boxes,
+  PackageOpen,
+  Warehouse,
+  Truck,
+  Users,
+  UserCog,
+  type LucideIcon,
+} from 'lucide-react';
 export const navigation: {
   to: string;
   label: string;
   roles: readonly RoleCode[];
+  group: string;
+  icon: LucideIcon;
 }[] = [
-  { to: '/', label: 'Inicio', roles: ROLE_CODES },
-  { to: '/production/boms', label: 'Fórmulas', roles: ROLE_CODES },
-  { to: '/purchases/orders', label: 'Compras', roles: ROLE_CODES },
-  { to: '/production/orders', label: 'Producción', roles: ROLE_CODES },
-  { to: '/users', label: 'Usuarios', roles: ['ADMIN'] },
+  { to: '/', label: 'Inicio', roles: ROLE_CODES, group: 'General', icon: Home },
   {
-    to: '/sales/customers',
-    label: 'Clientes',
-    roles: ['ADMIN', 'VENTAS'],
+    to: '/purchases/orders',
+    label: 'Compras',
+    roles: ROLE_CODES,
+    group: 'Operaciones',
+    icon: ShoppingCart,
   },
   {
-    to: '/purchases/suppliers',
-    label: 'Proveedores',
-    roles: ['ADMIN', 'COMPRAS'],
+    to: '/production/orders',
+    label: 'Producción · Órdenes',
+    roles: ROLE_CODES,
+    group: 'Operaciones',
+    icon: Factory,
   },
+  {
+    to: '/production/boms',
+    label: 'Producción · Fórmulas',
+    roles: ROLE_CODES,
+    group: 'Operaciones',
+    icon: FlaskConical,
+  },
+  {
+    to: '/inventory/stock',
+    label: 'Existencias',
+    roles: ROLE_CODES,
+    group: 'Inventario',
+    icon: Package,
+  },
+  {
+    to: '/inventory/movements',
+    label: 'Movimientos',
+    roles: ROLE_CODES,
+    group: 'Inventario',
+    icon: ArrowLeftRight,
+  },
+  { to: '/inventory/lots', label: 'Lotes', roles: ROLE_CODES, group: 'Inventario', icon: Boxes },
   {
     to: '/inventory/products',
     label: 'Productos',
     roles: ROLE_CODES,
+    group: 'Maestros',
+    icon: PackageOpen,
   },
   {
     to: '/inventory/warehouses',
     label: 'Almacenes',
     roles: ROLE_CODES,
+    group: 'Maestros',
+    icon: Warehouse,
   },
-  { to: '/inventory/stock', label: 'Existencias', roles: ROLE_CODES },
-  { to: '/inventory/movements', label: 'Movimientos', roles: ROLE_CODES },
-  { to: '/inventory/lots', label: 'Lotes', roles: ROLE_CODES },
+  {
+    to: '/purchases/suppliers',
+    label: 'Proveedores',
+    roles: ['ADMIN', 'COMPRAS'],
+    group: 'Maestros',
+    icon: Truck,
+  },
+  {
+    to: '/sales/customers',
+    label: 'Clientes',
+    roles: ['ADMIN', 'VENTAS'],
+    group: 'Maestros',
+    icon: Users,
+  },
+  { to: '/users', label: 'Usuarios', roles: ['ADMIN'], group: 'Administración', icon: UserCog },
 ];

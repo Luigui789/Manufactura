@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
+import { StatusBadge, LoadingState, Pagination, PageHeader, SuccessNotice } from '@/components/erp';
 import {
   Table,
   TableBody,
@@ -50,26 +50,22 @@ export default function SuppliersPage() {
 
   return (
     <section className="space-y-5">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-semibold">Gestión de Proveedores</h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Consulta y administra los proveedores de materias primas e insumos.
-          </p>
-        </div>
+      <PageHeader
+        title="Gestión de Proveedores"
+        description="Consulta y administra los proveedores de materias primas e insumos."
+        actions={
+          <>
+            {' '}
+            {canManage && (
+              <Button onClick={() => openAction({ type: 'create' })}>Nuevo proveedor</Button>
+            )}{' '}
+          </>
+        }
+      />
 
-        {canManage && (
-          <Button onClick={() => openAction({ type: 'create' })}>Nuevo proveedor</Button>
-        )}
-      </div>
+      {message && <SuccessNotice>{message}</SuccessNotice>}
 
-      {message && (
-        <p role="status" className="rounded-lg border bg-background p-3 text-sm">
-          {message}
-        </p>
-      )}
-
-      {suppliers.isPending && <p role="status">Cargando proveedores…</p>}
+      {suppliers.isPending && <LoadingState label="Cargando proveedores…" />}
 
       <ErrorNotice error={suppliers.error} />
 
@@ -113,9 +109,7 @@ export default function SuppliersPage() {
                   </TableCell>
                   <TableCell>{supplier.address ?? '—'}</TableCell>
                   <TableCell className="min-w-[6rem]">
-                    <Badge variant={supplier.isActive ? 'secondary' : 'outline'}>
-                      {supplier.isActive ? 'Activo' : 'Inactivo'}
-                    </Badge>
+                    <StatusBadge status={supplier.isActive} />
                   </TableCell>
                   {canManage && (
                     <TableCell>
@@ -148,7 +142,8 @@ export default function SuppliersPage() {
                     colSpan={canManage ? 6 : 5}
                     className="py-8 text-center text-muted-foreground"
                   >
-                    No hay proveedores en esta página.
+                    No hay proveedores en esta página. Usá el botón de alta para registrar una nueva
+                    cuenta o entidad cuando tu rol lo permita.
                   </TableCell>
                 </TableRow>
               )}
@@ -157,35 +152,15 @@ export default function SuppliersPage() {
         </div>
       )}
 
-      <nav
-        aria-label="Paginación de proveedores"
-        className="flex flex-wrap items-center justify-between gap-3"
-      >
-        <p aria-live="polite" className="text-sm text-muted-foreground">
-          {suppliers.data
-            ? `Página ${page} de ${totalPages} · ${suppliers.data.meta.total} proveedores`
-            : `Página ${page}`}
-        </p>
-
-        <div className="flex gap-2">
-          <Button
-            variant="outline"
-            disabled={page <= 1 || suppliers.isFetching}
-            onClick={() => setPage((current) => current - 1)}
-          >
-            Anterior
-          </Button>
-          <Button
-            variant="outline"
-            disabled={
-              !suppliers.data || suppliers.isError || suppliers.isFetching || page >= totalPages
-            }
-            onClick={() => setPage((current) => current + 1)}
-          >
-            Siguiente
-          </Button>
-        </div>
-      </nav>
+      <Pagination
+        page={page}
+        pages={totalPages}
+        total={suppliers.data?.meta.total}
+        label="Paginación de resultados"
+        onPageChange={setPage}
+        busy={suppliers.isFetching}
+        unavailable={suppliers.isError || !suppliers.data}
+      />
 
       {canManage && action?.type === 'create' && (
         <CreateSupplierDialog

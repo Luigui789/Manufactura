@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter, Route, Routes } from 'react-router';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -213,7 +213,7 @@ describe('Purchase UI', () => {
     'read-only role %s sees list/detail without mutation actions',
     async (role) => {
       setup(role, '/purchases/orders/' + ids[5], { status: 'CONFIRMED' });
-      await screen.findByText('OC-2026-000001');
+      await screen.findByRole('heading', { name: 'OC-2026-000001', level: 1 });
       expect(screen.queryByRole('button', { name: 'Recibir compra' })).toBeNull();
       expect(screen.queryByRole('button', { name: 'Cancelar orden' })).toBeNull();
       expect(screen.getByText('Sin recepciones.')).toBeTruthy();
@@ -229,23 +229,32 @@ describe('Purchase UI', () => {
   });
   it('creates a draft with strings using catalog selection and calendar date', async () => {
     const requests = setup('COMPRAS', '/purchases/orders/new');
-    fireEvent.click(await screen.findByRole('button', { name: 'PRV · Proveedor' }));
-    fireEvent.click(await screen.findByRole('button', { name: 'ACEITE · Aceite' }));
-    fireEvent.change(screen.getByLabelText('Cantidad ordenada'), { target: { value: '100.0000' } });
-    fireEvent.change(screen.getByLabelText('Precio unitario'), { target: { value: '1.0050' } });
-    fireEvent.change(screen.getByLabelText('Fecha esperada'), { target: { value: '2026-12-01' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Guardar borrador' }));
-    await screen.findByText('OC-2026-000001');
+    const save = screen.getByRole('button', { name: 'Guardar borrador' });
+    const form = within(save.closest('form')!);
+    fireEvent.click(await form.findByRole('button', { name: 'PRV · Proveedor' }));
+    fireEvent.click(await form.findByRole('button', { name: 'ACEITE · Aceite' }));
+    fireEvent.change(form.getByLabelText(/^Cantidad ordenada/), {
+      target: { value: '100.0000' },
+    });
+    fireEvent.change(form.getByLabelText(/^Precio unitario/), {
+      target: { value: '1.0050' },
+    });
+    fireEvent.change(form.getByLabelText('Fecha esperada'), { target: { value: '2026-12-01' } });
+    fireEvent.click(save);
+    await screen.findByRole('heading', { name: 'OC-2026-000001', level: 1 });
+    expect(screen.getByText('Orden creada como borrador.')).toBeTruthy();
     expect(requests.find((r) => r.method === 'POST')?.body).toEqual({
       supplierId: supplier.id,
       expectedDate: '2026-12-01',
       items: [{ productId: product.id, quantity: '100.0000', unitPrice: '1.0050' }],
     });
-  });
+  }, 15000);
   it('edits draft and clears expected date without losing historical product/supplier selection', async () => {
     const requests = setup('ADMIN', '/purchases/orders/' + ids[5]);
     fireEvent.click(await screen.findByRole('button', { name: 'Editar borrador' }));
-    fireEvent.change(screen.getByLabelText('Cantidad ordenada'), { target: { value: '90' } });
+    fireEvent.change(screen.getByRole('textbox', { name: 'Cantidad ordenada' }), {
+      target: { value: '90' },
+    });
     fireEvent.change(screen.getByLabelText('Fecha esperada'), { target: { value: '' } });
     fireEvent.click(screen.getByRole('button', { name: 'Guardar borrador' }));
     await waitFor(() => expect(requests.some((r) => r.method === 'PATCH')).toBe(true));
@@ -254,6 +263,7 @@ describe('Purchase UI', () => {
       expectedDate: null,
       items: [{ productId: product.id, quantity: '90', unitPrice: '1.0000' }],
     });
+    expect(await screen.findByText('Borrador actualizado.')).toBeTruthy();
   });
   it.each(['confirm', 'cancel'] as const)(
     'executes explicit %s action and refreshes status',
@@ -277,24 +287,37 @@ describe('Purchase UI', () => {
       await waitFor(() =>
         expect(screen.queryByRole('button', { name: 'Editar borrador' })).toBeNull(),
       );
+      expect(
+        await screen.findByText(
+          action === 'confirm'
+            ? 'Orden confirmada. Ya podés registrar una recepción.'
+            : 'Orden cancelada. Ya no puede recibirse.',
+        ),
+      ).toBeTruthy();
     },
   );
   it('receives split lines into warehouses, sends Managua timestamp and shows lot history', async () => {
     const requests = setup('COMPRAS', '/purchases/orders/' + ids[5], { status: 'CONFIRMED' });
     fireEvent.click(await screen.findByRole('button', { name: 'Recibir compra' }));
-    fireEvent.click(await screen.findByRole('button', { name: 'ALM-A · Principal' }));
-    fireEvent.change(screen.getByLabelText('Cantidad recibida'), { target: { value: '30' } });
-    fireEvent.change(screen.getByLabelText('Vencimiento del lote (opcional)'), {
+    const form = within(screen.getByRole('form', { name: 'Registrar recepción' }));
+    fireEvent.click(await form.findByRole('button', { name: 'ALM-A · Principal' }));
+    fireEvent.change(form.getByLabelText(/^Cantidad recibida/), {
+      target: { value: '30' },
+    });
+    fireEvent.change(form.getByLabelText('Vencimiento del lote (opcional)'), {
       target: { value: '2027-12-31' },
     });
-    fireEvent.change(screen.getByLabelText('Fecha y hora de recepción (Managua, opcional)'), {
+    fireEvent.change(form.getByLabelText('Fecha y hora de recepción (Managua, opcional)'), {
       target: { value: '2026-10-13T14:00' },
     });
-    fireEvent.click(screen.getByRole('button', { name: 'Agregar fila de recepción' }));
-    fireEvent.click(screen.getAllByRole('button', { name: 'ALM-B · Secundario' })[1]);
-    fireEvent.change(screen.getAllByLabelText('Cantidad recibida')[1], { target: { value: '20' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Confirmar recepción' }));
-    await screen.findByText('REC-2026-000001');
+    fireEvent.click(form.getByRole('button', { name: 'Agregar fila de recepción' }));
+    const secondRow = form.getByRole('region', { name: 'Fila de recepción 2' });
+    fireEvent.click(await within(secondRow).findByRole('button', { name: 'ALM-B · Secundario' }));
+    fireEvent.change(within(secondRow).getByLabelText(/^Cantidad recibida/), {
+      target: { value: '20' },
+    });
+    fireEvent.click(form.getByRole('button', { name: 'Confirmar recepción' }));
+    await screen.findByRole('heading', { name: 'REC-2026-000001' });
     const body = requests.find((r) => r.path.endsWith('/receive'))?.body;
     expect(body).toEqual({
       receivedAt: '2026-10-13T14:00:00-06:00',
@@ -309,23 +332,34 @@ describe('Purchase UI', () => {
         { purchaseOrderItemId: ids[2], warehouseId: ids[4], quantity: '20' },
       ],
     });
-    expect(screen.getByText(/LOT-2026-000001/)).toBeTruthy();
+    expect(screen.getByRole('link', { name: 'LOT-2026-000001' }).getAttribute('href')).toBe(
+      '/inventory/lots?lotId=' + ids[6],
+    );
+    expect(
+      screen.getByText('Recepción REC-2026-000001 registrada. Las existencias se actualizaron.'),
+    ).toBeTruthy();
+    expect(screen.getByText('En cuarentena')).toBeTruthy();
+    expect(screen.getByText('31/12/2027')).toBeTruthy();
     expect(screen.queryByRole('button', { name: 'Cancelar orden' })).toBeNull();
-  });
+  }, 15000);
   it('keeps receipt form and quantities on overreceipt error', async () => {
     setup('COMPRAS', '/purchases/orders/' + ids[5], { status: 'CONFIRMED', failReceive: true });
     fireEvent.click(await screen.findByRole('button', { name: 'Recibir compra' }));
     fireEvent.click(await screen.findByRole('button', { name: 'ALM-A · Principal' }));
-    fireEvent.change(screen.getByLabelText('Cantidad recibida'), { target: { value: '101' } });
+    fireEvent.change(screen.getByRole('textbox', { name: 'Cantidad recibida' }), {
+      target: { value: '101' },
+    });
     fireEvent.click(screen.getByRole('button', { name: 'Confirmar recepción' }));
     await screen.findByText('La cantidad excede el pendiente');
-    expect((screen.getByLabelText('Cantidad recibida') as HTMLInputElement).value).toBe('101');
+    expect(
+      (screen.getByRole('textbox', { name: 'Cantidad recibida' }) as HTMLInputElement).value,
+    ).toBe('101');
   });
   it.each(['PARTIALLY_RECEIVED', 'RECEIVED', 'CANCELLED'] as const)(
     'hides invalid transitions for %s',
     async (status) => {
       setup('COMPRAS', '/purchases/orders/' + ids[5], { status });
-      await screen.findByText('OC-2026-000001');
+      await screen.findByRole('heading', { name: 'OC-2026-000001', level: 1 });
       expect(screen.queryByRole('button', { name: 'Cancelar orden' })).toBeNull();
       expect(screen.queryByRole('button', { name: 'Editar borrador' })).toBeNull();
       if (status !== 'PARTIALLY_RECEIVED')

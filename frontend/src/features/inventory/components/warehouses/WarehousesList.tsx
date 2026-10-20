@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
+import { StatusBadge, Pagination, SuccessNotice, LoadingState, PageHeader } from '@/components/erp';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import {
@@ -60,11 +60,6 @@ export function WarehousesList() {
     setMessage(notice);
   };
 
-  const changePage = (nextPage: number) => {
-    setMessage('');
-    setPage(nextPage);
-  };
-
   const clearFilters = () => {
     setStatus('all');
     setSearchInput('');
@@ -74,11 +69,13 @@ export function WarehousesList() {
 
   return (
     <div className="space-y-4">
-      {canManage && (
-        <div className="flex justify-end">
-          <Button onClick={() => openAction({ type: 'create' })}>Nuevo almacén</Button>
-        </div>
-      )}
+      <PageHeader
+        title="Gestión de Almacenes"
+        description="Organizá las ubicaciones donde se reciben, almacenan y consumen los productos."
+        actions={
+          canManage && <Button onClick={() => openAction({ type: 'create' })}>Nuevo almacén</Button>
+        }
+      />
 
       <form
         role="search"
@@ -129,17 +126,9 @@ export function WarehousesList() {
         )}
       </form>
 
-      {message && (
-        <p role="status" className="rounded-lg border bg-background p-3 text-sm">
-          {message}
-        </p>
-      )}
+      {message && <SuccessNotice>{message}</SuccessNotice>}
 
-      {warehouses.isPending && (
-        <p role="status" className="p-8 text-center text-muted-foreground">
-          Cargando almacenes…
-        </p>
-      )}
+      {warehouses.isPending && <LoadingState label="Cargando almacenes…" />}
 
       <ErrorNotice error={warehouses.error} />
 
@@ -169,9 +158,7 @@ export function WarehousesList() {
                   <TableCell>{warehouse.name}</TableCell>
                   <TableCell>{warehouse.location || '—'}</TableCell>
                   <TableCell>
-                    <Badge variant={warehouse.isActive ? 'secondary' : 'outline'}>
-                      {warehouse.isActive ? 'Activo' : 'Inactivo'}
-                    </Badge>
+                    <StatusBadge status={warehouse.isActive} />
                   </TableCell>
 
                   {canManage && (
@@ -219,36 +206,15 @@ export function WarehousesList() {
         </div>
       )}
 
-      <nav
-        aria-label="Paginación de almacenes"
-        className="flex flex-wrap items-center justify-between gap-3"
-      >
-        <p aria-live="polite" className="text-sm text-muted-foreground">
-          {warehouses.data
-            ? `Página ${page} de ${totalPages} · ${warehouses.data.meta.total} almacenes`
-            : `Página ${page}`}
-        </p>
-
-        <div className="flex gap-2">
-          <Button
-            variant="outline"
-            disabled={page <= 1 || warehouses.isFetching}
-            onClick={() => changePage(page - 1)}
-          >
-            Anterior
-          </Button>
-
-          <Button
-            variant="outline"
-            disabled={
-              !warehouses.data || warehouses.isError || warehouses.isFetching || page >= totalPages
-            }
-            onClick={() => changePage(page + 1)}
-          >
-            Siguiente
-          </Button>
-        </div>
-      </nav>
+      <Pagination
+        page={page}
+        pages={totalPages}
+        total={warehouses.data?.meta.total}
+        label="Paginación de resultados"
+        onPageChange={setPage}
+        busy={warehouses.isFetching}
+        unavailable={warehouses.isError || !warehouses.data}
+      />
 
       {canManage && action?.type === 'create' && (
         <CreateWarehouseDialog onClose={onClose} onSuccess={onSuccess} />

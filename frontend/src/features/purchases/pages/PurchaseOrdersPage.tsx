@@ -1,3 +1,5 @@
+import { PageHeader, StatusBadge, Pagination, LoadingState, EmptyState } from '@/components/erp';
+import { formatCalendarDate } from '@/lib/calendar-date';
 import { useState } from 'react';
 
 import { Link } from 'react-router';
@@ -30,7 +32,10 @@ export function PurchaseOrdersPage() {
 
   return (
     <section className="space-y-5">
-      <h1 className="text-2xl font-semibold">Órdenes de compra</h1>
+      <PageHeader
+        title="Órdenes de compra"
+        description="Prepará compras, registrá recepciones y consultá lo pendiente por proveedor."
+      />
 
       {canManage && (
         <Button asChild>
@@ -40,7 +45,7 @@ export function PurchaseOrdersPage() {
 
       <form
         role="search"
-        className="flex gap-3"
+        className="flex flex-wrap items-end gap-3"
         onSubmit={(e) => {
           e.preventDefault();
           setSearch(input.trim());
@@ -49,6 +54,7 @@ export function PurchaseOrdersPage() {
       >
         <label htmlFor="purchase-search">Número de orden</label>
         <Input
+          placeholder="Ej. OC-2026-000009"
           id="purchase-search"
           maxLength={100}
           value={input}
@@ -70,7 +76,9 @@ export function PurchaseOrdersPage() {
             </option>
           ))}
         </select>
-        <Button type="submit">Buscar</Button>
+        <Button type="submit" variant="outline">
+          Buscar
+        </Button>
       </form>
 
       <OrderCatalogPicker
@@ -83,6 +91,20 @@ export function PurchaseOrdersPage() {
         }}
       />
 
+      {(input || search || status || supplierId) && (
+        <Button
+          variant="ghost"
+          onClick={() => {
+            setInput('');
+            setSearch('');
+            setStatus('');
+            setSupplier('');
+            setPage(1);
+          }}
+        >
+          Limpiar filtros
+        </Button>
+      )}
       {supplierId && (
         <Button
           variant="outline"
@@ -95,48 +117,71 @@ export function PurchaseOrdersPage() {
         </Button>
       )}
 
-      {orders.isPending && <p role="status">Cargando compras…</p>}
+      {orders.isPending && <LoadingState label="Cargando compras…" />}
       <ErrorNotice error={orders.error} />
       {orders.isError && <Button onClick={() => void orders.refetch()}>Reintentar</Button>}
 
-      <ul className="space-y-3">
-        {orders.data?.data.map((order) => (
-          <li key={order.id} className="rounded border p-4">
-            <Link className="underline font-medium" to={'/purchases/orders/' + order.id}>
-              {order.number}
-            </Link>
-            <p>
-              {order.supplier.code} · {order.supplier.name} · {PURCHASE_STATUS[order.status]}
-            </p>
-            <p>
-              Total: {order.total} · {order.itemsCount} líneas · Fecha esperada:{' '}
-              {order.expectedDate ?? 'Sin fecha'}
-            </p>
-          </li>
-        ))}
-      </ul>
-
-      {orders.data?.data.length === 0 && <p>No hay órdenes que coincidan.</p>}
-
-      <nav aria-label="Paginación de compras" className="flex gap-3">
-        <Button
-          variant="outline"
-          disabled={page <= 1 || orders.isFetching}
-          onClick={() => setPage(page - 1)}
-        >
-          Anterior
-        </Button>
-        <span>
-          Página {page} de {pages}
-        </span>
-        <Button
-          variant="outline"
-          disabled={!orders.data || orders.isError || orders.isFetching || page >= pages}
-          onClick={() => setPage(page + 1)}
-        >
-          Siguiente
-        </Button>
-      </nav>
+      {orders.data && orders.data.data.length > 0 && (
+        <div className="overflow-x-auto rounded-lg border bg-background">
+          <table aria-label="Órdenes de compra">
+            <thead>
+              <tr>
+                <th>Número</th>
+                <th>Proveedor</th>
+                <th>Fecha</th>
+                <th>Fecha esperada</th>
+                <th className="numeric">Total</th>
+                <th>Estado</th>
+              </tr>
+            </thead>
+            <tbody>
+              {orders.data.data.map((order) => (
+                <tr key={order.id}>
+                  <td>
+                    <Link
+                      className="font-medium underline underline-offset-4"
+                      to={'/purchases/orders/' + order.id}
+                    >
+                      {order.number}
+                    </Link>
+                  </td>
+                  <td>
+                    {order.supplier.name}
+                    <p className="text-xs text-muted-foreground">{order.supplier.code}</p>
+                  </td>
+                  <td>
+                    {new Date(order.orderedAt).toLocaleDateString('es-NI', {
+                      timeZone: 'America/Managua',
+                    })}
+                  </td>
+                  <td>
+                    {order.expectedDate ? formatCalendarDate(order.expectedDate) : 'Sin fecha'}
+                  </td>
+                  <td className="numeric">{order.total}</td>
+                  <td>
+                    <StatusBadge status={order.status} />
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+      {orders.data?.data.length === 0 && (
+        <EmptyState
+          title="No hay órdenes que coincidan."
+          description="Probá otros filtros o creá una orden de compra con los productos que necesitás."
+        />
+      )}
+      <Pagination
+        page={page}
+        pages={pages}
+        total={orders.data?.meta.total}
+        label="Paginación de compras"
+        onPageChange={setPage}
+        busy={orders.isFetching}
+        unavailable={!orders.data || orders.isError}
+      />
     </section>
   );
 }

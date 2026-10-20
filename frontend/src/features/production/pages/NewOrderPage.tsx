@@ -1,4 +1,5 @@
-import { Link, useNavigate } from 'react-router';
+import { PageHeader } from '@/components/erp';
+import { useNavigate } from 'react-router';
 import { useSession } from '@/features/auth/hooks/use-auth';
 import { useCreateOrder } from '../api/orders';
 import { OrderForm } from '../components/OrderForm';
@@ -10,10 +11,11 @@ export function NewOrderPage() {
   const canManage = session.data?.role === 'ADMIN' || session.data?.role === 'PRODUCCION';
   return (
     <section className="space-y-5">
-      <Link to="/production/orders" className="underline">
-        Volver a órdenes
-      </Link>
-      <h1 className="text-2xl font-semibold">Nueva orden de producción</h1>
+      <PageHeader
+        title="Nueva orden de producción"
+        description="Se guardará como borrador. Iniciar valida disponibilidad sin reservar materiales."
+        breadcrumbs={[{ label: 'Producción', to: '/production/orders' }, { label: 'Nueva orden' }]}
+      />
       {canManage ? (
         <OrderForm
           initial={{
@@ -28,7 +30,10 @@ export function NewOrderPage() {
           error={create.error}
           onSubmit={(value) =>
             create.mutate(value, {
-              onSuccess: (order) => void navigate('/production/orders/' + order.id),
+              onSuccess: (order) =>
+                void navigate('/production/orders/' + order.id, {
+                  state: { notice: 'Orden creada como borrador.' },
+                }),
             })
           }
         />

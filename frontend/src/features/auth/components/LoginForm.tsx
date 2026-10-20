@@ -24,23 +24,32 @@ export function LoginForm() {
         ? new Error('Demasiados intentos. Espera un minuto')
         : mutation.error;
   return (
-    <form noValidate className="space-y-5" onSubmit={handleSubmit((data) => mutation.mutate(data))}>
-      <FormField
-        id="email"
-        label="Correo electrónico"
-        type="email"
-        autoComplete="username"
-        error={errors.email?.message}
-        {...register('email')}
-      />
-      <FormField
-        id="password"
-        label="Contraseña"
-        type="password"
-        autoComplete="current-password"
-        error={errors.password?.message}
-        {...register('password')}
-      />
+    <form
+      aria-busy={mutation.isPending}
+      noValidate
+      className="space-y-5"
+      onSubmit={handleSubmit((data) => mutation.mutate(data))}
+    >
+      <fieldset disabled={mutation.isPending} className="space-y-5">
+        <FormField
+          id="email"
+          label="Correo electrónico"
+          required
+          type="email"
+          autoComplete="username"
+          error={errors.email?.message}
+          {...register('email')}
+        />
+        <FormField
+          id="password"
+          label="Contraseña"
+          required
+          type="password"
+          autoComplete="current-password"
+          error={errors.password?.message}
+          {...register('password')}
+        />
+      </fieldset>
       <ErrorNotice error={error} />
       <Button className="w-full" type="submit" disabled={mutation.isPending}>
         {mutation.isPending ? 'Iniciando sesión…' : 'Iniciar sesión'}
