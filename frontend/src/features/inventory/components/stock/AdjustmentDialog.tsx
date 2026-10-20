@@ -1,10 +1,21 @@
-import { useState, type FormEvent } from 'react';
+import { useRef, useState, type FormEvent } from 'react';
 import { Button } from '@/components/ui/button';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import { FormField } from '@/components/FormField';
 import { ErrorNotice } from '@/components/ErrorNotice';
 import { positiveQuantitySchema } from '@/lib/decimal';
-import { useProducts } from '../../api/product-hooks';
-import { useWarehouses } from '../../api/hooks';
-import { useInventoryLots, useCreateInventoryAdjustment } from '../../api/inventory-hooks';
+import { unitLabel } from '@/lib/presentation';
+import { useCreateInventoryAdjustment } from '../../api/inventory-hooks';
+import { InventoryEntityPicker } from '../InventoryEntityPicker';
+
+type ValidationErrors = Partial<Record<'productId' | 'warehouseId' | 'lotId' | 'quantity', string>>;
+type SelectedProduct = { code: string; name: string; isLotTracked?: boolean; unit?: string };
 
 export function AdjustmentDialog({
   onClose,
@@ -14,6 +25,7 @@ export function AdjustmentDialog({
   onSuccess: (message: string) => void;
 }) {
   const [productId, setProductId] = useState('');
+  const [selectedProduct, setSelectedProduct] = useState<SelectedProduct>();
   const [warehouseId, setWarehouseId] = useState('');
   const [type, setType] = useState<'ADJUSTMENT_IN' | 'ADJUSTMENT_OUT'>('ADJUSTMENT_IN');
   const [quantity, setQuantity] = useState('');
@@ -21,31 +33,31 @@ export function AdjustmentDialog({
     'INITIAL_LOAD' | 'PHYSICAL_COUNT' | 'DAMAGE' | 'LOSS' | 'EXPIRY' | 'CORRECTION'
   >('INITIAL_LOAD');
   const [lotId, setLotId] = useState('');
-  const [validationError, setValidationError] = useState('');
-  const products = useProducts(1, { isActive: true }, 100);
-  const warehouses = useWarehouses(1, { isActive: true }, 100);
-  const selected = products.data?.data.find((item) => item.id === productId);
-  const lots = useInventoryLots(
-    {
-      productId,
-      ...(type === 'ADJUSTMENT_OUT' ? { warehouseId, hasStock: true } : {}),
-    },
-    1,
-    Boolean(productId && selected?.isLotTracked),
-  );
+  const [errors, setErrors] = useState<ValidationErrors>({});
+  const returnFocus = useRef<HTMLElement | null>(null);
+  const formRef = useRef<HTMLFormElement>(null);
   const mutation = useCreateInventoryAdjustment();
+  const pending = mutation.isPending;
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    setValidationError('');
-    if (
-      !productId ||
-      !warehouseId ||
-      !positiveQuantitySchema.safeParse(quantity).success ||
-      (selected?.isLotTracked && !lotId)
-    ) {
-      setValidationError(
-        'Selecciona producto, almacén y lote cuando corresponda, e indica una cantidad positiva con hasta 4 decimales.',
-      );
+    if (pending) return;
+    const nextErrors: ValidationErrors = {};
+    if (!productId) nextErrors.productId = 'Seleccioná un producto.';
+    if (!warehouseId) nextErrors.warehouseId = 'Seleccioná un almacén.';
+    if (!positiveQuantitySchema.safeParse(quantity).success)
+      nextErrors.quantity = 'Indicá una cantidad positiva con hasta 4 decimales.';
+    if (selectedProduct?.isLotTracked && !lotId)
+      nextErrors.lotId = 'Seleccioná un lote para este producto.';
+    setErrors(nextErrors);
+    if (Object.keys(nextErrors).length) {
+      const field = Object.keys(nextErrors)[0];
+      requestAnimationFrame(() => {
+        const section = formRef.current?.querySelector<HTMLElement>(
+          '[data-adjustment-field="' + field + '"]',
+        );
+        const control = section?.querySelector<HTMLElement>('button, input');
+        (control ?? section)?.focus();
+      });
       return;
     }
     try {
@@ -62,156 +74,186 @@ export function AdjustmentDialog({
       return;
     }
   };
+
   return (
-    <div
-      role="presentation"
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+    <Dialog
+      open
+      onOpenChange={(open) => {
+        if (!open && !pending) onClose();
+      }}
     >
-      <section
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="adjustment-title"
-        className="w-full max-w-lg space-y-4 rounded-lg border bg-background p-5"
+      <DialogContent
+        className="sm:max-w-3xl"
+        showCloseButton={!pending}
+        onOpenAutoFocus={() => {
+          returnFocus.current = document.activeElement as HTMLElement | null;
+        }}
+        onCloseAutoFocus={(event) => {
+          if (returnFocus.current?.isConnected) {
+            event.preventDefault();
+            returnFocus.current.focus();
+          }
+        }}
       >
-        <h2 id="adjustment-title" className="text-lg font-semibold">
-          Nuevo ajuste
-        </h2>
-        <form onSubmit={submit} className="space-y-4">
-          {(products.isPending ||
-            warehouses.isPending ||
-            (selected?.isLotTracked && lots.isPending)) && <p role="status">Cargando opciones…</p>}
-          <ErrorNotice
-            error={
-              products.error ?? warehouses.error ?? (selected?.isLotTracked ? lots.error : null)
-            }
-          />
-          {(products.isError || warehouses.isError || (selected?.isLotTracked && lots.isError)) && (
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => {
-                void products.refetch();
-                void warehouses.refetch();
-                if (selected?.isLotTracked) void lots.refetch();
-              }}
-            >
-              Reintentar
-            </Button>
-          )}
-          <label className="block space-y-1 text-sm">
-            Producto
-            <select
-              className="h-9 w-full rounded-md border bg-background px-2"
-              value={productId}
-              onChange={(e) => {
-                setProductId(e.target.value);
-                setLotId('');
-              }}
-              required
-            >
-              <option value="">Selecciona producto</option>
-              {products.data?.data.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.code} · {p.name}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="block space-y-1 text-sm">
-            Almacén
-            <select
-              className="h-9 w-full rounded-md border bg-background px-2"
-              value={warehouseId}
-              onChange={(e) => {
-                setWarehouseId(e.target.value);
-                setLotId('');
-              }}
-              required
-            >
-              <option value="">Selecciona almacén</option>
-              {warehouses.data?.data.map((w) => (
-                <option key={w.id} value={w.id}>
-                  {w.code} · {w.name}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="block space-y-1 text-sm">
-            Tipo
-            <select
-              className="h-9 w-full rounded-md border bg-background px-2"
-              value={type}
-              onChange={(e) => {
-                setType(e.target.value as typeof type);
-                setLotId('');
-              }}
-            >
-              <option value="ADJUSTMENT_IN">Entrada</option>
-              <option value="ADJUSTMENT_OUT">Salida</option>
-            </select>
-          </label>
-          {selected?.isLotTracked && (
-            <label className="block space-y-1 text-sm">
-              Lote
-              <select
-                className="h-9 w-full rounded-md border bg-background px-2"
-                value={lotId}
-                onChange={(e) => setLotId(e.target.value)}
-                required
+        <DialogHeader>
+          <DialogTitle>Nuevo ajuste</DialogTitle>
+          <DialogDescription>
+            Registrá una diferencia del inventario físico. Una entrada aumenta el saldo; una salida
+            lo reduce.
+          </DialogDescription>
+        </DialogHeader>
+        <form ref={formRef} noValidate onSubmit={submit} className="space-y-5">
+          <p className="text-sm text-muted-foreground">
+            Seleccioná producto y almacén, indicá la cantidad y el motivo del ajuste.
+          </p>
+          <fieldset disabled={pending} className="space-y-5">
+            <div className="grid items-start gap-4 md:grid-cols-2">
+              <div data-adjustment-field="productId" tabIndex={-1}>
+                <InventoryEntityPicker
+                  kind="product"
+                  value={productId}
+                  activeOnly
+                  error={errors.productId}
+                  onChange={(value, entity) => {
+                    setProductId(value);
+                    setSelectedProduct(entity);
+                    setLotId('');
+                    setErrors((previous) => ({
+                      ...previous,
+                      productId: undefined,
+                      lotId: undefined,
+                    }));
+                  }}
+                />
+              </div>
+              <div data-adjustment-field="warehouseId" tabIndex={-1}>
+                <InventoryEntityPicker
+                  kind="warehouse"
+                  value={warehouseId}
+                  activeOnly
+                  error={errors.warehouseId}
+                  onChange={(value) => {
+                    setWarehouseId(value);
+                    setLotId('');
+                    setErrors((previous) => ({
+                      ...previous,
+                      warehouseId: undefined,
+                      lotId: undefined,
+                    }));
+                  }}
+                />
+              </div>
+            </div>
+            <div className="grid gap-4 md:grid-cols-2">
+              <label className="block space-y-2 text-sm font-medium">
+                Tipo
+                <select
+                  className="block h-10 w-full rounded-md border bg-background px-3"
+                  value={type}
+                  onChange={(event) => {
+                    setType(event.target.value as typeof type);
+                    setLotId('');
+                    setErrors((previous) => ({ ...previous, lotId: undefined }));
+                  }}
+                >
+                  <option value="ADJUSTMENT_IN">Entrada</option>
+                  <option value="ADJUSTMENT_OUT">Salida</option>
+                </select>
+              </label>
+              <div data-adjustment-field="quantity" tabIndex={-1}>
+                <FormField
+                  id="adjustment-quantity"
+                  label="Cantidad"
+                  inputMode="decimal"
+                  pattern="(?=.*[1-9])[0-9]{1,14}(\.[0-9]{1,4})?"
+                  value={quantity}
+                  onChange={(event) => {
+                    setQuantity(event.target.value);
+                    setErrors((previous) => ({ ...previous, quantity: undefined }));
+                  }}
+                  required
+                  error={errors.quantity}
+                  helper={
+                    (selectedProduct?.unit
+                      ? 'Unidad: ' + unitLabel(selectedProduct.unit) + '. '
+                      : '') +
+                    'Ingresá una cantidad positiva; el tipo de ajuste determina si entra o sale.'
+                  }
+                />
+              </div>
+            </div>
+            {selectedProduct?.isLotTracked && (
+              <section
+                className="space-y-3 border-t pt-4"
+                data-adjustment-field="lotId"
+                tabIndex={-1}
               >
-                <option value="">Selecciona lote</option>
-                {lots.data?.data.map((l) => (
-                  <option key={l.id} value={l.id}>
-                    {l.code} · {l.status} · {l.quantityOnHand}
+                <div>
+                  <h3 className="text-sm font-semibold">Lote requerido</h3>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    Este producto tiene seguimiento por lote. Elegí el lote que corresponde al
+                    ajuste.
+                    {type === 'ADJUSTMENT_OUT' &&
+                      ' Solo aparecen lotes con existencia para el almacén seleccionado.'}
+                  </p>
+                </div>
+                <InventoryEntityPicker
+                  key={productId + '-' + type + '-' + warehouseId}
+                  kind="lot"
+                  value={lotId}
+                  lotFilters={{
+                    productId,
+                    ...(type === 'ADJUSTMENT_OUT' ? { warehouseId, hasStock: true } : {}),
+                  }}
+                  error={errors.lotId}
+                  onChange={(value) => {
+                    setLotId(value);
+                    setErrors((previous) => ({ ...previous, lotId: undefined }));
+                  }}
+                />
+              </section>
+            )}
+            <label className="block space-y-2 text-sm font-medium">
+              Motivo
+              <select
+                className="block h-10 w-full rounded-md border bg-background px-3"
+                value={reason}
+                onChange={(event) => setReason(event.target.value as typeof reason)}
+              >
+                {[
+                  ['INITIAL_LOAD', 'Carga inicial'],
+                  ['PHYSICAL_COUNT', 'Conteo físico'],
+                  ['DAMAGE', 'Daño'],
+                  ['LOSS', 'Pérdida'],
+                  ['EXPIRY', 'Vencimiento'],
+                  ['CORRECTION', 'Corrección'],
+                ].map(([value, label]) => (
+                  <option key={value} value={value}>
+                    {label}
                   </option>
                 ))}
               </select>
             </label>
-          )}
-          <label className="block space-y-1 text-sm">
-            Cantidad
-            <input
-              className="h-9 w-full rounded-md border bg-background px-2"
-              inputMode="decimal"
-              pattern="(?=.*[1-9])[0-9]{1,14}(\.[0-9]{1,4})?"
-              value={quantity}
-              onChange={(e) => setQuantity(e.target.value)}
-              required
-            />
-          </label>
-          <label className="block space-y-1 text-sm">
-            Motivo
-            <select
-              className="h-9 w-full rounded-md border bg-background px-2"
-              value={reason}
-              onChange={(e) => setReason(e.target.value as typeof reason)}
-            >
-              {[
-                ['INITIAL_LOAD', 'Carga inicial'],
-                ['PHYSICAL_COUNT', 'Conteo físico'],
-                ['DAMAGE', 'Daño'],
-                ['LOSS', 'Pérdida'],
-                ['EXPIRY', 'Vencimiento'],
-                ['CORRECTION', 'Corrección'],
-              ].map(([v, l]) => (
-                <option key={v} value={v}>
-                  {l}
-                </option>
-              ))}
-            </select>
-          </label>
-          <ErrorNotice error={mutation.error} />
-          {validationError && <p role="alert">{validationError}</p>}
-          <div className="flex justify-end gap-2">
-            <Button type="button" variant="outline" onClick={onClose}>
-              Cancelar
-            </Button>
-            <Button type="submit" disabled={mutation.isPending}>
-              {mutation.isPending ? 'Guardando…' : 'Guardar ajuste'}
-            </Button>
+          </fieldset>
+          <div className="space-y-3 border-t pt-4">
+            <ErrorNotice error={mutation.error} />
+            <p className="text-sm text-muted-foreground">
+              {type === 'ADJUSTMENT_IN'
+                ? 'Al guardar, la cantidad indicada se sumará a las existencias del producto en el almacén seleccionado.'
+                : 'Al guardar, la cantidad indicada se restará de las existencias del producto en el almacén seleccionado.'}{' '}
+              El movimiento quedará registrado con tu usuario y el motivo elegido.
+            </p>
+            <div className="flex flex-wrap justify-end gap-2">
+              <Button type="button" variant="outline" disabled={pending} onClick={onClose}>
+                Cancelar
+              </Button>
+              <Button type="submit" disabled={pending}>
+                {pending ? 'Guardando…' : 'Guardar ajuste'}
+              </Button>
+            </div>
           </div>
         </form>
-      </section>
-    </div>
+      </DialogContent>
+    </Dialog>
   );
 }

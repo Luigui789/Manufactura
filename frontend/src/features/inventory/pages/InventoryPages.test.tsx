@@ -67,6 +67,8 @@ function setup(
     tracked?: boolean;
     failAdjustment?: boolean;
     pending?: boolean;
+    pendingAdjustment?: boolean;
+    extraProduct?: boolean;
     legacyOrigin?: boolean;
   } = {},
 ) {
@@ -93,22 +95,35 @@ function setup(
       });
       const path = url.pathname;
       if (path.endsWith('/auth/me')) return json({ data: session });
-      const paginated = (data: unknown[]) =>
+      const paginated = (data: unknown[], total = 40) =>
         json({
           data: options.empty ? [] : data,
           meta: {
             page: Number(url.searchParams.get('page') ?? 1),
             limit: 20,
-            total: options.empty ? 0 : 40,
+            total: options.empty ? 0 : total,
           },
         });
-      if (path.endsWith('/products'))
-        return paginated([{ ...product, isLotTracked: options.tracked ?? false }]);
-      if (path.endsWith('/warehouses')) return paginated([warehouse]);
-      if (path.endsWith('/adjustments'))
+      if (path.endsWith('/products')) {
+        const products = [
+          { ...product, isLotTracked: options.tracked ?? false },
+          ...(options.extraProduct
+            ? [{ ...product, id: 'second-product', code: 'SOSA', name: 'Sosa' }]
+            : []),
+        ].filter((entry) =>
+          (entry.code + ' ' + entry.name)
+            .toLowerCase()
+            .includes((url.searchParams.get('search') ?? '').toLowerCase()),
+        );
+        return paginated(products, products.length);
+      }
+      if (path.endsWith('/warehouses')) return paginated([warehouse], 1);
+      if (path.endsWith('/adjustments')) {
+        if (options.pendingAdjustment) return new Promise<Response>(() => {});
         return options.failAdjustment
           ? json({ message: 'Saldo insuficiente', code: 'INSUFFICIENT_STOCK' }, 409)
           : json({ data: movement, message: 'Ajuste registrado' }, 201);
+      }
       if (options.pending) return new Promise<Response>(() => {});
       if (options.fail) return json({ message: 'Consulta falló' }, 422);
       if (path.endsWith('/stock'))
@@ -123,6 +138,16 @@ function setup(
             id: 'adjustment',
             type: 'ADJUSTMENT_IN',
             reason: 'INITIAL_LOAD',
+            businessReference: null,
+            purchaseReceiptItemId: null,
+            lot: null,
+          },
+          {
+            ...movement,
+            id: 'out-adjustment',
+            type: 'ADJUSTMENT_OUT',
+            quantity: '-1.2500',
+            reason: 'DAMAGE',
             businessReference: null,
             purchaseReceiptItemId: null,
             lot: null,
@@ -177,7 +202,8 @@ describe('StockPage', () => {
       ).toBe(true),
     );
     fireEvent.change(screen.getByLabelText('Buscar producto'), { target: { value: 'aceite' } });
-    fireEvent.change(screen.getByLabelText('Almacén'), { target: { value: 'warehouse' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Almacén: Todos' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Seleccionar ALM · Principal' }));
     fireEvent.click(screen.getByLabelText('Solo con existencia'));
     fireEvent.click(screen.getByRole('button', { name: 'Aplicar' }));
     await waitFor(() =>
@@ -207,9 +233,8 @@ describe('StockPage', () => {
     const { show } = setup({ empty: true });
     show(<StockPage />);
     expect(await screen.findByText(/No hay/)).toBeTruthy();
-    expect((screen.getByRole('button', { name: 'Siguiente' }) as HTMLButtonElement).disabled).toBe(
-      true,
-    );
+    expect(screen.queryByRole('button', { name: 'Siguiente' })).toBeNull();
+    expect(screen.getByText('0 resultados')).toBeTruthy();
   });
 });
 describe('MovementsPage', () => {
@@ -220,7 +245,18 @@ describe('MovementsPage', () => {
     await waitFor(() => expect(within(table).getByText('Recepción de compra')).toBeTruthy());
     expect(within(table).getByText('Ajuste entrada')).toBeTruthy();
     expect(within(table).getByText('REC-2026-000012')).toBeTruthy();
-    expect(within(table).getByText('INITIAL_LOAD')).toBeTruthy();
+    expect(within(table).getByText('Carga inicial')).toBeTruthy();
+    expect(within(table).getByText('Daño')).toBeTruthy();
+    expect(within(table).getAllByText('+7.2500 Litro')).toHaveLength(2);
+    expect(within(table).getByText('-1.2500 Litro')).toBeTruthy();
+    expect(
+      within(table)
+        .getByRole('link', { name: /REC-2026-000012/ })
+        .getAttribute('href'),
+    ).toBe('/purchases/orders/order');
+    expect(within(table).getByRole('link', { name: 'LOT-2026-000001' }).getAttribute('href')).toBe(
+      '/inventory/lots?lotId=lot',
+    );
     fireEvent.change(screen.getByLabelText('Tipo'), { target: { value: 'PURCHASE_RECEIPT' } });
     await waitFor(() =>
       expect(requests.some((r) => r.url.searchParams.get('type') === 'PURCHASE_RECEIPT')).toBe(
@@ -262,14 +298,24 @@ describe('LotsPage', () => {
     expect(screen.getByText('OC-2026-000007')).toBeTruthy();
     expect(screen.getByText('Proveedor: PROV-001 · Proveedor Uno')).toBeTruthy();
     expect(screen.getByText('14/10/2026')).toBeTruthy();
-    fireEvent.click(screen.getByRole('button', { name: 'Ver' }));
+    const opener = screen.getByRole('button', { name: 'Ver' });
+    opener.focus();
+    fireEvent.click(opener);
     const detail = screen.getByRole('dialog');
     await waitFor(() => expect(within(detail).getByText('Recepción REC-2026-000012')).toBeTruthy());
     expect(within(detail).getByText('OC-2026-000007')).toBeTruthy();
     expect(within(detail).getByText(/14\/10\/2026/)).toBeTruthy();
-    expect(within(detail).getByText(/ALM · Principal: 7.2500/)).toBeTruthy();
+    expect(within(detail).getByRole('heading', { name: 'LOT-2026-000001' })).toBeTruthy();
+    expect(within(detail).getByText('Liberado')).toBeTruthy();
+    const balances = within(detail).getByRole('table', { name: 'Existencia del lote por almacén' });
+    expect(within(balances).getByRole('cell', { name: 'ALM · Principal' })).toBeTruthy();
+    expect(within(balances).getByRole('cell', { name: '7.2500' })).toBeTruthy();
+    expect(within(balances).getByRole('cell', { name: 'Litro' })).toBeTruthy();
+    expect(within(detail).getByRole('table', { name: 'Movimientos del lote' })).toBeTruthy();
+    expect(within(detail).getByText('+7.2500')).toBeTruthy();
     fireEvent.click(within(detail).getByRole('button', { name: 'Cerrar' }));
     expect(screen.queryByRole('dialog')).toBeNull();
+    await waitFor(() => expect(document.activeElement).toBe(opener));
     await waitFor(() =>
       expect(
         (screen.getByRole('button', { name: 'Siguiente' }) as HTMLButtonElement).disabled,
@@ -328,12 +374,14 @@ describe('AdjustmentDialog', () => {
   async function dialog(options: Parameters<typeof setup>[0] = {}) {
     const result = setup(options);
     const success = vi.fn();
-    result.show(<AdjustmentDialog onClose={vi.fn()} onSuccess={success} />);
-    await screen.findByRole('option', { name: 'ACEITE · Aceite' });
-    fireEvent.change(screen.getByLabelText('Producto'), { target: { value: 'product' } });
-    fireEvent.change(screen.getByLabelText('Almacén'), { target: { value: 'warehouse' } });
-    fireEvent.change(screen.getByLabelText('Cantidad'), { target: { value: '2.1250' } });
-    return { ...result, success };
+    const close = vi.fn();
+    result.show(<AdjustmentDialog onClose={close} onSuccess={success} />);
+    fireEvent.click(await screen.findByRole('button', { name: 'Seleccionar ACEITE · Aceite' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Seleccionar ALM · Principal' }));
+    fireEvent.change(screen.getByRole('textbox', { name: 'Cantidad' }), {
+      target: { value: '2.1250' },
+    });
+    return { ...result, success, close };
   }
   const submit = () =>
     fireEvent.submit(screen.getByRole('button', { name: 'Guardar ajuste' }).closest('form')!);
@@ -341,7 +389,7 @@ describe('AdjustmentDialog', () => {
     const { requests, client, success } = await dialog();
     client.setQueryData(['inventory', 'stock', 7], {});
     client.setQueryData(['lots', 'detail', 'old'], {});
-    expect(screen.queryByLabelText('Lote')).toBeNull();
+    expect(screen.queryByRole('group', { name: 'Lote' })).toBeNull();
     expect(screen.queryByRole('option', { name: 'Recepción de compra' })).toBeNull();
     submit();
     await waitFor(() => expect(success).toHaveBeenCalledWith('Ajuste registrado'));
@@ -357,34 +405,157 @@ describe('AdjustmentDialog', () => {
   });
   it('requires a lot for tracked products and sends the selected lot', async () => {
     const { requests, success } = await dialog({ tracked: true });
-    await screen.findByRole('option', { name: /LOT-2026/ });
+    const selectLot = await screen.findByRole('button', { name: /Seleccionar LOT-2026/ });
     submit();
     expect(requests.some((r) => r.method === 'POST')).toBe(false);
     expect(screen.getByRole('alert')).toBeTruthy();
-    expect((screen.getByLabelText('Lote') as HTMLSelectElement).required).toBe(true);
-    fireEvent.change(screen.getByLabelText('Lote'), { target: { value: 'lot' } });
+    expect(screen.getByRole('heading', { name: 'Lote requerido' })).toBeTruthy();
+    expect(screen.getByText('Seleccioná un lote para este producto.')).toBeTruthy();
+    fireEvent.click(selectLot);
     submit();
     await waitFor(() => expect(success).toHaveBeenCalled());
     expect(requests.find((r) => r.method === 'POST')?.body).toMatchObject({ lotId: 'lot' });
+  });
+  it('searches and changes the product without retaining an unrelated lot', async () => {
+    const { requests, success } = await dialog({ tracked: true, extraProduct: true });
+    fireEvent.click(await screen.findByRole('button', { name: /Seleccionar LOT-2026/ }));
+    expect(screen.getByText('Lote seleccionado')).toBeTruthy();
+    const picker = screen.getByRole('group', { name: 'Producto' });
+    expect(within(picker).getByText('Producto seleccionado')).toBeTruthy();
+    expect(
+      within(picker).queryByRole('button', { name: 'Seleccionar ACEITE · Aceite' }),
+    ).toBeNull();
+    fireEvent.click(within(picker).getByRole('button', { name: 'Cambiar' }));
+    fireEvent.change(within(picker).getByLabelText('Buscar producto'), {
+      target: { value: 'sosa' },
+    });
+    fireEvent.click(await within(picker).findByRole('button', { name: 'Seleccionar SOSA · Sosa' }));
+    expect(
+      requests.some(
+        (request) =>
+          request.url.pathname.endsWith('/products') &&
+          request.url.searchParams.get('search') === 'sosa' &&
+          request.url.searchParams.get('isActive') === 'true',
+      ),
+    ).toBe(true);
+    expect(screen.queryByRole('group', { name: 'Lote' })).toBeNull();
+    expect((screen.getByRole('textbox', { name: 'Cantidad' }) as HTMLInputElement).value).toBe(
+      '2.1250',
+    );
+    submit();
+    await waitFor(() => expect(success).toHaveBeenCalledWith('Ajuste registrado'));
+    expect(requests.find((request) => request.method === 'POST')?.body).toEqual({
+      productId: 'second-product',
+      warehouseId: 'warehouse',
+      type: 'ADJUSTMENT_IN',
+      quantity: '2.1250',
+      reason: 'INITIAL_LOAD',
+    });
+  });
+  it('preserves lot filters for entry and exit and clears the lot when the type changes', async () => {
+    const { requests } = await dialog({ tracked: true });
+    await screen.findByRole('button', { name: /Seleccionar LOT-2026/ });
+    expect(
+      requests.some(
+        (request) =>
+          request.url.pathname.endsWith('/lots') &&
+          request.url.searchParams.get('productId') === 'product' &&
+          !request.url.searchParams.has('warehouseId') &&
+          !request.url.searchParams.has('hasStock'),
+      ),
+    ).toBe(true);
+    fireEvent.change(screen.getByLabelText('Tipo'), { target: { value: 'ADJUSTMENT_OUT' } });
+    await waitFor(() =>
+      expect(
+        requests.some(
+          (request) =>
+            request.url.pathname.endsWith('/lots') &&
+            request.url.searchParams.get('productId') === 'product' &&
+            request.url.searchParams.get('warehouseId') === 'warehouse' &&
+            request.url.searchParams.get('hasStock') === 'true',
+        ),
+      ).toBe(true),
+    );
+    fireEvent.click(await screen.findByRole('button', { name: /Seleccionar LOT-2026/ }));
+    expect(screen.getByText('Lote seleccionado')).toBeTruthy();
+    fireEvent.change(screen.getByLabelText('Tipo'), { target: { value: 'ADJUSTMENT_IN' } });
+    expect(screen.queryByText('Lote seleccionado')).toBeNull();
+    submit();
+    expect(screen.getByText('Seleccioná un lote para este producto.')).toBeTruthy();
+    expect(requests.some((request) => request.method === 'POST')).toBe(false);
+  });
+  it('cancels without posting and restores focus to the adjustment action', async () => {
+    const { show, requests } = setup();
+    show(<StockPage />);
+    const opener = await screen.findByRole('button', { name: 'Nuevo ajuste' });
+    opener.focus();
+    fireEvent.click(opener);
+    const modal = await screen.findByRole('dialog', { name: 'Nuevo ajuste' });
+    fireEvent.click(within(modal).getByRole('button', { name: 'Cancelar' }));
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+    await waitFor(() => expect(document.activeElement).toBe(opener));
+    expect(requests.some((request) => request.method === 'POST')).toBe(false);
+  });
+  it('prevents duplicate submit and closing while an adjustment is pending', async () => {
+    const { requests, success, close } = await dialog({ pendingAdjustment: true });
+    submit();
+    const saving = await screen.findByRole('button', { name: 'Guardando…' });
+    expect((saving as HTMLButtonElement).disabled).toBe(true);
+    expect((screen.getByRole('button', { name: 'Cancelar' }) as HTMLButtonElement).disabled).toBe(
+      true,
+    );
+    expect(screen.getByRole('textbox', { name: 'Cantidad' }).matches(':disabled')).toBe(true);
+    fireEvent.submit(saving.closest('form')!);
+    fireEvent.keyDown(screen.getByRole('dialog'), { key: 'Escape' });
+    expect(requests.filter((request) => request.method === 'POST')).toHaveLength(1);
+    expect(screen.getByRole('dialog', { name: 'Nuevo ajuste' })).toBeTruthy();
+    expect(success).not.toHaveBeenCalled();
+    expect(close).not.toHaveBeenCalled();
   });
   it.each(['0', '-1', '1e3', '1.00001', '100000000000000'])(
     'rejects invalid quantity %s before posting',
     async (quantity) => {
       const { requests } = await dialog();
-      fireEvent.change(screen.getByLabelText('Cantidad'), { target: { value: quantity } });
+      fireEvent.change(screen.getByRole('textbox', { name: 'Cantidad' }), {
+        target: { value: quantity },
+      });
       submit();
       expect(requests.some((r) => r.method === 'POST')).toBe(false);
       expect(screen.getByRole('alert')).toBeTruthy();
     },
   );
   it('shows a failed adjustment and retains input for correction', async () => {
-    const { success } = await dialog({ failAdjustment: true });
+    const options = { failAdjustment: true };
+    const { requests, success } = await dialog(options);
     submit();
     expect(await screen.findByText('Saldo insuficiente')).toBeTruthy();
     expect(success).not.toHaveBeenCalled();
-    expect((screen.getByLabelText('Cantidad') as HTMLInputElement).value).toBe('2.1250');
+    expect((screen.getByRole('textbox', { name: 'Cantidad' }) as HTMLInputElement).value).toBe(
+      '2.1250',
+    );
     expect(
       (screen.getByRole('button', { name: 'Guardar ajuste' }) as HTMLButtonElement).disabled,
     ).toBe(false);
+    options.failAdjustment = false;
+    submit();
+    await waitFor(() => expect(success).toHaveBeenCalledWith('Ajuste registrado'));
+    expect(
+      requests.filter((request) => request.method === 'POST').map((request) => request.body),
+    ).toEqual([
+      {
+        productId: 'product',
+        warehouseId: 'warehouse',
+        type: 'ADJUSTMENT_IN',
+        quantity: '2.1250',
+        reason: 'INITIAL_LOAD',
+      },
+      {
+        productId: 'product',
+        warehouseId: 'warehouse',
+        type: 'ADJUSTMENT_IN',
+        quantity: '2.1250',
+        reason: 'INITIAL_LOAD',
+      },
+    ]);
   });
 });

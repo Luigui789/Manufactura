@@ -1,3 +1,4 @@
+import { FormSection } from '@/components/erp';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import {
@@ -69,112 +70,131 @@ export function CreateProductDialog({
             }),
           )}
         >
-          <fieldset disabled={mutation.isPending} className="space-y-4">
-            <FormField
-              id="new-product-code"
-              label="Código"
-              autoComplete="off"
-              error={errors.code?.message}
-              {...register('code')}
-            />
+          <fieldset disabled={mutation.isPending} className="space-y-5">
+            <FormSection
+              title="Identificación"
+              description="Código, nombre y categoría para reconocer el producto."
+            >
+              <FormField
+                id="new-product-code"
+                label="Código"
+                required
+                autoComplete="off"
+                error={errors.code?.message}
+                {...register('code')}
+              />
 
-            <FormField
-              id="new-product-name"
-              label="Nombre"
-              autoComplete="off"
-              error={errors.name?.message}
-              {...register('name')}
-            />
+              <FormField
+                id="new-product-name"
+                label="Nombre"
+                required
+                autoComplete="off"
+                error={errors.name?.message}
+                {...register('name')}
+              />
 
-            <FormField
-              id="new-product-category"
-              label="Categoría"
-              autoComplete="off"
-              error={errors.category?.message}
-              {...register('category')}
-            />
+              <FormField
+                id="new-product-category"
+                label="Categoría"
+                required
+                autoComplete="off"
+                error={errors.category?.message}
+                {...register('category')}
+              />
+            </FormSection>
+            <FormSection
+              title="Clasificación"
+              description="El tipo y la unidad se utilizan en compras, inventario y fórmulas."
+            >
+              <div className="space-y-2">
+                <Label htmlFor="new-product-type">Tipo de producto</Label>
+                <select
+                  id="new-product-type"
+                  className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm"
+                  aria-invalid={!!errors.type}
+                  aria-describedby={errors.type ? 'new-product-type-error' : undefined}
+                  {...register('type')}
+                >
+                  {PRODUCT_TYPES.map((type) => (
+                    <option key={type} value={type}>
+                      {PRODUCT_TYPE_LABELS[type]}
+                    </option>
+                  ))}
+                </select>
+                {errors.type && (
+                  <p id="new-product-type-error" className="text-sm text-destructive">
+                    {errors.type.message}
+                  </p>
+                )}
+              </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="new-product-type">Tipo de producto</Label>
-              <select
-                id="new-product-type"
-                className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm"
-                aria-invalid={!!errors.type}
-                aria-describedby={errors.type ? 'new-product-type-error' : undefined}
-                {...register('type')}
-              >
-                {PRODUCT_TYPES.map((type) => (
-                  <option key={type} value={type}>
-                    {PRODUCT_TYPE_LABELS[type]}
-                  </option>
-                ))}
-              </select>
-              {errors.type && (
-                <p id="new-product-type-error" className="text-sm text-destructive">
-                  {errors.type.message}
+              <div className="space-y-2">
+                <Label htmlFor="new-product-unit">Unidad de medida</Label>
+                <select
+                  id="new-product-unit"
+                  className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm"
+                  aria-invalid={!!errors.unit}
+                  aria-describedby={errors.unit ? 'new-product-unit-error' : undefined}
+                  {...register('unit')}
+                >
+                  {UNITS_OF_MEASURE.map((unit) => (
+                    <option key={unit} value={unit}>
+                      {PRODUCT_UNIT_LABELS[unit]}
+                    </option>
+                  ))}
+                </select>
+                {errors.unit && (
+                  <p id="new-product-unit-error" className="text-sm text-destructive">
+                    {errors.unit.message}
+                  </p>
+                )}
+              </div>
+            </FormSection>
+            <FormSection
+              title="Inventario y trazabilidad"
+              description="La inspección de calidad requiere trazabilidad por lote."
+            >
+              <div className="space-y-3 rounded-md border p-3">
+                <label
+                  htmlFor="new-product-lot-tracked"
+                  className="flex items-center gap-2 text-sm"
+                >
+                  <input
+                    id="new-product-lot-tracked"
+                    type="checkbox"
+                    className="size-4 accent-primary"
+                    {...register('isLotTracked')}
+                  />
+                  Trazabilidad por lote
+                </label>
+                <p className="text-xs text-muted-foreground">
+                  Cada movimiento de este producto deberá identificar su lote.
                 </p>
-              )}
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="new-product-unit">Unidad de medida</Label>
-              <select
-                id="new-product-unit"
-                className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm"
-                aria-invalid={!!errors.unit}
-                aria-describedby={errors.unit ? 'new-product-unit-error' : undefined}
-                {...register('unit')}
-              >
-                {UNITS_OF_MEASURE.map((unit) => (
-                  <option key={unit} value={unit}>
-                    {PRODUCT_UNIT_LABELS[unit]}
-                  </option>
-                ))}
-              </select>
-              {errors.unit && (
-                <p id="new-product-unit-error" className="text-sm text-destructive">
-                  {errors.unit.message}
-                </p>
-              )}
-            </div>
-
-            <div className="space-y-3 rounded-md border p-3">
-              <label htmlFor="new-product-lot-tracked" className="flex items-center gap-2 text-sm">
-                <input
-                  id="new-product-lot-tracked"
-                  type="checkbox"
-                  className="size-4 accent-primary"
-                  {...register('isLotTracked')}
-                />
-                Trazabilidad por lote
-              </label>
-              <p className="text-xs text-muted-foreground">
-                Cada movimiento de este producto deberá identificar su lote.
-              </p>
-              <label
-                htmlFor="new-product-quality-inspection"
-                className="flex items-center gap-2 text-sm"
-              >
-                <input
-                  id="new-product-quality-inspection"
-                  type="checkbox"
-                  className="size-4 accent-primary"
-                  aria-invalid={!!errors.requiresQualityInspection}
-                  aria-describedby={
-                    errors.requiresQualityInspection
-                      ? 'new-product-quality-inspection-error'
-                      : undefined
-                  }
-                  {...register('requiresQualityInspection')}
-                />
-                Requiere inspección de calidad
-              </label>
-              {errors.requiresQualityInspection && (
-                <p id="new-product-quality-inspection-error" className="text-sm text-destructive">
-                  {errors.requiresQualityInspection.message}
-                </p>
-              )}
-            </div>
+                <label
+                  htmlFor="new-product-quality-inspection"
+                  className="flex items-center gap-2 text-sm"
+                >
+                  <input
+                    id="new-product-quality-inspection"
+                    type="checkbox"
+                    className="size-4 accent-primary"
+                    aria-invalid={!!errors.requiresQualityInspection}
+                    aria-describedby={
+                      errors.requiresQualityInspection
+                        ? 'new-product-quality-inspection-error'
+                        : undefined
+                    }
+                    {...register('requiresQualityInspection')}
+                  />
+                  Requiere inspección de calidad
+                </label>
+                {errors.requiresQualityInspection && (
+                  <p id="new-product-quality-inspection-error" className="text-sm text-destructive">
+                    {errors.requiresQualityInspection.message}
+                  </p>
+                )}
+              </div>
+            </FormSection>{' '}
           </fieldset>
 
           <ErrorNotice error={mutation.error} />

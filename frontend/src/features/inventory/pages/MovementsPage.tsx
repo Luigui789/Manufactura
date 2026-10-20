@@ -1,8 +1,11 @@
+import { Link } from 'react-router';
+import { PageHeader, LoadingState, Pagination } from '@/components/erp';
+import { unitLabel, reasonLabel } from '@/lib/presentation';
+import { InventoryEntityPicker } from '../components/InventoryEntityPicker';
 import { MOVEMENT_LABELS, movementLabel } from '../inventory-labels';
 import { useState } from 'react';
 import { BusinessReference } from '../components/BusinessReference';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import {
   Table,
   TableBody,
@@ -35,12 +38,10 @@ export function MovementsPage() {
   const pages = q.data ? Math.max(1, Math.ceil(q.data.meta.total / q.data.meta.limit)) : 1;
   return (
     <section className="space-y-5">
-      <header>
-        <h1 className="text-2xl font-semibold">Movimientos</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Historial inmutable de entradas y salidas.
-        </p>
-      </header>
+      <PageHeader
+        title="Movimientos"
+        description="Qué cambió y por qué: historial inmutable de entradas, salidas y su referencia empresarial. Fechas y horas de Managua."
+      />
       <form
         role="search"
         aria-label="Filtros de movimientos"
@@ -50,26 +51,42 @@ export function MovementsPage() {
           setPage(1);
         }}
       >
-        {[
-          ['Producto ID', productId, setProductId],
-          ['Almacén ID', warehouseId, setWarehouseId],
-          ['Lote ID', lotId, setLotId],
-        ].map(([label, value, setter]) => (
-          <label key={label as string} className="space-y-1 text-sm">
-            {label as string}
-            <Input
-              value={value as string}
-              onChange={(e) => (setter as (s: string) => void)(e.target.value)}
-              placeholder="UUID"
-            />
-          </label>
-        ))}
+        <InventoryEntityPicker
+          kind="product"
+          value={productId}
+          allowClear
+          onChange={(id) => {
+            setProductId(id);
+            setPage(1);
+          }}
+        />
+        <InventoryEntityPicker
+          kind="warehouse"
+          value={warehouseId}
+          allowClear
+          onChange={(id) => {
+            setWarehouseId(id);
+            setPage(1);
+          }}
+        />
+        <InventoryEntityPicker
+          kind="lot"
+          value={lotId}
+          allowClear
+          onChange={(id) => {
+            setLotId(id);
+            setPage(1);
+          }}
+        />
         <label className="space-y-1 text-sm">
           Tipo
           <select
             className="h-9 rounded-md border bg-background px-2"
             value={type}
-            onChange={(e) => setType(e.target.value)}
+            onChange={(e) => {
+              setType(e.target.value);
+              setPage(1);
+            }}
           >
             <option value="">Todos</option>
             {Object.entries(MOVEMENT_LABELS).map(([value, label]) => (
@@ -86,7 +103,10 @@ export function MovementsPage() {
             type="datetime-local"
             className="h-9 rounded-md border bg-background px-2"
             value={from}
-            onChange={(e) => setFrom(e.target.value)}
+            onChange={(e) => {
+              setFrom(e.target.value);
+              setPage(1);
+            }}
           />
         </label>
         <label className="space-y-1 text-sm">
@@ -96,14 +116,34 @@ export function MovementsPage() {
             type="datetime-local"
             className="h-9 rounded-md border bg-background px-2"
             value={to}
-            onChange={(e) => setTo(e.target.value)}
+            onChange={(e) => {
+              setTo(e.target.value);
+              setPage(1);
+            }}
           />
         </label>
         <Button type="submit" variant="outline">
           Aplicar
         </Button>
+        {(productId || warehouseId || lotId || type || from || to) && (
+          <Button
+            type="button"
+            variant="ghost"
+            onClick={() => {
+              setProductId('');
+              setWarehouseId('');
+              setLotId('');
+              setType('');
+              setFrom('');
+              setTo('');
+              setPage(1);
+            }}
+          >
+            Limpiar filtros
+          </Button>
+        )}
       </form>
-      {q.isPending && <p role="status">Cargando movimientos…</p>}
+      {q.isPending && <LoadingState label="Cargando movimientos…" />}
       <ErrorNotice error={q.error} />
       {q.isError && (
         <Button variant="outline" onClick={() => void q.refetch()}>
@@ -120,7 +160,7 @@ export function MovementsPage() {
                 <TableHead>Producto</TableHead>
                 <TableHead>Almacén</TableHead>
                 <TableHead>Lote</TableHead>
-                <TableHead>Cantidad</TableHead>
+                <TableHead className="numeric">Cantidad</TableHead>
                 <TableHead>Motivo</TableHead>
                 <TableHead>Usuario</TableHead>
                 <TableHead>Referencia empresarial</TableHead>
@@ -129,17 +169,34 @@ export function MovementsPage() {
             <TableBody>
               {q.data.data.map((m) => (
                 <TableRow key={m.id}>
-                  <TableCell>{new Date(m.occurredAt).toLocaleString('es-NI')}</TableCell>
+                  <TableCell>
+                    {new Date(m.occurredAt).toLocaleString('es-NI', {
+                      timeZone: 'America/Managua',
+                    })}
+                  </TableCell>
                   <TableCell>{movementLabel(m.type)}</TableCell>
                   <TableCell>
                     {m.product.code} · {m.product.name}
                   </TableCell>
                   <TableCell>{m.warehouse.code}</TableCell>
-                  <TableCell>{m.lot?.code ?? '—'}</TableCell>
                   <TableCell>
-                    {m.quantity} {m.product.unit}
+                    {m.lot ? (
+                      <Link className="underline" to={'/inventory/lots?lotId=' + m.lot.id}>
+                        {m.lot.code}
+                      </Link>
+                    ) : (
+                      '—'
+                    )}
                   </TableCell>
-                  <TableCell>{m.reason ?? '—'}</TableCell>
+                  <TableCell className="numeric">
+                    {m.quantity.startsWith('-')
+                      ? m.quantity
+                      : (['ADJUSTMENT_OUT', 'PRODUCTION_CONSUMPTION'].includes(m.type)
+                          ? '-'
+                          : '+') + m.quantity}{' '}
+                    {unitLabel(m.product.unit)}
+                  </TableCell>
+                  <TableCell>{reasonLabel(m.reason)}</TableCell>
                   <TableCell>{m.performedByUser.fullName}</TableCell>
                   <TableCell>
                     <BusinessReference reference={m.businessReference} />
@@ -157,27 +214,15 @@ export function MovementsPage() {
           </Table>
         </div>
       )}
-      <nav aria-label="Paginación de movimientos" className="flex items-center justify-between">
-        <span>
-          Página {page} de {pages} · {q.data?.meta.total ?? 0} movimientos
-        </span>
-        <div className="flex gap-2">
-          <Button
-            variant="outline"
-            disabled={page <= 1 || q.isFetching}
-            onClick={() => setPage(page - 1)}
-          >
-            Anterior
-          </Button>
-          <Button
-            variant="outline"
-            disabled={!q.data || page >= pages || q.isFetching}
-            onClick={() => setPage(page + 1)}
-          >
-            Siguiente
-          </Button>
-        </div>
-      </nav>
+      <Pagination
+        page={page}
+        pages={pages}
+        total={q.data?.meta.total}
+        label="Paginación de movimientos"
+        onPageChange={setPage}
+        busy={q.isFetching}
+        unavailable={!q.data || q.isError}
+      />
     </section>
   );
 }

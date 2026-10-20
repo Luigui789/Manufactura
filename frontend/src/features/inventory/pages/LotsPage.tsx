@@ -1,10 +1,8 @@
-import { formatCalendarDate } from '@/lib/calendar-date';
-import type { InventoryLotOrigin } from '../api/inventory-data';
+import { useRef, useState } from 'react';
 import { Link, useSearchParams } from 'react-router';
-import { BusinessReference } from '../components/BusinessReference';
+import { formatCalendarDate } from '@/lib/calendar-date';
+import { unitLabel, reasonLabel } from '@/lib/presentation';
 import { LotProductionDetail } from '@/features/production/components/LotProductionDetail';
-import { movementLabel } from '../inventory-labels';
-import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
@@ -15,48 +13,113 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import {
+  DetailGrid,
+  EmptyState,
+  LoadingState,
+  PageHeader,
+  Pagination,
+  StatusBadge,
+} from '@/components/erp';
 import { ErrorNotice } from '@/components/ErrorNotice';
+import type { InventoryLotOrigin } from '../api/inventory-data';
 import { useInventoryLots, useInventoryLot } from '../api/inventory-hooks';
+import { movementLabel } from '../inventory-labels';
+import { BusinessReference } from '../components/BusinessReference';
+import { InventoryEntityPicker } from '../components/InventoryEntityPicker';
+
+const lotStatuses = {
+  QUARANTINED: 'En cuarentena',
+  RELEASED: 'Liberado',
+  REJECTED: 'Rechazado',
+};
+const displayTime = (value: string) =>
+  new Date(value).toLocaleString('es-NI', { timeZone: 'America/Managua' });
+const displayDate = (value: string) =>
+  new Date(value).toLocaleDateString('es-NI', { timeZone: 'America/Managua' });
+
 function LotOrigin({ origin }: { origin: InventoryLotOrigin | null }) {
-  if (!origin) return <span>Sin origen empresarial</span>;
+  if (!origin) return <span className="text-muted-foreground">Sin origen empresarial</span>;
   if (origin.type === 'PRODUCTION_ORDER')
     return (
       <div className="space-y-1 text-sm">
-        <Link className="underline" to={`/production/orders/${origin.productionOrder.id}`}>
+        <Link
+          className="font-mono underline underline-offset-4"
+          to={'/production/orders/' + origin.productionOrder.id}
+        >
           {origin.productionOrder.number}
         </Link>
-        {origin.bomVersion && <p>BOM v{origin.bomVersion.version}</p>}
+        {origin.bomVersion && (
+          <p className="text-muted-foreground">Fórmula · versión {origin.bomVersion.version}</p>
+        )}
       </div>
     );
   return (
     <div className="space-y-1 text-sm">
-      <div>Recepción {origin.purchaseReceipt.number}</div>
-      <div>{origin.purchaseOrder.number}</div>
-      <div>
+      <Link
+        className="block underline underline-offset-4"
+        to={'/purchases/orders/' + origin.purchaseOrder.id}
+      >
+        Recepción {origin.purchaseReceipt.number}
+      </Link>
+      <Link
+        className="block font-mono underline underline-offset-4"
+        to={'/purchases/orders/' + origin.purchaseOrder.id}
+      >
+        {origin.purchaseOrder.number}
+      </Link>
+      <p className="text-muted-foreground">
         Proveedor: {origin.supplier.code} · {origin.supplier.name}
-      </div>
+      </p>
     </div>
   );
 }
+
 function LotDetail({ id, onClose }: { id: string; onClose: () => void }) {
   const q = useInventoryLot(id);
+  const returnFocus = useRef<HTMLElement | null>(null);
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-      <section
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="lot-detail-title"
-        className="max-h-[90vh] w-full max-w-3xl space-y-4 overflow-y-auto rounded-lg border bg-background p-5"
+    <Dialog
+      open
+      onOpenChange={(open) => {
+        if (!open) onClose();
+      }}
+    >
+      <DialogContent
+        showCloseButton={false}
+        className="sm:max-w-5xl"
+        onOpenAutoFocus={() => {
+          returnFocus.current = document.activeElement as HTMLElement | null;
+        }}
+        onCloseAutoFocus={(event) => {
+          if (returnFocus.current?.isConnected) {
+            event.preventDefault();
+            returnFocus.current.focus();
+          }
+        }}
       >
-        <div className="flex justify-between">
-          <h2 id="lot-detail-title" className="text-lg font-semibold">
-            Detalle del lote
-          </h2>
-          <Button variant="outline" onClick={onClose}>
-            Cerrar
-          </Button>
-        </div>
-        {q.isPending && <p role="status">Cargando lote…</p>}
+        <DialogHeader>
+          <div className="flex flex-wrap items-center gap-3">
+            <DialogTitle className="font-mono text-xl">
+              {q.data?.code ?? 'Detalle del lote'}
+            </DialogTitle>
+            {q.data && <StatusBadge status={q.data.status} />}
+          </div>
+          <DialogDescription>
+            {q.data
+              ? q.data.product.code + ' · ' + q.data.product.name
+              : 'Consultá el origen, los saldos y los movimientos de este lote.'}
+          </DialogDescription>
+        </DialogHeader>
+        {q.isPending && <LoadingState label="Cargando lote…" />}
         <ErrorNotice error={q.error} />
         {q.isError && (
           <Button variant="outline" onClick={() => void q.refetch()}>
@@ -64,41 +127,137 @@ function LotDetail({ id, onClose }: { id: string; onClose: () => void }) {
           </Button>
         )}
         {q.data && (
-          <>
-            <p>
-              <strong>{q.data.code}</strong> · {q.data.product.code} {q.data.product.name} ·{' '}
-              {q.data.status}
-            </p>
-            <p>
-              Fecha de origen: {new Date(q.data.originatedAt).toLocaleDateString('es-NI')} ·
-              Vencimiento: {q.data.expiresAt ? formatCalendarDate(q.data.expiresAt) : '—'}
-            </p>
-            <LotOrigin origin={q.data.origin} />
-            <h3 className="font-medium">Existencia por almacén</h3>
-            {q.data.balances.map((b) => (
-              <p key={b.warehouse.id}>
-                {b.warehouse.code} · {b.warehouse.name}: {b.quantity} {q.data.product.unit}
-              </p>
-            ))}
-            <h3 className="font-medium">Movimientos</h3>
-            <ul className="space-y-1 text-sm">
-              {q.data.movements.map((m) => (
-                <li key={m.id}>
-                  {new Date(m.occurredAt).toLocaleString('es-NI')} · {movementLabel(m.type)} ·{' '}
-                  <BusinessReference reference={m.businessReference} /> · {m.quantity} ·{' '}
-                  {m.warehouse.code} · {m.performedByUser.fullName}
-                </li>
-              ))}
-            </ul>
+          <div className="min-w-0 space-y-6">
+            <section aria-labelledby="lot-summary-title" className="space-y-3">
+              <h3 id="lot-summary-title" className="font-semibold">
+                Resumen del lote
+              </h3>
+              <DetailGrid>
+                <div>
+                  <dt>Producto</dt>
+                  <dd>
+                    {q.data.product.code} · {q.data.product.name}
+                  </dd>
+                </div>
+                <div>
+                  <dt>Unidad</dt>
+                  <dd>{unitLabel(q.data.product.unit)}</dd>
+                </div>
+                <div>
+                  <dt>Fecha de origen · Managua</dt>
+                  <dd>{displayDate(q.data.originatedAt)}</dd>
+                </div>
+                <div>
+                  <dt>Vencimiento</dt>
+                  <dd>{q.data.expiresAt ? formatCalendarDate(q.data.expiresAt) : 'Sin fecha'}</dd>
+                </div>
+              </DetailGrid>
+            </section>
+            <section aria-labelledby="lot-origin-title" className="space-y-3">
+              <h3 id="lot-origin-title" className="font-semibold">
+                Origen
+              </h3>
+              <LotOrigin origin={q.data.origin} />
+            </section>
+            <section aria-labelledby="lot-balances-title" className="space-y-3">
+              <h3 id="lot-balances-title" className="font-semibold">
+                Existencia por almacén
+              </h3>
+              <div className="rounded-lg border">
+                <Table aria-label="Existencia del lote por almacén">
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Almacén</TableHead>
+                      <TableHead className="text-right">Cantidad</TableHead>
+                      <TableHead>Unidad</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {q.data.balances.map((balance) => (
+                      <TableRow key={balance.warehouse.id}>
+                        <TableCell>
+                          {balance.warehouse.code} · {balance.warehouse.name}
+                        </TableCell>
+                        <TableCell className="text-right tabular-nums">
+                          {balance.quantity}
+                        </TableCell>
+                        <TableCell>{unitLabel(q.data!.product.unit)}</TableCell>
+                      </TableRow>
+                    ))}
+                    {q.data.balances.length === 0 && (
+                      <TableRow>
+                        <TableCell colSpan={3} className="py-6 text-center text-muted-foreground">
+                          Sin saldos por almacén.
+                        </TableCell>
+                      </TableRow>
+                    )}
+                  </TableBody>
+                </Table>
+              </div>
+            </section>
+            <section aria-labelledby="lot-movements-title" className="space-y-3">
+              <h3 id="lot-movements-title" className="font-semibold">
+                Movimientos
+              </h3>
+              <div className="rounded-lg border">
+                <Table aria-label="Movimientos del lote">
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Fecha y hora · Managua</TableHead>
+                      <TableHead>Tipo</TableHead>
+                      <TableHead>Almacén</TableHead>
+                      <TableHead className="text-right">Cantidad</TableHead>
+                      <TableHead>Referencia</TableHead>
+                      <TableHead>Usuario</TableHead>
+                      <TableHead>Motivo</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {q.data.movements.map((movement) => (
+                      <TableRow key={movement.id}>
+                        <TableCell>{displayTime(movement.occurredAt)}</TableCell>
+                        <TableCell>{movementLabel(movement.type)}</TableCell>
+                        <TableCell>
+                          {movement.warehouse.code} · {movement.warehouse.name}
+                        </TableCell>
+                        <TableCell className="text-right tabular-nums">
+                          {movement.quantity.startsWith('-')
+                            ? movement.quantity
+                            : '+' + movement.quantity}
+                        </TableCell>
+                        <TableCell>
+                          <BusinessReference reference={movement.businessReference} />
+                        </TableCell>
+                        <TableCell>{movement.performedByUser.fullName}</TableCell>
+                        <TableCell>{reasonLabel(movement.reason)}</TableCell>
+                      </TableRow>
+                    ))}
+                    {q.data.movements.length === 0 && (
+                      <TableRow>
+                        <TableCell colSpan={7} className="py-6 text-center text-muted-foreground">
+                          Sin movimientos registrados.
+                        </TableCell>
+                      </TableRow>
+                    )}
+                  </TableBody>
+                </Table>
+              </div>
+            </section>
             {q.data.origin?.type === 'PRODUCTION_ORDER' && (
               <LotProductionDetail lotId={q.data.id} status={q.data.status} />
             )}
-          </>
+          </div>
         )}
-      </section>
-    </div>
+        <DialogFooter>
+          <Button type="button" variant="outline" onClick={onClose}>
+            Cerrar
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
+
 export function LotsPage() {
   const [params, setParams] = useSearchParams();
   const selected = params.get('lotId') ?? '';
@@ -108,12 +267,12 @@ export function LotsPage() {
     else next.delete('lotId');
     setParams(next);
   };
-  const [page, setPage] = useState(1),
-    [search, setSearch] = useState(''),
-    [productId, setProductId] = useState(''),
-    [warehouseId, setWarehouseId] = useState(''),
-    [status, setStatus] = useState(''),
-    [hasStock, setHasStock] = useState(false);
+  const [page, setPage] = useState(1);
+  const [search, setSearch] = useState('');
+  const [productId, setProductId] = useState('');
+  const [warehouseId, setWarehouseId] = useState('');
+  const [status, setStatus] = useState('');
+  const [hasStock, setHasStock] = useState(false);
   const q = useInventoryLots(
     {
       ...(search ? { search } : {}),
@@ -125,69 +284,106 @@ export function LotsPage() {
     page,
   );
   const pages = q.data ? Math.max(1, Math.ceil(q.data.meta.total / q.data.meta.limit)) : 1;
+  const filtered = Boolean(search || productId || warehouseId || status || hasStock);
   return (
-    <section className="space-y-5">
-      <header>
-        <h1 className="text-2xl font-semibold">Lotes</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Consulta lotes, existencias y su origen en compras o producción.
-        </p>
-      </header>
+    <section className="space-y-6">
+      <PageHeader
+        title="Lotes"
+        description="Consultá existencias, estado y origen de cada lote en compras o producción."
+      />
       <form
         role="search"
         aria-label="Filtros de lotes"
-        className="flex flex-wrap items-end gap-3"
-        onSubmit={(e) => {
-          e.preventDefault();
+        className="space-y-4 rounded-lg border bg-background p-4"
+        onSubmit={(event) => {
+          event.preventDefault();
           setPage(1);
         }}
       >
-        <label className="space-y-1 text-sm">
-          Buscar código
-          <Input value={search} onChange={(e) => setSearch(e.target.value)} />
-        </label>
-        <label className="space-y-1 text-sm">
-          Producto ID
-          <Input
+        <div className="flex flex-wrap items-end gap-4">
+          <label className="min-w-48 flex-1 space-y-2 text-sm font-medium">
+            Buscar código
+            <Input
+              value={search}
+              maxLength={100}
+              placeholder="Código del lote, por ejemplo LOT-2026"
+              onChange={(event) => {
+                setSearch(event.target.value);
+                setPage(1);
+              }}
+            />
+          </label>
+          <label className="space-y-2 text-sm font-medium">
+            Estado
+            <select
+              className="block h-10 rounded-md border bg-background px-3"
+              value={status}
+              onChange={(event) => {
+                setStatus(event.target.value);
+                setPage(1);
+              }}
+            >
+              <option value="">Todos</option>
+              {Object.entries(lotStatuses).map(([value, label]) => (
+                <option key={value} value={value}>
+                  {label}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="flex h-10 items-center gap-2 text-sm">
+            <input
+              type="checkbox"
+              checked={hasStock}
+              onChange={(event) => {
+                setHasStock(event.target.checked);
+                setPage(1);
+              }}
+            />
+            Solo con existencia
+          </label>
+          <Button type="submit" variant="outline">
+            Aplicar
+          </Button>
+          {filtered && (
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={() => {
+                setSearch('');
+                setProductId('');
+                setWarehouseId('');
+                setStatus('');
+                setHasStock(false);
+                setPage(1);
+              }}
+            >
+              Limpiar filtros
+            </Button>
+          )}
+        </div>
+        <div className="grid gap-4 md:grid-cols-2">
+          <InventoryEntityPicker
+            kind="product"
             value={productId}
-            onChange={(e) => setProductId(e.target.value)}
-            placeholder="UUID"
+            allowClear
+            onChange={(value) => {
+              setProductId(value);
+              setPage(1);
+            }}
           />
-        </label>
-        <label className="space-y-1 text-sm">
-          Almacén ID
-          <Input
+          <InventoryEntityPicker
+            kind="warehouse"
             value={warehouseId}
-            onChange={(e) => setWarehouseId(e.target.value)}
-            placeholder="UUID"
+            allowClear
+            onChange={(value) => {
+              setWarehouseId(value);
+              setPage(1);
+            }}
           />
-        </label>
-        <label className="space-y-1 text-sm">
-          Estado
-          <select
-            className="h-9 rounded-md border bg-background px-2"
-            value={status}
-            onChange={(e) => setStatus(e.target.value)}
-          >
-            <option value="">Todos</option>
-            {['QUARANTINED', 'RELEASED', 'REJECTED'].map((v) => (
-              <option key={v}>{v}</option>
-            ))}
-          </select>
-        </label>
-        <label className="flex items-center gap-2 text-sm">
-          <input
-            type="checkbox"
-            checked={hasStock}
-            onChange={(e) => setHasStock(e.target.checked)}
-          />
-          Solo con existencia
-        </label>
-        <Button type="submit" variant="outline">
-          Aplicar
-        </Button>
+        </div>
       </form>
-      {q.isPending && <p role="status">Cargando lotes…</p>}
+      {q.isPending && <LoadingState label="Cargando lotes…" />}
       <ErrorNotice error={q.error} />
       {q.isError && (
         <Button variant="outline" onClick={() => void q.refetch()}>
@@ -199,34 +395,36 @@ export function LotsPage() {
           <Table aria-label="Lotes">
             <TableHeader>
               <TableRow>
-                <TableHead>Código</TableHead>
+                <TableHead>Lote</TableHead>
                 <TableHead>Producto</TableHead>
                 <TableHead>Estado</TableHead>
                 <TableHead>Origen</TableHead>
                 <TableHead>Fecha de origen</TableHead>
                 <TableHead>Vencimiento</TableHead>
-                <TableHead>Existencia</TableHead>
-                <TableHead>Acciones</TableHead>
+                <TableHead className="text-right">Existencia</TableHead>
+                <TableHead>Acción</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {q.data.data.map((l) => (
-                <TableRow key={l.id}>
-                  <TableCell>{l.code}</TableCell>
+              {q.data.data.map((lot) => (
+                <TableRow key={lot.id}>
+                  <TableCell className="font-mono text-xs">{lot.code}</TableCell>
                   <TableCell>
-                    {l.product.code} · {l.product.name}
-                  </TableCell>
-                  <TableCell>{l.status}</TableCell>
-                  <TableCell>
-                    <LotOrigin origin={l.origin} />
-                  </TableCell>
-                  <TableCell>{new Date(l.originatedAt).toLocaleDateString('es-NI')}</TableCell>
-                  <TableCell>{l.expiresAt ? formatCalendarDate(l.expiresAt) : '—'}</TableCell>
-                  <TableCell>
-                    {l.quantityOnHand} {l.product.unit}
+                    {lot.product.code} · {lot.product.name}
                   </TableCell>
                   <TableCell>
-                    <Button size="sm" variant="outline" onClick={() => setSelected(l.id)}>
+                    <StatusBadge status={lot.status} />
+                  </TableCell>
+                  <TableCell>
+                    <LotOrigin origin={lot.origin} />
+                  </TableCell>
+                  <TableCell>{displayDate(lot.originatedAt)}</TableCell>
+                  <TableCell>{lot.expiresAt ? formatCalendarDate(lot.expiresAt) : '—'}</TableCell>
+                  <TableCell className="text-right tabular-nums">
+                    {lot.quantityOnHand} {unitLabel(lot.product.unit)}
+                  </TableCell>
+                  <TableCell>
+                    <Button size="sm" variant="outline" onClick={() => setSelected(lot.id)}>
                       Ver
                     </Button>
                   </TableCell>
@@ -234,8 +432,11 @@ export function LotsPage() {
               ))}
               {q.data.data.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={8} className="py-8 text-center text-muted-foreground">
-                    No hay lotes para estos filtros.
+                  <TableCell colSpan={8}>
+                    <EmptyState
+                      title="No hay lotes para estos filtros."
+                      description="Probá con otro código o limpiá los filtros para ampliar la consulta."
+                    />
                   </TableCell>
                 </TableRow>
               )}
@@ -243,28 +444,16 @@ export function LotsPage() {
           </Table>
         </div>
       )}
-      <nav aria-label="Paginación de lotes" className="flex items-center justify-between">
-        <span>
-          Página {page} de {pages} · {q.data?.meta.total ?? 0} lotes
-        </span>
-        <div className="flex gap-2">
-          <Button
-            variant="outline"
-            disabled={page <= 1 || q.isFetching}
-            onClick={() => setPage(page - 1)}
-          >
-            Anterior
-          </Button>
-          <Button
-            variant="outline"
-            disabled={!q.data || page >= pages || q.isFetching}
-            onClick={() => setPage(page + 1)}
-          >
-            Siguiente
-          </Button>
-        </div>
-      </nav>
-      {selected && <LotDetail id={selected} onClose={() => setSelected('')} />}
+      <Pagination
+        page={page}
+        pages={pages}
+        total={q.data?.meta.total}
+        label="Paginación de lotes"
+        onPageChange={setPage}
+        busy={q.isFetching}
+        unavailable={!q.data || q.isError}
+      />
+      {selected && <LotDetail key={selected} id={selected} onClose={() => setSelected('')} />}
     </section>
   );
 }

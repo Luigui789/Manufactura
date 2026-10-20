@@ -232,10 +232,8 @@ describe.each(catalogs)('$label: filtros del listado', (catalog) => {
     fill(catalog.searchLabel, 'sin coincidencias');
     fireEvent.click(screen.getByRole('button', { name: 'Buscar' }));
     await screen.findByText(`No hay ${catalog.label.toLowerCase()} que coincidan con los filtros.`);
-    expect(screen.getByText(/^Página 1 de 1 · 0 /)).toBeTruthy();
-    expect((screen.getByRole('button', { name: 'Siguiente' }) as HTMLButtonElement).disabled).toBe(
-      true,
-    );
+    expect(screen.getByText('0 resultados')).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Siguiente' })).toBeNull();
   });
 });
 

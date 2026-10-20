@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
+import { StatusBadge, LoadingState, Pagination, PageHeader, SuccessNotice } from '@/components/erp';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import {
@@ -63,25 +63,25 @@ export function ProductsPage() {
 
   return (
     <section className="space-y-5">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-semibold">Gestión de Productos</h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Consulta las materias primas, productos intermedios y productos terminados.
-          </p>
-        </div>
-
-        {canManage && (
-          <Button
-            onClick={() => {
-              setMessage('');
-              setIsCreating(true);
-            }}
-          >
-            Nuevo producto
-          </Button>
-        )}
-      </div>
+      <PageHeader
+        title="Gestión de Productos"
+        description="Consulta las materias primas, productos intermedios y productos terminados."
+        actions={
+          <>
+            {' '}
+            {canManage && (
+              <Button
+                onClick={() => {
+                  setMessage('');
+                  setIsCreating(true);
+                }}
+              >
+                Nuevo producto
+              </Button>
+            )}{' '}
+          </>
+        }
+      />
 
       <form
         role="search"
@@ -152,13 +152,9 @@ export function ProductsPage() {
         )}
       </form>
 
-      {message && (
-        <p role="status" className="rounded-lg border bg-background p-3 text-sm">
-          {message}
-        </p>
-      )}
+      {message && <SuccessNotice>{message}</SuccessNotice>}
 
-      {products.isPending && <p role="status">Cargando productos…</p>}
+      {products.isPending && <LoadingState label="Cargando productos…" />}
 
       <ErrorNotice error={products.error} />
 
@@ -182,6 +178,7 @@ export function ProductsPage() {
                 <TableHead>Categoría</TableHead>
                 <TableHead>Unidad</TableHead>
                 <TableHead>Tipo</TableHead>
+                <TableHead>Lotes / calidad</TableHead>
                 <TableHead className="min-w-[6rem]">Estado</TableHead>
                 <TableHead className="whitespace-nowrap">Acciones</TableHead>
               </TableRow>
@@ -195,10 +192,15 @@ export function ProductsPage() {
                   <TableCell>{product.category}</TableCell>
                   <TableCell>{PRODUCT_UNIT_LABELS[product.unit]}</TableCell>
                   <TableCell>{PRODUCT_TYPE_LABELS[product.type]}</TableCell>
+                  <TableCell>
+                    <span className="text-xs">
+                      Lotes: {product.isLotTracked ? 'Sí' : 'No'}
+                      <br />
+                      Calidad: {product.requiresQualityInspection ? 'Sí' : 'No'}
+                    </span>
+                  </TableCell>
                   <TableCell className="min-w-[6rem]">
-                    <Badge variant={product.isActive ? 'secondary' : 'outline'}>
-                      {product.isActive ? 'Activo' : 'Inactivo'}
-                    </Badge>
+                    <StatusBadge status={product.isActive} />
                   </TableCell>
                   <TableCell>
                     <div className="flex gap-2 whitespace-nowrap">
@@ -236,7 +238,7 @@ export function ProductsPage() {
 
               {products.data.data.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={7} className="py-8 text-center text-muted-foreground">
+                  <TableCell colSpan={8} className="py-8 text-center text-muted-foreground">
                     {hasFilters
                       ? 'No hay productos que coincidan con los filtros.'
                       : 'No hay productos en esta página.'}
@@ -248,36 +250,15 @@ export function ProductsPage() {
         </div>
       )}
 
-      <nav
-        aria-label="Paginación de productos"
-        className="flex flex-wrap items-center justify-between gap-3"
-      >
-        <p aria-live="polite" className="text-sm text-muted-foreground">
-          {products.data
-            ? `Página ${page} de ${totalPages} · ${products.data.meta.total} productos`
-            : `Página ${page}`}
-        </p>
-
-        <div className="flex gap-2">
-          <Button
-            variant="outline"
-            disabled={page <= 1 || products.isFetching}
-            onClick={() => setPage((current) => current - 1)}
-          >
-            Anterior
-          </Button>
-
-          <Button
-            variant="outline"
-            disabled={
-              !products.data || products.isError || products.isFetching || page >= totalPages
-            }
-            onClick={() => setPage((current) => current + 1)}
-          >
-            Siguiente
-          </Button>
-        </div>
-      </nav>
+      <Pagination
+        page={page}
+        pages={totalPages}
+        total={products.data?.meta.total}
+        label="Paginación de resultados"
+        onPageChange={setPage}
+        busy={products.isFetching}
+        unavailable={products.isError || !products.data}
+      />
 
       {canManage && isCreating && (
         <CreateProductDialog

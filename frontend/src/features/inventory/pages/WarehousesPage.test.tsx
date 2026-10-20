@@ -146,12 +146,8 @@ describe('Almacenes: interfaz de Inventario', () => {
       expect(table.getByText(text)).toBeTruthy();
     }
 
-    expect((screen.getByRole('button', { name: 'Anterior' }) as HTMLButtonElement).disabled).toBe(
-      true,
-    );
-    expect((screen.getByRole('button', { name: 'Siguiente' }) as HTMLButtonElement).disabled).toBe(
-      true,
-    );
+    expect(screen.queryByRole('button', { name: 'Anterior' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Siguiente' })).toBeNull();
   });
 
   it('informa cuando no hay almacenes', async () => {
@@ -191,7 +187,7 @@ describe('Almacenes: interfaz de Inventario', () => {
     expect(fetch.mock.calls.some(([url]) => url.endsWith('/warehouses?page=2&limit=20'))).toBe(
       true,
     );
-    expect(screen.getByText('Página 2 de 2 · 21 almacenes')).toBeTruthy();
+    expect(screen.getByText('Página 2 de 2 · 21 resultados')).toBeTruthy();
   });
 
   it.each(['ADMIN', 'INVENTARIO'] as const)(
