@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
+import { StatusBadge, LoadingState, Pagination, PageHeader, SuccessNotice } from '@/components/erp';
 import {
   Table,
   TableBody,
@@ -50,24 +50,22 @@ export default function CustomersPage() {
 
   return (
     <section className="space-y-5">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-semibold">Gestión de Clientes</h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Consulta y administra los clientes que compran los productos terminados.
-          </p>
-        </div>
+      <PageHeader
+        title="Gestión de Clientes"
+        description="Consulta y administra los clientes que compran los productos terminados."
+        actions={
+          <>
+            {' '}
+            {canManage && (
+              <Button onClick={() => openAction({ type: 'create' })}>Nuevo cliente</Button>
+            )}{' '}
+          </>
+        }
+      />
 
-        {canManage && <Button onClick={() => openAction({ type: 'create' })}>Nuevo cliente</Button>}
-      </div>
+      {message && <SuccessNotice>{message}</SuccessNotice>}
 
-      {message && (
-        <p role="status" className="rounded-lg border bg-background p-3 text-sm">
-          {message}
-        </p>
-      )}
-
-      {customers.isPending && <p role="status">Cargando clientes…</p>}
+      {customers.isPending && <LoadingState label="Cargando clientes…" />}
 
       <ErrorNotice error={customers.error} />
 
@@ -111,9 +109,7 @@ export default function CustomersPage() {
                   </TableCell>
                   <TableCell>{customer.address ?? '—'}</TableCell>
                   <TableCell className="min-w-[6rem]">
-                    <Badge variant={customer.isActive ? 'secondary' : 'outline'}>
-                      {customer.isActive ? 'Activo' : 'Inactivo'}
-                    </Badge>
+                    <StatusBadge status={customer.isActive} />
                   </TableCell>
                   {canManage && (
                     <TableCell>
@@ -146,7 +142,8 @@ export default function CustomersPage() {
                     colSpan={canManage ? 6 : 5}
                     className="py-8 text-center text-muted-foreground"
                   >
-                    No hay clientes en esta página.
+                    No hay clientes en esta página. Usá el botón de alta para registrar una nueva
+                    cuenta o entidad cuando tu rol lo permita.
                   </TableCell>
                 </TableRow>
               )}
@@ -155,35 +152,15 @@ export default function CustomersPage() {
         </div>
       )}
 
-      <nav
-        aria-label="Paginación de clientes"
-        className="flex flex-wrap items-center justify-between gap-3"
-      >
-        <p aria-live="polite" className="text-sm text-muted-foreground">
-          {customers.data
-            ? `Página ${page} de ${totalPages} · ${customers.data.meta.total} clientes`
-            : `Página ${page}`}
-        </p>
-
-        <div className="flex gap-2">
-          <Button
-            variant="outline"
-            disabled={page <= 1 || customers.isFetching}
-            onClick={() => setPage((current) => current - 1)}
-          >
-            Anterior
-          </Button>
-          <Button
-            variant="outline"
-            disabled={
-              !customers.data || customers.isError || customers.isFetching || page >= totalPages
-            }
-            onClick={() => setPage((current) => current + 1)}
-          >
-            Siguiente
-          </Button>
-        </div>
-      </nav>
+      <Pagination
+        page={page}
+        pages={totalPages}
+        total={customers.data?.meta.total}
+        label="Paginación de resultados"
+        onPageChange={setPage}
+        busy={customers.isFetching}
+        unavailable={customers.isError || !customers.data}
+      />
 
       {canManage && action?.type === 'create' && (
         <CreateCustomerDialog
