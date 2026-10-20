@@ -58,6 +58,10 @@ afterEach(() => {
   vi.unstubAllEnvs();
 });
 
+async function selectLot(code: string) {
+  fireEvent.click(await screen.findByRole('button', { name: 'Seleccionar lote ' + code }));
+}
+
 describe('C-2 execution and inventory integration', () => {
   it('uses inventory filters/pagination and retains explicit allocations across pages', async () => {
     const requests: URL[] = [];
@@ -81,13 +85,24 @@ describe('C-2 execution and inventory integration', () => {
       }),
     );
     renderWithClient(<OrderExecution order={order} requirements={requirements} />);
+    await selectLot('LOT-1');
     fireEvent.change(await screen.findByLabelText('Cantidad de LOT-1'), {
       target: { value: '100' },
     });
     fireEvent.click(screen.getByRole('button', { name: 'Siguiente' }));
+    await selectLot('LOT-2');
     fireEvent.change(await screen.findByLabelText('Cantidad de LOT-2'), {
       target: { value: '100' },
     });
+    fireEvent.change(screen.getByLabelText('Buscar lote de Aceite'), {
+      target: { value: 'LOT-1' },
+    });
+    await waitFor(() =>
+      expect(requests.some((url) => url.searchParams.get('search') === 'LOT-1')).toBe(true),
+    );
+    expect((screen.getByLabelText('Cantidad de LOT-1') as HTMLInputElement).value).toBe('100');
+    expect((screen.getByLabelText('Cantidad de LOT-2') as HTMLInputElement).value).toBe('100');
+    expect(screen.queryByText(ids[3])).toBeNull();
     fireEvent.change(screen.getByLabelText('Cantidad producida real'), { target: { value: '95' } });
     fireEvent.click(screen.getByRole('button', { name: 'Revisar finalización' }));
     fireEvent.click(await screen.findByRole('button', { name: 'Confirmar finalización' }));
@@ -124,6 +139,7 @@ describe('C-2 execution and inventory integration', () => {
     );
     vi.stubGlobal('fetch', fetch);
     renderWithClient(<OrderExecution order={order} requirements={requirements} />);
+    await selectLot('LOT-1');
     fireEvent.change(await screen.findByLabelText('Cantidad de LOT-1'), {
       target: { value: '199' },
     });
@@ -168,6 +184,7 @@ describe('C-2 execution and inventory integration', () => {
       }),
     );
     renderWithClient(<OrderExecution order={order} requirements={requirements} />);
+    await selectLot('LOT-1');
     fireEvent.change(await screen.findByLabelText('Cantidad de LOT-1'), {
       target: { value: '200' },
     });
@@ -175,6 +192,32 @@ describe('C-2 execution and inventory integration', () => {
     fireEvent.click(await screen.findByRole('button', { name: 'Confirmar finalización' }));
     expect((await screen.findByRole('alert')).textContent).toContain('Existencia insuficiente');
     await waitFor(() => expect(reads).toBe(2));
+  });
+  it('blocks edited fields and duplicate completion while the mutation is pending', async () => {
+    let finish: ((value: Response) => void) | undefined;
+    const fetch = vi.fn(
+      () =>
+        new Promise<Response>((resolve) => {
+          finish = resolve;
+        }),
+    );
+    vi.stubGlobal('fetch', fetch);
+    renderWithClient(
+      <OrderExecution order={order} requirements={{ ...requirements, items: [] }} />,
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Revisar finalización' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Confirmar finalización' }));
+    fireEvent.submit(screen.getByRole('form', { name: 'Completar producción' }));
+    await waitFor(() => expect(fetch).toHaveBeenCalledTimes(1));
+    expect(
+      (screen.getByLabelText('Cantidad producida real') as HTMLInputElement).matches(':disabled'),
+    ).toBe(true);
+    finish!(json({ data: {}, message: 'Completada' }));
+    expect(
+      await screen.findByText(
+        'Producción completada. Se registraron el consumo planificado y el nuevo lote con la cantidad real.',
+      ),
+    ).toBeTruthy();
   });
   it('renders discriminated Purchase and Production references', () => {
     renderWithClient(
@@ -254,7 +297,40 @@ describe('C-2 lot quality and traceability UI', () => {
                   type: 'PRODUCTION_ORDER',
                   productionOrder: { id: ids[0], number: 'OP-1' },
                 },
-                consumptions: [],
+                consumptions: [
+                  {
+                    id: 'consume-intermediate',
+                    product,
+                    quantity: '2.0000',
+                    lotId: ids[4],
+                    warehouse: { id: ids[2], code: 'ALM', name: 'Principal' },
+                  },
+                  {
+                    id: 'consume-untracked',
+                    product: { ...product, code: 'AGUA', name: 'Agua' },
+                    quantity: '1.0000',
+                    lotId: null,
+                    warehouse: { id: ids[2], code: 'ALM', name: 'Principal' },
+                  },
+                ],
+              },
+              {
+                id: ids[4],
+                code: 'LOT-INTERMEDIATE',
+                product,
+                origin: {
+                  type: 'PRODUCTION_ORDER',
+                  productionOrder: { id: ids[4], number: 'OP-0' },
+                },
+                consumptions: [
+                  {
+                    id: 'consume-purchase',
+                    product,
+                    quantity: '2.0000',
+                    lotId: ids[3],
+                    warehouse: { id: ids[2], code: 'ALM', name: 'Principal' },
+                  },
+                ],
               },
               {
                 id: ids[3],
@@ -279,11 +355,77 @@ describe('C-2 lot quality and traceability UI', () => {
   it('shows recursive origins to supplier and gives read-only roles no inspection form', async () => {
     setup('VENTAS');
     expect(await screen.findByText(/Proveedor: SUP-1 Proveedor/)).toBeTruthy();
+    const output = screen.getByText('LOT-OUTPUT', { exact: true }).closest('details')!;
+    const intermediate = screen.getByText('LOT-INTERMEDIATE', { exact: true }).closest('details')!;
+    const purchase = screen.getByText('LOT-PURCHASE', { exact: true }).closest('details')!;
+    expect(output.open).toBe(true);
+    expect(intermediate.open).toBe(false);
+    expect(output.contains(intermediate)).toBe(true);
+    expect(intermediate.contains(purchase)).toBe(true);
+    expect(screen.getByText(/Sin trazabilidad por lote/)).toBeTruthy();
+    expect(screen.getByRole('link', { name: 'OC-1', hidden: true }).getAttribute('href')).toBe(
+      '/purchases/orders/o',
+    );
     expect(screen.queryByRole('button', { name: 'Revisar inspección' })).toBeNull();
+  });
+  it('renders shared and circular lot references once and opens their existing branch', async () => {
+    const warehouse = { id: ids[2], code: 'ALM', name: 'Principal' };
+    const consumption = (id: string, lotId: string) => ({
+      id,
+      lotId,
+      quantity: '1.0000',
+      product,
+      warehouse,
+    });
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: string) =>
+        json({
+          data: new URL(input).pathname.endsWith('/inspection')
+            ? null
+            : {
+                rootLotId: ids[0],
+                lots: [
+                  {
+                    id: ids[0],
+                    code: 'LOT-ROOT',
+                    product,
+                    origin: {
+                      type: 'PRODUCTION_ORDER',
+                      productionOrder: { id: ids[0], number: 'OP-ROOT' },
+                    },
+                    consumptions: [consumption('first', ids[3]), consumption('shared', ids[3])],
+                  },
+                  {
+                    id: ids[3],
+                    code: 'LOT-SHARED',
+                    product,
+                    origin: {
+                      type: 'PRODUCTION_ORDER',
+                      productionOrder: { id: ids[3], number: 'OP-SHARED' },
+                    },
+                    consumptions: [consumption('cycle', ids[0])],
+                  },
+                ],
+              },
+        }),
+      ),
+    );
+    renderWithClient(<LotProductionDetail lotId={ids[0]} status="RELEASED" />, 'VENTAS');
+    expect(await screen.findByText(/Referencia circular detectada/)).toBeTruthy();
+    expect(screen.getByText(/Lote compartido con otra rama/)).toBeTruthy();
+    expect(screen.getAllByText('LOT-SHARED', { exact: true })).toHaveLength(1);
+    const branch = screen.getByText('LOT-SHARED', { exact: true }).closest('details')!;
+    expect(branch.open).toBe(false);
+    fireEvent.click(screen.getByRole('link', { name: 'Ver LOT-SHARED' }));
+    expect(branch.open).toBe(true);
+    expect(screen.queryByText(ids[3])).toBeNull();
   });
   it('requires nonconformities for rejection and review again after editing observations', async () => {
     const mutations = setup();
-    fireEvent.change(await screen.findByLabelText('Resultado'), { target: { value: 'REJECTED' } });
+    fireEvent.change(await screen.findByRole('combobox', { name: 'Resultado' }), {
+      target: { value: 'REJECTED' },
+    });
     fireEvent.change(screen.getByLabelText('Observaciones'), { target: { value: 'Inspección' } });
     fireEvent.click(screen.getByRole('button', { name: 'Revisar inspección' }));
     expect((await screen.findByRole('alert')).textContent).toContain(

@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter, Route, Routes } from 'react-router';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -183,7 +183,11 @@ describe('C-1: órdenes y disponibilidad', () => {
     order.quantityPlanned = '20.0000';
     order.updatedAt = '2026-10-10T12:03:00Z';
     fireEvent.click(screen.getByRole('button', { name: 'Actualizar disponibilidad' }));
-    await screen.findByText(/Cantidad planificada: 20.0000/);
+    await waitFor(() =>
+      expect(screen.getByText('Cantidad planificada').closest('div')?.textContent).toContain(
+        '20.0000',
+      ),
+    );
     expect(await screen.findByText('3000.0000')).toBeTruthy();
     expect(screen.queryByText('La orden cambió; actualizá la disponibilidad.')).toBeNull();
   });
@@ -205,14 +209,20 @@ describe('C-1: órdenes y disponibilidad', () => {
   it('crea desde BOM/almacén y envía instantes UTC elegidos en Managua', async () => {
     const { fetch } = setup('PRODUCCION');
     fireEvent.click(await screen.findByRole('link', { name: 'Nueva orden' }));
-    fireEvent.click(await screen.findByRole('button', { name: 'Fórmula jabón · JABON · v1' }));
-    fireEvent.click(await screen.findByRole('button', { name: 'ALM · Principal' }));
+    fireEvent.click(
+      await screen.findByRole('button', { name: 'Seleccionar Fórmula jabón · JABON · v1' }),
+    );
+    fireEvent.click(await screen.findByRole('button', { name: 'Seleccionar ALM · Principal' }));
     fireEvent.change(screen.getByLabelText('Cantidad planificada'), { target: { value: '10.5' } });
     fireEvent.change(screen.getByLabelText('Inicio planificado'), {
       target: { value: '2026-10-10T08:30' },
     });
     fireEvent.click(screen.getByRole('button', { name: 'Guardar borrador' }));
-    await screen.findByRole('heading', { name: 'OP-2026-000001' });
+    await waitFor(() => {
+      expect(screen.queryAllByRole('alert').map((alert) => alert.textContent)).toEqual([]);
+      expect(fetch.mock.calls.some(([, options]) => options?.method === 'POST')).toBe(true);
+    });
+    await screen.findByText('Orden de producción OP-2026-000001', { selector: 'h1' });
     const call = fetch.mock.calls.find(([, options]) => options?.method === 'POST');
     expect(JSON.parse(String(call?.[1]?.body))).toMatchObject({
       productId: product.id,
@@ -262,7 +272,8 @@ describe('C-1: órdenes y disponibilidad', () => {
     });
     fireEvent.click(screen.getByRole('button', { name: 'Cancelar orden' }));
     fireEvent.click(screen.getByRole('button', { name: 'Confirmar cancelación' }));
-    await screen.findByText(/Cancelada · JABON/);
+    await screen.findByText('Cancelada');
+    expect(screen.getByText('JABON · Jabón')).toBeTruthy();
     expect(screen.queryByRole('button', { name: 'Editar borrador' })).toBeNull();
     expect(await screen.findByText('La orden no está en borrador')).toBeTruthy();
   });
@@ -291,6 +302,29 @@ describe('C-1: órdenes y disponibilidad', () => {
     const button = await screen.findByRole('button', { name: 'Reintentar' });
     retry();
     fireEvent.click(button);
-    expect(await screen.findByText('No hay órdenes que coincidan.')).toBeTruthy();
+    expect(await screen.findByText('No hay órdenes de producción todavía.')).toBeTruthy();
+  });
+
+  it('resume la fórmula elegida, permite cambiarla y oculta paginación de una sola página', async () => {
+    const { fetch } = setup('PRODUCCION', '/production/orders/new');
+    const formulas = await screen.findByRole('table', { name: 'Fórmulas disponibles' });
+    expect(screen.queryByRole('button', { name: 'Anterior' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Siguiente' })).toBeNull();
+    fireEvent.click(
+      within(formulas).getByRole('button', { name: 'Seleccionar Fórmula jabón · JABON · v1' }),
+    );
+    expect(screen.getByText('Fórmula seleccionada')).toBeTruthy();
+    expect(screen.getByText(/Cantidad base: 1.0000/)).toBeTruthy();
+    expect(screen.queryByRole('table', { name: 'Fórmulas disponibles' })).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Cambiar' }));
+    expect(screen.getByRole('table', { name: 'Fórmulas disponibles' })).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Conservar selección' }));
+    expect(screen.queryByRole('table', { name: 'Fórmulas disponibles' })).toBeNull();
+    fireEvent.click(await screen.findByRole('button', { name: 'Seleccionar ALM · Principal' }));
+    expect(screen.getByText('Almacén seleccionado')).toBeTruthy();
+    expect(screen.queryByRole('table', { name: 'Almacenes disponibles' })).toBeNull();
+    expect(
+      fetch.mock.calls.every(([, options]) => !options?.method || options.method === 'GET'),
+    ).toBe(true);
   });
 });
