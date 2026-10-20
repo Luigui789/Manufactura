@@ -886,17 +886,17 @@ El alcance implementado en la rama no acredita todavía integración de C-1 en `
 Con ello, A-1 y C-1 quedan disponibles en `develop`. Siguen pendientes Compras, Inventory A-2
 y Producción C-2; C-2 requiere además Compras.
 
-| Etapa | Contenido                                                    | Estado                                                                             |
-| ----- | ------------------------------------------------------------ | ---------------------------------------------------------------------------------- |
-| 3     | Autenticación JWT y RBAC                                     | Integrada en `develop` (PR #3)                                                     |
-| 4     | Datos maestros: productos, almacenes, proveedores y clientes | Integrados en `develop` (PR #6, #8 y #9), CI con 433 pruebas                       |
-| 5     | Compras y recepción                                          | Integrada en `develop` mediante PR #16 (`f73cf89`)                                 |
-| 6     | Inventario y movimientos                                     | A-1 integrado (PR #12); A-2 integrada en `develop` mediante PR #15                 |
-| 7     | BOM y producción                                             | C-1 (PR #13) y C-2 (PR #17) integrados en `develop`                               |
-| 8     | Lotes, trazabilidad y calidad                                | Trazabilidad de producción e inspección de lotes integradas mediante PR #17       |
-| 9     | Clientes, ventas y despacho                                  | Pendiente                                                                          |
-| 10    | Dashboard y reportes básicos                                 | Pendiente                                                                          |
-| 11    | Simulación ISA-95                                            | Pendiente                                                                          |
+| Etapa | Contenido                                                    | Estado                                                                      |
+| ----- | ------------------------------------------------------------ | --------------------------------------------------------------------------- |
+| 3     | Autenticación JWT y RBAC                                     | Integrada en `develop` (PR #3)                                              |
+| 4     | Datos maestros: productos, almacenes, proveedores y clientes | Integrados en `develop` (PR #6, #8 y #9), CI con 433 pruebas                |
+| 5     | Compras y recepción                                          | Integrada en `develop` mediante PR #16 (`f73cf89`)                          |
+| 6     | Inventario y movimientos                                     | A-1 integrado (PR #12); A-2 integrada en `develop` mediante PR #15          |
+| 7     | BOM y producción                                             | C-1 (PR #13) y C-2 (PR #17) integrados en `develop`                         |
+| 8     | Lotes, trazabilidad y calidad                                | Trazabilidad de producción e inspección de lotes integradas mediante PR #17 |
+| 9     | Clientes, ventas y despacho                                  | Pendiente                                                                   |
+| 10    | Dashboard y reportes básicos                                 | Pendiente                                                                   |
+| 11    | Simulación ISA-95                                            | Pendiente                                                                   |
 
 `develop` se integra en `main` cuando haya un bloque funcional completo —configuración, modelo de
 datos, autenticación y datos maestros—, no al terminar cada etapa.
