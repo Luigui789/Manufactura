@@ -12,6 +12,21 @@ import { AppLayout } from '@/layouts/AppLayout';
 import { HomePage } from './HomePage';
 import { NotFoundPage } from './NotFoundPage';
 import CustomersPage from '@/features/sales/pages/CustomersPage';
+const SalesOrdersPage = lazy(() =>
+  import('@/features/sales/orders/pages/SalesOrdersPage').then((m) => ({
+    default: m.SalesOrdersPage,
+  })),
+);
+const NewSaleOrderPage = lazy(() =>
+  import('@/features/sales/orders/pages/NewSaleOrderPage').then((m) => ({
+    default: m.NewSaleOrderPage,
+  })),
+);
+const SaleOrderDetailPage = lazy(() =>
+  import('@/features/sales/orders/pages/SaleOrderDetailPage').then((m) => ({
+    default: m.SaleOrderDetailPage,
+  })),
+);
 const PurchaseOrdersPage = lazy(() =>
   import('@/features/purchases/pages/PurchaseOrdersPage').then((m) => ({
     default: m.PurchaseOrdersPage,
@@ -103,7 +118,31 @@ export function AppRoutes() {
                 }
               />
             </Route>
+            <Route
+              path="/sales/orders"
+              element={
+                <Suspense fallback={<LoadingState label="Cargando órdenes de venta…" />}>
+                  <SalesOrdersPage />
+                </Suspense>
+              }
+            />
+            <Route
+              path="/sales/orders/:id"
+              element={
+                <Suspense fallback={<LoadingState label="Cargando orden de venta…" />}>
+                  <SaleOrderDetailPage />
+                </Suspense>
+              }
+            />
             <Route element={<RequireRole roles={['ADMIN', 'VENTAS']} />}>
+              <Route
+                path="/sales/orders/new"
+                element={
+                  <Suspense fallback={<LoadingState label="Cargando formulario…" />}>
+                    <NewSaleOrderPage />
+                  </Suspense>
+                }
+              />
               <Route path="/sales/customers" element={<CustomersPage />} />
             </Route>
             <Route element={<RequireRole roles={['ADMIN', 'COMPRAS']} />}>

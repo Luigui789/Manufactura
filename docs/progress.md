@@ -983,3 +983,9 @@ pasó en ambos jobs: `Quality and tests` y `Docker development`.
 El rediseño UI/UX se integró mediante el PR #18, con merge `3242e56`. El CI posterior al merge
 también pasó en `Quality and tests` y `Docker development`, incluidos lint, formato, builds,
 pruebas backend/frontend/E2E y verificación del stack Docker.
+
+### Ventas RF-VEN-002 — órdenes sin despacho (2026-10-26)
+
+Se crea `feature/sales-orders` desde `develop` actualizado en `32a38dee`; el merge del PR #18 (`3242e56`) es ancestro de la base. La rama añade modelo `SaleOrder`/`SaleOrderItem`, migración aditiva, numeración OV, API paginada, validación de cliente/producto, estados DRAFT/CONFIRMED/CANCELLED, auditoría transaccional y pantallas de listado, alta y detalle. La confirmación comprueba disponibilidad consumible, incluidos únicamente lotes RELEASED, sin reservar ni modificar inventario. No incluye despacho.
+
+Validación local actual: 197 pruebas unitarias backend aprobadas (14 archivos), 391 pruebas E2E backend aprobadas (29 archivos) contra PostgreSQL desde una base vacía, 479 pruebas frontend aprobadas (22 archivos), lint backend/frontend, formato, Prisma validate y builds backend/frontend aprobados. CI y revisión/integración del PR siguen pendientes. RF-VEN-002 permanece `In Progress` hasta completar esas comprobaciones e integrar el PR.

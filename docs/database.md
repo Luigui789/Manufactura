@@ -946,3 +946,11 @@ Rollback compatible: preservar migraciones, enums, documentos y datos. Una aplic
 que desconozca producción no es un downgrade seguro después de registrar estos movimientos.
 Para retirar pantallas/rutas se necesita un build compatible con los enums y el schema instalado;
 no borrar lotes, consumos, inspecciones ni auditoría, ni ejecutar migraciones destructivas.
+
+## Modelo físico de Ventas — RF-VEN-002 (`feature/sales-orders`)
+
+`SaleOrder` almacena número `OV-YYYY-NNNNNN`, cliente, estado (`DRAFT`, `CONFIRMED`, estados futuros de despacho y `CANCELLED`), instante de emisión y usuario creador. `SaleOrderItem` almacena producto, cantidad `Decimal(18,4)`, precio unitario `Decimal(14,4)` e importe redondeado `Decimal(14,2)`. Total y número de líneas se derivan. Los CHECKs exigen cantidad positiva, precio/importe no negativos e importe igual a `round(quantity * unit_price, 2)`. La FK impide eliminar cliente/producto/usuario referenciados.
+
+La migración aditiva `20261026090000_sales_orders` añade el enum de estado, el tipo de secuencia `SALE_ORDER`, `AuditEntityType.SALES_ORDER` y las dos tablas con índices/FKs. No crea tablas de despacho ni amplía `InventoryMovementType`: el despacho pertenece al RF-VEN-003 posterior.
+
+Solo se permiten productos terminados activos y clientes activos. `CONFIRMED` refleja que la disponibilidad consumible se comprobó en ese instante; no se persiste reserva, cantidad despachada ni snapshot de disponibilidad. En productos trazables, la disponibilidad usa únicamente movimientos de lotes `RELEASED`; en los demás, usa saldo físico. La comprobación vuelve a ejecutarse en un despacho futuro.

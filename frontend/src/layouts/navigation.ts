@@ -30,6 +30,13 @@ export const navigation: {
     icon: ShoppingCart,
   },
   {
+    to: '/sales/orders',
+    label: 'Ventas · Órdenes',
+    roles: ROLE_CODES,
+    group: 'Operaciones',
+    icon: ShoppingCart,
+  },
+  {
     to: '/production/orders',
     label: 'Producción · Órdenes',
     roles: ROLE_CODES,
