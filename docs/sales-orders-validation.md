@@ -3,7 +3,7 @@
 ## Base y alcance
 
 - Base verificada: origin/develop en 32a38dee21fc25b79c4958beb72e3589a571e860.
-- HEAD de partida del PR: 3909a7b4a7ab8f403a2e8fa8bc63e8a0186d6a6a; el SHA final se completa al publicar las correcciones.
+- HEAD validado: `15fc312bf6632d35605ef8068f18adbb80bc5d5c` (`fix(sales): align migration fixture lot origin`).
 - Alcance: RF-VEN-002, flujo de borradores, confirmación informativa y cancelación.
 - RF-VEN-003 (despacho) permanece Pending; no se implementa Dispatch ni se modifica el writer de Inventario.
 - Migración de Sales Orders: 20261026090000_sales_orders; no se modificaron migraciones publicadas.
@@ -33,10 +33,10 @@ Los errores de auditoría revierten la orden y el número reservado. Al confirma
 - AppRoutes.test.tsx: 47 pruebas aisladas — PASS.
 - Prettier check y git diff --check — PASS.
 - pnpm install --frozen-lockfile: no ejecutable en este sandbox; pnpm recibió EPERM al crear un symlink en su almacén de Windows.
-- Suite frontend completa: no se obtuvo un resultado final en esta revisión. La corrida global inicial reportó un fallo transitorio de ruta que pasó 47/47 al aislarla; la corrida serial completa quedó sin salida y se interrumpió.
-- E2E PostgreSQL, upgrade de migración, drift y Docker development: pendientes. La terminal no puede conectarse al daemon Docker Desktop (dockerDesktopLinuxEngine, acceso denegado).
-- CI de GitHub: pendiente de la nueva revisión publicada; no se declara PASS hasta ver los dos jobs exitosos.
+- Suite frontend completa — PASS en GitHub Actions para el HEAD indicado; el job `Quality and tests` ejecutó `pnpm --filter frontend test`.
+- E2E backend contra PostgreSQL 18, migraciones desde esquema limpio, upgrade con datos existentes, idempotencia y drift — PASS en `Quality and tests` para el HEAD indicado. La verificación de Docker development — PASS en el job separado. La limitación local de acceso a Docker no afecta estos resultados remotos.
+- CI de GitHub — PASS en el [run 48](https://github.com/Luigui789/Manufactura/actions/runs/40443272313): `Quality and tests` y `Docker development` finalizaron en success para el HEAD indicado el 2026-10-27.
 
 ## Estado
 
-RF-VEN-002 continúa In Progress mientras el PR no esté integrado. RF-VEN-003 permanece Pending. Esta revisión todavía no acredita las validaciones PostgreSQL/Docker ni CI requeridas para declarar el PR listo.
+RF-VEN-002 continúa In Progress porque el PR aún no está integrado. La validación técnica de CI está completa, pero el PR mantiene un review formal `CHANGES_REQUESTED` sin aprobación posterior; por ello no se declara listo para merge. RF-VEN-003 permanece Pending y fuera del alcance.
