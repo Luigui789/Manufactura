@@ -6,12 +6,19 @@ export type CustomersListResponse = {
   meta: { page: number; limit: number; total: number };
 };
 
+export type CustomerFilters = { search?: string; isActive?: boolean };
+
 export const getCustomers = (
   page = 1,
   limit = 20,
   signal?: AbortSignal,
-): Promise<CustomersListResponse> =>
-  apiFetch<CustomersListResponse>(`/customers?page=${page}&limit=${limit}`, { signal });
+  filters: CustomerFilters = {},
+): Promise<CustomersListResponse> => {
+  const params = new URLSearchParams({ page: String(page), limit: String(limit) });
+  if (filters.search?.trim()) params.set('search', filters.search.trim());
+  if (filters.isActive !== undefined) params.set('isActive', String(filters.isActive));
+  return apiFetch<CustomersListResponse>(`/customers?${params}`, { signal });
+};
 
 export const createCustomer = async (payload: CreateCustomerPayload): Promise<Customer> => {
   const response = await apiFetch<ApiResponse<Customer>>('/customers', {

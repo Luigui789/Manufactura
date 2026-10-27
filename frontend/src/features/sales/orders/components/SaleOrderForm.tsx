@@ -3,25 +3,26 @@ import { ErrorNotice } from '@/components/ErrorNotice';
 import { FormSection } from '@/components/erp';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { useCustomers } from '@/features/sales/hooks/useCustomers';
-import { useProducts } from '@/features/inventory/api/product-hooks';
+import { CatalogPicker } from '@/components/CatalogPicker';
 import type { SaleOrderValues } from '../api/sales-orders';
 
 export function SaleOrderForm({
   initial,
+  initialCustomerLabel,
+  initialProductLabels,
   pending,
   error,
   onSubmit,
 }: {
   initial: SaleOrderValues;
+  initialCustomerLabel?: string;
+  initialProductLabels?: string[];
   pending: boolean;
   error: Error | null;
   onSubmit: (value: SaleOrderValues) => void;
 }) {
   const [customerId, setCustomerId] = useState(initial.customerId);
   const [items, setItems] = useState(initial.items);
-  const customers = useCustomers(1, 100);
-  const products = useProducts(1, { type: 'FINISHED_GOOD', isActive: true }, 100);
   const setLine = (index: number, key: 'productId' | 'quantity' | 'unitPrice', value: string) =>
     setItems((old) => old.map((item, i) => (i === index ? { ...item, [key]: value } : item)));
   const total = items.reduce((sum, item) => {
@@ -40,26 +41,13 @@ export function SaleOrderForm({
       }}
     >
       <FormSection title="1. Cliente" description="Selecciona un cliente activo para la orden.">
-        <label className="block space-y-2 text-sm">
-          Cliente
-          <select
-            className="h-10 w-full max-w-xl rounded-md border bg-background px-3"
-            value={customerId}
-            onChange={(e) => setCustomerId(e.target.value)}
-            required
-            disabled={pending}
-          >
-            <option value="">Seleccionar cliente</option>
-            {customers.data?.data
-              .filter((c) => c.isActive)
-              .map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.code} · {c.name}
-                </option>
-              ))}
-          </select>
-        </label>
-        <ErrorNotice error={customers.error} />
+        <CatalogPicker
+          kind="customer"
+          value={customerId}
+          initialLabel={initialCustomerLabel}
+          disabled={pending}
+          onChange={setCustomerId}
+        />
       </FormSection>
       <FormSection
         title="2. Productos terminados"
@@ -68,23 +56,14 @@ export function SaleOrderForm({
         <div className="space-y-4">
           {items.map((item, index) => (
             <div className="grid gap-3 rounded-md border p-4 sm:grid-cols-4" key={index}>
-              <label className="space-y-2 text-sm">
-                Producto terminado
-                <select
-                  className="h-10 w-full rounded-md border bg-background px-3"
-                  value={item.productId}
-                  onChange={(e) => setLine(index, 'productId', e.target.value)}
-                  required
-                  disabled={pending}
-                >
-                  <option value="">Seleccionar producto</option>
-                  {products.data?.data.map((p) => (
-                    <option key={p.id} value={p.id}>
-                      {p.code} · {p.name}
-                    </option>
-                  ))}
-                </select>
-              </label>
+              <CatalogPicker
+                kind="product"
+                productType="FINISHED_GOOD"
+                value={item.productId}
+                initialLabel={initialProductLabels?.[index]}
+                disabled={pending}
+                onChange={(id) => setLine(index, 'productId', id)}
+              />
               <label className="space-y-2 text-sm">
                 Cantidad
                 <Input
@@ -126,7 +105,6 @@ export function SaleOrderForm({
         >
           Agregar producto
         </Button>
-        <ErrorNotice error={products.error} />
       </FormSection>
       <FormSection title="3. Resumen">
         <p className="font-semibold tabular-nums">Total estimado: {money(total)}</p>

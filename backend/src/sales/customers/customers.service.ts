@@ -16,6 +16,7 @@ import {
 } from '../../generated/prisma/client.js';
 import { PrismaService } from '../../prisma/prisma.service.js';
 import type { CreateCustomerDto, UpdateCustomerDto } from './dto/customers.dto.js';
+import type { CustomersQueryDto } from './dto/customers-query.dto.js';
 
 type Tx = Prisma.TransactionClient;
 
@@ -26,19 +27,31 @@ export class CustomersService {
     private readonly audit: AuditService,
   ) {}
 
-  async list(page: number, limit: number) {
+  async list(query: CustomersQueryDto) {
+    const where: Prisma.CustomerWhereInput = {
+      isActive: query.isActive,
+      ...(query.search
+        ? {
+            OR: [
+              { code: { contains: query.search, mode: 'insensitive' } },
+              { name: { contains: query.search, mode: 'insensitive' } },
+            ],
+          }
+        : {}),
+    };
     const [data, total] = await this.prisma.$transaction([
       this.prisma.customer.findMany({
+        where,
         orderBy: [{ name: 'asc' }, { id: 'asc' }],
-        skip: (page - 1) * limit,
-        take: limit,
+        skip: (query.page - 1) * query.limit,
+        take: query.limit,
       }),
-      this.prisma.customer.count(),
+      this.prisma.customer.count({ where }),
     ]);
 
     return {
       data,
-      meta: { page, limit, total },
+      meta: { page: query.page, limit: query.limit, total },
     };
   }
 

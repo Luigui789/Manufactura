@@ -77,9 +77,10 @@ export class SalesOrdersService {
 
   async create(actor: AuthenticatedUser, dto: CreateSaleOrderDto) {
     return this.prisma.$transaction(async (tx) => {
-      await this.validateCatalog(tx, dto.customerId, dto.items);
+      await this.lockAndValidateCustomer(tx, dto.customerId);
       const now = new Date();
       const number = await this.sequence.nextCode(tx, DocumentType.SALE_ORDER, now);
+      await this.lockAndValidateProducts(tx, dto.items);
       const created = await tx.saleOrder.create({
         data: {
           number,
@@ -109,7 +110,8 @@ export class SalesOrdersService {
           quantity: i.quantity.toFixed(4),
           unitPrice: i.unitPrice.toFixed(4),
         }));
-      await this.validateCatalog(tx, customerId, items);
+      await this.lockAndValidateCustomer(tx, customerId);
+      await this.lockAndValidateProducts(tx, items);
       if (dto.items) await tx.saleOrderItem.deleteMany({ where: { saleOrderId: id } });
       await tx.saleOrder.update({
         where: { id },
@@ -129,9 +131,9 @@ export class SalesOrdersService {
       const before = await this.lock(tx, id);
       if (before.status !== SaleOrderStatus.DRAFT)
         throw new ConflictException('Solo se puede confirmar un borrador');
-      await this.validateCatalog(
+      await this.lockAndValidateCustomer(tx, before.customerId);
+      await this.lockAndValidateProducts(
         tx,
-        before.customerId,
         before.items.map((i) => ({ productId: i.productId })),
       );
       const availability = await this.availabilityByProduct(
@@ -171,12 +173,15 @@ export class SalesOrdersService {
     });
   }
 
-  private async validateCatalog(tx: Tx, customerId: string, items: { productId: string }[]) {
+  private async lockAndValidateCustomer(tx: Tx, customerId: string) {
     const id = customerId.toLowerCase();
     await tx.$queryRaw`SELECT id FROM customers WHERE id = ${id}::uuid FOR SHARE`;
     const customer = await tx.customer.findUnique({ where: { id } });
     if (!customer) throw new NotFoundException('Cliente no encontrado');
     if (!customer.isActive) throw new UnprocessableEntityException('El cliente está inactivo');
+  }
+
+  private async lockAndValidateProducts(tx: Tx, items: { productId: string }[]) {
     for (const productId of [...new Set(items.map((i) => i.productId.toLowerCase()))].sort()) {
       await tx.$queryRaw`SELECT id FROM products WHERE id = ${productId}::uuid FOR SHARE`;
       const product = await tx.product.findUnique({ where: { id: productId } });

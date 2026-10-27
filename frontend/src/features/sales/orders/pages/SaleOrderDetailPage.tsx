@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link, useLocation, useParams } from 'react-router';
 import { Button } from '@/components/ui/button';
 import {
@@ -22,8 +22,27 @@ export function SaleOrderDetailPage() {
   const update = useSaveSalesOrder(id);
   const [editing, setEditing] = useState(false);
   const [confirmCancel, setConfirmCancel] = useState(false);
+  const [confirmOpen, setConfirmOpen] = useState(false);
   const [notice, setNotice] = useState('');
   const [cancelStarted, setCancelStarted] = useState(false);
+  const confirmStarted = useRef(false);
+  const cancelTriggerRef = useRef<HTMLButtonElement>(null);
+  const cancelStartedRef = useRef(false);
+  const cancelNoticeRef = useRef<HTMLDivElement>(null);
+  const cancelConfirmRef = useRef<HTMLButtonElement>(null);
+  const confirmTriggerRef = useRef<HTMLButtonElement>(null);
+  const confirmButtonRef = useRef<HTMLButtonElement>(null);
+  useEffect(() => {
+    if (confirmCancel) cancelConfirmRef.current?.focus();
+    else cancelTriggerRef.current?.focus();
+  }, [confirmCancel]);
+  useEffect(() => {
+    if (confirmOpen) confirmButtonRef.current?.focus();
+    else confirmTriggerRef.current?.focus();
+  }, [confirmOpen]);
+  useEffect(() => {
+    if (notice === 'Orden cancelada.') cancelNoticeRef.current?.focus();
+  }, [notice]);
   const current = order.data;
   const canManage = session.data?.role === 'ADMIN' || session.data?.role === 'VENTAS';
   const routeNotice = (useLocation().state as { notice?: unknown } | null)?.notice;
@@ -50,42 +69,85 @@ export function SaleOrderDetailPage() {
             actions={
               canManage &&
               !editing &&
-              !confirmCancel && (
+              !confirmCancel &&
+              !confirmOpen && (
                 <>
                   {current.status === 'DRAFT' && (
                     <Button variant="outline" onClick={() => setEditing(true)}>
                       Editar borrador
                     </Button>
                   )}
+                  {current.status === 'DRAFT' && (
+                    <Button
+                      ref={confirmTriggerRef}
+                      variant="outline"
+                      disabled={confirm.isPending}
+                      onClick={() => setConfirmOpen(true)}
+                    >
+                      Confirmar
+                    </Button>
+                  )}
                   {(current.status === 'DRAFT' || current.status === 'CONFIRMED') && (
-                    <>
-                      <Button
-                        variant="outline"
-                        disabled={confirm.isPending}
-                        onClick={() =>
-                          confirm.mutate(undefined, {
-                            onSuccess: () =>
-                              setNotice('Orden confirmada. La disponibilidad no quedó reservada.'),
-                          })
-                        }
-                      >
-                        Confirmar y comprobar disponibilidad
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        disabled={cancel.isPending}
-                        onClick={() => setConfirmCancel(true)}
-                      >
-                        Cancelar orden
-                      </Button>
-                    </>
+                    <Button
+                      ref={cancelTriggerRef}
+                      variant="ghost"
+                      disabled={cancel.isPending}
+                      onClick={() => setConfirmCancel(true)}
+                    >
+                      Cancelar orden
+                    </Button>
                   )}
                 </>
               )
             }
           />
           {(notice || (typeof routeNotice === 'string' ? routeNotice : '')) && (
-            <SuccessNotice>{notice || String(routeNotice)}</SuccessNotice>
+            <div ref={cancelNoticeRef} tabIndex={-1} className="outline-none">
+              <SuccessNotice>{notice || String(routeNotice)}</SuccessNotice>
+            </div>
+          )}
+          {current.status === 'CONFIRMED' && (
+            <SuccessNotice>
+              Pendiente de despacho. El inventario no está reservado y se validará nuevamente al
+              despachar.
+            </SuccessNotice>
+          )}
+          {confirmOpen && current.status === 'DRAFT' && (
+            <FormSection title="Confirmar orden de venta">
+              <p>
+                Confirmar validará la disponibilidad actual, pero no reservará inventario. El stock
+                se volverá a comprobar al despachar.
+              </p>
+              <div className="flex gap-2">
+                <Button
+                  ref={confirmButtonRef}
+                  disabled={confirm.isPending}
+                  onClick={() => {
+                    if (confirmStarted.current) return;
+                    confirmStarted.current = true;
+                    confirm.mutate(undefined, {
+                      onSuccess: () => {
+                        setConfirmOpen(false);
+                        setNotice('Orden confirmada. La disponibilidad no quedó reservada.');
+                      },
+                      onSettled: () => {
+                        confirmStarted.current = false;
+                      },
+                    });
+                  }}
+                >
+                  {confirm.isPending ? 'Confirmando…' : 'Sí, confirmar orden'}
+                </Button>
+                <Button
+                  variant="outline"
+                  disabled={confirm.isPending}
+                  onClick={() => setConfirmOpen(false)}
+                >
+                  Volver
+                </Button>
+              </div>
+              <ErrorNotice error={confirm.error} />
+            </FormSection>
           )}
           <FormSection title="Resumen">
             <DetailGrid>
@@ -124,6 +186,10 @@ export function SaleOrderDetailPage() {
                     unitPrice: i.unitPrice,
                   })),
                 }}
+                initialCustomerLabel={`${current.customer.code} · ${current.customer.name}`}
+                initialProductLabels={current.items.map(
+                  (i) => `${i.productCode} · ${i.productName}`,
+                )}
                 pending={update.isPending}
                 error={update.error}
                 onSubmit={(value) =>
@@ -180,9 +246,12 @@ export function SaleOrderDetailPage() {
               <p>¿Cancelar la orden {current.number}? La acción quedará auditada.</p>
               <div className="mt-3 flex gap-2">
                 <Button
+                  ref={cancelConfirmRef}
                   variant="destructive"
                   disabled={cancel.isPending || cancelStarted}
                   onClick={() => {
+                    if (cancelStartedRef.current) return;
+                    cancelStartedRef.current = true;
                     setCancelStarted(true);
                     cancel.mutate(undefined, {
                       onSuccess: () => {
@@ -190,6 +259,7 @@ export function SaleOrderDetailPage() {
                         setNotice('Orden cancelada.');
                       },
                       onSettled: () => {
+                        cancelStartedRef.current = false;
                         setCancelStarted(false);
                       },
                     });

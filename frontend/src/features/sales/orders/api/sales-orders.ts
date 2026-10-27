@@ -3,7 +3,7 @@ import { apiFetch, type ApiResponse } from '@/services/api-client';
 export const SALE_STATUS = {
   DRAFT: 'Borrador',
   CONFIRMED: 'Confirmada',
-  PARTIALLY_DISPATCHED: 'Despacho parcial',
+  PARTIALLY_DISPATCHED: 'Parcialmente despachada',
   DISPATCHED: 'Despachada',
   CANCELLED: 'Cancelada',
 } as const;
