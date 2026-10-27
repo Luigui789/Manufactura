@@ -5,7 +5,7 @@ Este documento refleja el estado **real** del proyecto.
 Una casilla marcada significa que la comprobación se ejecutó y se vio el resultado. No se marca
 nada por parecer correcto, por estar escrito ni por estar a punto de terminarse.
 
-Última actualización: 2026-10-10.
+Última actualización: 2026-10-27.
 
 ## Estados del trabajo
 
@@ -983,3 +983,11 @@ pasó en ambos jobs: `Quality and tests` y `Docker development`.
 El rediseño UI/UX se integró mediante el PR #18, con merge `3242e56`. El CI posterior al merge
 también pasó en `Quality and tests` y `Docker development`, incluidos lint, formato, builds,
 pruebas backend/frontend/E2E y verificación del stack Docker.
+
+### Ventas RF-VEN-002 — órdenes sin despacho (2026-10-26)
+
+Se crea `feature/sales-orders` desde `develop` actualizado en `32a38dee`; el merge del PR #18 (`3242e56`) es ancestro de la base. La rama implementa `SaleOrder`/`SaleOrderItem`, migración aditiva, numeración OV, API paginada, validación de catálogo, estados DRAFT/CONFIRMED/CANCELLED, auditoría transaccional y pantallas de listado, alta y detalle. La confirmación valida disponibilidad consumible (en productos trazables, solo lotes RELEASED), sin reservar ni modificar inventario. No incluye despacho, que pertenece a RF-VEN-003.
+
+Las correcciones locales agregan búsqueda paginada de clientes, selectores de catálogo compartidos con Compras y sincronización del orden de bloqueos: cliente, secuencia OV y productos en orden estable. La vista de detalle solo permite confirmar borradores y explica que una orden confirmada queda pendiente de despacho. Se amplían pruebas de concurrencia, rollback de auditoría, precisión decimal, validación del catálogo e interfaz. También se añade una prueba de actualización de migración que compara filas históricas antes/después.
+
+Verificación y alcance: backend unitario 197 pruebas; E2E backend PostgreSQL 18, 391 pruebas en 29 archivos; frontend, 479 pruebas en 22 archivos. El CI del PR en el [run 48](https://github.com/Luigui789/Manufactura/actions/runs/40443272313) terminó con `Quality and tests` y `Docker development` en success para el HEAD de código `15fc312bf6632d35605ef8068f18adbb80bc5d5c`. Ese run incluye suite frontend completa, migración limpia y upgrade con datos, idempotencia/drift, lint, formato y builds. Las pruebas cubren concurrencia de confirmación y numeración OV, rollback de auditoría, pickers buscables/paginados, lock ordering de ADR 012 y que confirmar no altere inventario. El HEAD actual `4c8a032b38cfd26cd8a86fcf749fa09fd38ad8d2` solo actualiza documentación; su [run 49](https://github.com/Luigui789/Manufactura/actions/runs/40595316237) sigue en curso: `Docker development` ya pasó y `Quality and tests` continúa ejecutándose. La limitación local de Docker Desktop y el EPERM de `pnpm install --frozen-lockfile` no invalidan la evidencia de CI, pero tampoco sustituyen el resultado pendiente del run 49. El PR #19 sigue abierto hacia `develop`, sin merge. La única revisión formal visible es `CHANGES_REQUESTED` de Luigui789 sobre el HEAD inicial `3909a7b`; todavía no hay una aprobación posterior.

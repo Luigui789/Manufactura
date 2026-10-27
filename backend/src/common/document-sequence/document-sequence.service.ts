@@ -10,6 +10,7 @@ const DOCUMENT_PREFIX: Record<DocumentType, string> = {
   OP: 'OP',
   PURCHASE_ORDER: 'OC',
   PURCHASE_RECEIPT: 'REC',
+  SALE_ORDER: 'OV',
 };
 
 @Injectable()

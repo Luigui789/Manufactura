@@ -16,9 +16,9 @@ import {
 } from '../../auth/access-policy.js';
 import { SESSION_COOKIE } from '../../auth/session-cookie.js';
 import { SetCatalogStatusDto } from '../../common/catalog.dto.js';
-import { PaginationQueryDto } from '../../common/pagination/pagination.js';
 import { RoleCode } from '../../generated/prisma/client.js';
 import { CreateCustomerDto, UpdateCustomerDto } from './dto/customers.dto.js';
+import { CustomersQueryDto } from './dto/customers-query.dto.js';
 import { CustomerResultDto, CustomersListDto } from './customers-response.js';
 import { CustomersService } from './customers.service.js';
 
@@ -35,8 +35,8 @@ export class CustomersController {
   @Authenticated()
   @ApiOperation({ summary: 'Lista paginada de clientes' })
   @ApiOkResponse({ type: CustomersListDto })
-  list(@Query() query: PaginationQueryDto) {
-    return this.customers.list(query.page, query.limit);
+  list(@Query() query: CustomersQueryDto) {
+    return this.customers.list(query);
   }
 
   @Get(':id')

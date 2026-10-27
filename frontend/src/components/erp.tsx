@@ -60,6 +60,8 @@ const states: Record<string, [string, 'neutral' | 'success' | 'warning' | 'dange
   PARTIALLY_RECEIVED: ['Recepción parcial', 'warning'],
   RECEIVED: ['Recibida', 'success'],
   CANCELLED: ['Cancelada', 'danger'],
+  PARTIALLY_DISPATCHED: ['Parcialmente despachada', 'warning'],
+  DISPATCHED: ['Despachada', 'success'],
   IN_PROGRESS: ['En producción', 'warning'],
   COMPLETED: ['Completada', 'success'],
   RELEASED: ['Liberado', 'success'],

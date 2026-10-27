@@ -97,6 +97,7 @@ enum AuditEntityType {
   PRODUCTION_ORDER
   PURCHASE_ORDER
   PURCHASE_RECEIPT
+  SALES_ORDER
   QUALITY_INSPECTION
 }
 
@@ -110,6 +111,15 @@ enum DocumentType {
   OP
   PURCHASE_ORDER
   PURCHASE_RECEIPT
+  SALE_ORDER
+}
+
+enum SaleOrderStatus {
+  DRAFT
+  CONFIRMED
+  PARTIALLY_DISPATCHED
+  DISPATCHED
+  CANCELLED
 }
 
 enum ProductionOrderStatus {
@@ -157,6 +167,7 @@ model User {
   productionOrders   ProductionOrder[]
   purchaseOrders     PurchaseOrder[]
   purchaseReceipts   PurchaseReceipt[]
+  saleOrders         SaleOrder[]
   qualityInspections QualityInspection[]
 
   @@map("users")
@@ -182,6 +193,7 @@ model Product {
   productionOrders          ProductionOrder[]
   purchaseOrderItems        PurchaseOrderItem[]
   purchaseReceiptItems      PurchaseReceiptItem[]
+  saleOrderItems            SaleOrderItem[]
 
   @@index([type])
   @@index([isActive])
@@ -414,19 +426,53 @@ model Supplier {
 
 // Datos maestros de Ventas (RF-VEN-001). Contacto opcional según database.md §10.
 model Customer {
-  id        String   @id @default(uuid(7)) @db.Uuid
-  code      String   @unique
-  name      String
-  taxId     String?  @map("tax_id") @db.VarChar(50)
-  email     String?  @db.VarChar(254)
-  phone     String?  @db.VarChar(50)
-  address   String?  @db.VarChar(255)
-  isActive  Boolean  @default(true) @map("is_active")
-  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+  id         String      @id @default(uuid(7)) @db.Uuid
+  code       String      @unique
+  name       String
+  taxId      String?     @map("tax_id") @db.VarChar(50)
+  email      String?     @db.VarChar(254)
+  phone      String?     @db.VarChar(50)
+  address    String?     @db.VarChar(255)
+  isActive   Boolean     @default(true) @map("is_active")
+  createdAt  DateTime    @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt  DateTime    @updatedAt @map("updated_at") @db.Timestamptz(6)
+  saleOrders SaleOrder[]
 
   @@index([isActive])
   @@map("customers")
+}
+
+model SaleOrder {
+  id              String          @id @default(uuid(7)) @db.Uuid
+  number          String          @unique @db.VarChar(32)
+  customerId      String          @map("customer_id") @db.Uuid
+  status          SaleOrderStatus @default(DRAFT)
+  orderedAt       DateTime        @map("ordered_at") @db.Timestamptz(6)
+  createdByUserId String          @map("created_by_user_id") @db.Uuid
+  createdAt       DateTime        @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime        @updatedAt @map("updated_at") @db.Timestamptz(6)
+  customer        Customer        @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  createdBy       User            @relation(fields: [createdByUserId], references: [id], onDelete: Restrict)
+  items           SaleOrderItem[]
+
+  @@index([status, orderedAt])
+  @@index([customerId, orderedAt])
+  @@map("sale_orders")
+}
+
+model SaleOrderItem {
+  id          String    @id @default(uuid(7)) @db.Uuid
+  saleOrderId String    @map("sale_order_id") @db.Uuid
+  productId   String    @map("product_id") @db.Uuid
+  quantity    Decimal   @db.Decimal(18, 4)
+  unitPrice   Decimal   @map("unit_price") @db.Decimal(14, 4)
+  lineTotal   Decimal   @map("line_total") @db.Decimal(14, 2)
+  saleOrder   SaleOrder @relation(fields: [saleOrderId], references: [id], onDelete: Cascade)
+  product     Product   @relation(fields: [productId], references: [id], onDelete: Restrict)
+
+  @@index([saleOrderId])
+  @@index([productId])
+  @@map("sale_order_items")
 }
 
 model PurchaseOrder {

@@ -840,3 +840,22 @@ Errores: 400 DTO/UUID/paginación; 401 sesión; 403 rol; 404 OC/referencia de co
 
 La UI de Compras usa los flags de trazabilidad/calidad del catálogo, configurables en
 Productos mediante A-2 antes del primer movimiento. No hay acción para liberar lotes en cuarentena.
+
+## Ventas: órdenes de venta (RF-VEN-002)
+
+Implementación en `feature/sales-orders`, sobre `develop` actualizado tras PR #18. Todas las rutas requieren sesión vigente. Lecturas: cualquier rol autenticado. Mutaciones: exclusivamente `ADMIN` y `VENTAS`.
+
+| Método/ruta                          | Contrato                                                                | Resultado                                                  |
+| ------------------------------------ | ----------------------------------------------------------------------- | ---------------------------------------------------------- |
+| GET `/api/sales/orders`              | `page`, `limit` (máx. 100), `status`, `customerId`, `search` por número | `{ data, meta }`                                           |
+| POST `/api/sales/orders`             | `{ customerId, items: [{ productId, quantity, unitPrice }] }`           | 201, OV `DRAFT`                                            |
+| GET `/api/sales/orders/:id`          | UUID                                                                    | Detalle con productos y disponibilidad informativa         |
+| PATCH `/api/sales/orders/:id`        | `customerId?`, `items?`; las líneas reemplazan las anteriores           | 200; solo `DRAFT`                                          |
+| POST `/api/sales/orders/:id/confirm` | `{}`                                                                    | 200; `DRAFT → CONFIRMED`, valida stock actual sin reservar |
+| POST `/api/sales/orders/:id/cancel`  | `{}`                                                                    | 200; `DRAFT` o `CONFIRMED → CANCELLED`                     |
+
+Se aceptan clientes activos y productos activos `FINISHED_GOOD`. Cantidad es string positivo `Decimal(18,4)`; precio es string no negativo `Decimal(14,4)`. Subtotales se calculan con `Prisma.Decimal`, `ROUND_HALF_UP` a dos decimales, y total como suma de subtotales. La numeración usa `DocumentSequenceService`, prefijo `OV` y año de `America/Managua`.
+
+Al confirmar, las líneas repetidas del mismo producto se suman para comparar contra la disponibilidad consumible de todos los almacenes. En productos con lote solo cuenta el ledger de lotes `RELEASED`. Si no alcanza, responde 409 y mantiene `DRAFT`. La consulta no reserva ni escribe `InventoryMovement`, `StockBalance` o `Lot`; el despacho futuro debe volver a validar. No existen endpoints ni movimientos de despacho en este alcance.
+
+Las operaciones de crear, editar, confirmar y cancelar registran `AuditLog` en la misma transacción. La auditoría usa `SALES_ORDER` y `CREATE`, `UPDATE`, `CONFIRM` o `CANCEL`. Un fallo de auditoría revierte la operación. Errores: 400 DTO/UUID/paginación; 401 sesión; 403 rol; 404 documento/referencia inexistente; 409 transición o disponibilidad insuficiente; 422 cliente/producto inactivo, tipo no vendible o límite decimal.
