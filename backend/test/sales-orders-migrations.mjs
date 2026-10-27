@@ -164,13 +164,25 @@ try {
     `INSERT INTO purchase_receipts(id,number,purchase_order_id,received_at,received_by_user_id) VALUES ($1,'REC-SALES-MIGRATION',$2,now(),$3)`,
     [receipt, purchaseOrder, user],
   );
-  await db.query(
+  const receiptLine = await db.query(
     `INSERT INTO purchase_receipt_items(id,purchase_receipt_id,purchase_order_item_id,product_id,warehouse_id,quantity) VALUES ($1,$2,$3,$4,$5,20)`,
     [receiptItem, receipt, purchaseItem, raw, warehouse],
   );
+  assert.equal(receiptLine.rowCount, 1, 'Historical purchase receipt line must be inserted');
+  const purchaseLotRow = await db.query(
+    `INSERT INTO lots(id,code,product_id,status,originated_at,purchase_receipt_item_id)
+     SELECT $1,'LOT-SALES-PURCHASE',product_id,'RELEASED',now(),id
+     FROM purchase_receipt_items WHERE id = $2`,
+    [purchaseLot, receiptItem],
+  );
+  assert.equal(
+    purchaseLotRow.rowCount,
+    1,
+    'Historical purchase lot must use its receipt line product',
+  );
   await db.query(
-    `INSERT INTO lots(id,code,product_id,status,originated_at,purchase_receipt_item_id) VALUES ($1,'LOT-SALES-PURCHASE',$2,'RELEASED',now(),$3),($4,'LOT-SALES-PRODUCTION',$5,'RELEASED',now(),$6)`,
-    [purchaseLot, raw, receiptItem, productionLot, output, productionOrder],
+    `INSERT INTO lots(id,code,product_id,status,originated_at,production_order_id) VALUES ($1,'LOT-SALES-PRODUCTION',$2,'RELEASED',now(),$3)`,
+    [productionLot, output, productionOrder],
   );
   await db.query(
     `INSERT INTO quality_inspections(id,lot_id,result,observations,inspected_by_user_id) VALUES ($1,$2,'APPROVED','Historical inspection',$3)`,
