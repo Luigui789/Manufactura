@@ -5,7 +5,7 @@ Este documento refleja el estado **real** del proyecto.
 Una casilla marcada significa que la comprobación se ejecutó y se vio el resultado. No se marca
 nada por parecer correcto, por estar escrito ni por estar a punto de terminarse.
 
-Última actualización: 2026-10-10.
+Última actualización: 2026-10-27.
 
 ## Estados del trabajo
 
@@ -990,4 +990,4 @@ Se crea `feature/sales-orders` desde `develop` actualizado en `32a38dee`; el mer
 
 Las correcciones locales agregan búsqueda paginada de clientes, selectores de catálogo compartidos con Compras y sincronización del orden de bloqueos: cliente, secuencia OV y productos en orden estable. La vista de detalle solo permite confirmar borradores y explica que una orden confirmada queda pendiente de despacho. Se amplían pruebas de concurrencia, rollback de auditoría, precisión decimal, validación del catálogo e interfaz. También se añade una prueba de actualización de migración que compara filas históricas antes/después.
 
-Verificación local de las correcciones: backend unitario 197/197; lint y build backend/frontend, Prisma validate y formato aprobados; suites focalizadas Sales 23/23, Compras 14/14 y AppRoutes 47/47 aprobadas. La suite frontend global no obtuvo resultado final. E2E PostgreSQL, upgrade/drift de migración, Docker development e CI de la revisión actual siguen pendientes: la terminal de este entorno no puede acceder al daemon Docker Desktop. pnpm install --frozen-lockfile también quedó limitado por EPERM al crear un symlink en el almacén local de pnpm. El PR #19 permanece en feature/sales-orders hacia develop; no se ha hecho merge.
+Verificación y alcance: backend unitario 197 pruebas; E2E backend PostgreSQL 18, 391 pruebas en 29 archivos; frontend, 479 pruebas en 22 archivos. El CI del PR en el [run 48](https://github.com/Luigui789/Manufactura/actions/runs/40443272313) terminó con `Quality and tests` y `Docker development` en success para el HEAD de código `15fc312bf6632d35605ef8068f18adbb80bc5d5c`. Ese run incluye suite frontend completa, migración limpia y upgrade con datos, idempotencia/drift, lint, formato y builds. Las pruebas cubren concurrencia de confirmación y numeración OV, rollback de auditoría, pickers buscables/paginados, lock ordering de ADR 012 y que confirmar no altere inventario. El HEAD actual `4c8a032b38cfd26cd8a86fcf749fa09fd38ad8d2` solo actualiza documentación; su [run 49](https://github.com/Luigui789/Manufactura/actions/runs/40595316237) sigue en curso: `Docker development` ya pasó y `Quality and tests` continúa ejecutándose. La limitación local de Docker Desktop y el EPERM de `pnpm install --frozen-lockfile` no invalidan la evidencia de CI, pero tampoco sustituyen el resultado pendiente del run 49. El PR #19 sigue abierto hacia `develop`, sin merge. La única revisión formal visible es `CHANGES_REQUESTED` de Luigui789 sobre el HEAD inicial `3909a7b`; todavía no hay una aprobación posterior.
