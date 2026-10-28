@@ -9,6 +9,17 @@ export function BusinessReference({ reference }: { reference: Reference }) {
         {reference.number}
       </Link>
     );
+  if (reference.type === 'SALE_DISPATCH')
+    return (
+      <Link
+        className="underline"
+        title={reference.saleOrder.number}
+        to={`/sales/orders/${reference.saleOrder.id}`}
+      >
+        {reference.number}
+        <span className="sr-only"> · {reference.saleOrder.number}</span>
+      </Link>
+    );
   return (
     <Link
       className="underline"

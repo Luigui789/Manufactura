@@ -80,7 +80,7 @@ jobs:
         run: pnpm --filter backend test
       - name: Frontend tests
         run: pnpm --filter frontend test
-      - name: Purchase and production migration upgrade and integrity proofs
+      - name: Purchase, production and sales migration upgrade and integrity proofs
         run: pnpm --filter backend test:migrations
       - name: Backend end-to-end tests
         run: pnpm --filter backend test:e2e

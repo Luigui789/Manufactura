@@ -115,7 +115,7 @@ límite evita—, los `401` y `403` de los guards ni los `400` de validación.
 | Iniciar producción        | `START`           | `PRODUCTION_ORDER`   |
 | Completar producción      | `COMPLETE`        | `PRODUCTION_ORDER`   |
 | Confirmar venta           | `CONFIRM`         | `SALES_ORDER`        |
-| Despachar                 | `DISPATCH`        | `DISPATCH`           |
+| Despachar                 | `DISPATCH`        | `SALE_DISPATCH`      |
 | Cancelar un documento     | `CANCEL`          | la que corresponda   |
 | Ajustar existencias       | `ADJUST_STOCK`    | `INVENTORY_MOVEMENT` |
 | Aprobar calidad           | `QUALITY_APPROVE` | `QUALITY_INSPECTION` |
@@ -408,3 +408,7 @@ resultado, observaciones/no conformidades, instante, responsable y estado de lot
 Inspección y transición por Inventario son atómicas con esa auditoría. Una falla revierte
 todo; ledger y auditoría siguen append-only. No se crean eventos empresariales desde
 InventoryService ni se audita COMPLETE como UPDATE genérico.
+
+## Auditoría de despacho de venta — RF-VEN-003
+
+`DISPATCH` sobre `SALE_DISPATCH` registra en la misma transacción el número DES, la orden asociada, sus líneas (producto, almacén, lote y cantidad), estado resultante, actor y fecha del evento. Si falla la escritura de auditoría, también se revierten documento, items, salida del ledger, balance y secuencia. Los documentos de despacho son append-only por restricciones de base de datos; una devolución o reversa pertenece a un flujo futuro.

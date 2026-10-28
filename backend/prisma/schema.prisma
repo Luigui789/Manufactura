@@ -43,6 +43,7 @@ enum InventoryMovementType {
   PURCHASE_RECEIPT
   PRODUCTION_CONSUMPTION
   PRODUCTION_OUTPUT
+  SALE_DISPATCH
 }
 
 enum AdjustmentReason {
@@ -81,6 +82,7 @@ enum AuditAction {
   COMPLETE
   QUALITY_APPROVE
   QUALITY_REJECT
+  DISPATCH
 }
 
 enum AuditEntityType {
@@ -98,6 +100,7 @@ enum AuditEntityType {
   PURCHASE_ORDER
   PURCHASE_RECEIPT
   SALES_ORDER
+  SALE_DISPATCH
   QUALITY_INSPECTION
 }
 
@@ -112,6 +115,7 @@ enum DocumentType {
   PURCHASE_ORDER
   PURCHASE_RECEIPT
   SALE_ORDER
+  SALE_DISPATCH
 }
 
 enum SaleOrderStatus {
@@ -168,6 +172,7 @@ model User {
   purchaseOrders     PurchaseOrder[]
   purchaseReceipts   PurchaseReceipt[]
   saleOrders         SaleOrder[]
+  saleDispatches     SaleDispatch[]
   qualityInspections QualityInspection[]
 
   @@map("users")
@@ -194,6 +199,7 @@ model Product {
   purchaseOrderItems        PurchaseOrderItem[]
   purchaseReceiptItems      PurchaseReceiptItem[]
   saleOrderItems            SaleOrderItem[]
+  saleDispatchItems         SaleDispatchItem[]
 
   @@index([type])
   @@index([isActive])
@@ -257,6 +263,7 @@ model Warehouse {
   movements            InventoryMovement[]
   productionOrders     ProductionOrder[]
   purchaseReceiptItems PurchaseReceiptItem[]
+  saleDispatchItems    SaleDispatchItem[]
 
   @@map("warehouses")
 }
@@ -307,6 +314,7 @@ model Lot {
   productionOrderId     String?              @unique @map("production_order_id") @db.Uuid
   productionOrder       ProductionOrder?     @relation(fields: [productionOrderId, productId], references: [id, productId], onDelete: Restrict)
   qualityInspection     QualityInspection?
+  saleDispatchItems     SaleDispatchItem[]
 
   // Referencia compuesta de InventoryMovement: el lote debe ser del producto.
   @@unique([id, productId])
@@ -349,6 +357,8 @@ model InventoryMovement {
   purchaseReceiptItem   PurchaseReceiptItem?  @relation(fields: [purchaseReceiptItemId, productId, warehouseId, quantity], references: [id, productId, warehouseId, quantity], onDelete: Restrict, map: "inventory_movements_receipt_line_fkey")
   productionOrderId     String?               @map("production_order_id") @db.Uuid
   productionOrder       ProductionOrder?      @relation(fields: [productionOrderId, warehouseId], references: [id, warehouseId], onDelete: Restrict)
+  saleDispatchItemId    String?               @unique @map("sale_dispatch_item_id") @db.Uuid
+  saleDispatchItem      SaleDispatchItem?     @relation(fields: [saleDispatchItemId], references: [id], onDelete: Restrict)
 
   @@unique([purchaseReceiptItemId, productId, warehouseId, quantity], map: "inventory_movements_receipt_line_key")
   @@index([productId, occurredAt])
@@ -454,6 +464,7 @@ model SaleOrder {
   customer        Customer        @relation(fields: [customerId], references: [id], onDelete: Restrict)
   createdBy       User            @relation(fields: [createdByUserId], references: [id], onDelete: Restrict)
   items           SaleOrderItem[]
+  dispatches      SaleDispatch[]
 
   @@index([status, orderedAt])
   @@index([customerId, orderedAt])
@@ -461,18 +472,59 @@ model SaleOrder {
 }
 
 model SaleOrderItem {
-  id          String    @id @default(uuid(7)) @db.Uuid
-  saleOrderId String    @map("sale_order_id") @db.Uuid
-  productId   String    @map("product_id") @db.Uuid
-  quantity    Decimal   @db.Decimal(18, 4)
-  unitPrice   Decimal   @map("unit_price") @db.Decimal(14, 4)
-  lineTotal   Decimal   @map("line_total") @db.Decimal(14, 2)
-  saleOrder   SaleOrder @relation(fields: [saleOrderId], references: [id], onDelete: Cascade)
-  product     Product   @relation(fields: [productId], references: [id], onDelete: Restrict)
+  id            String             @id @default(uuid(7)) @db.Uuid
+  saleOrderId   String             @map("sale_order_id") @db.Uuid
+  productId     String             @map("product_id") @db.Uuid
+  quantity      Decimal            @db.Decimal(18, 4)
+  unitPrice     Decimal            @map("unit_price") @db.Decimal(14, 4)
+  lineTotal     Decimal            @map("line_total") @db.Decimal(14, 2)
+  saleOrder     SaleOrder          @relation(fields: [saleOrderId], references: [id], onDelete: Cascade)
+  product       Product            @relation(fields: [productId], references: [id], onDelete: Restrict)
+  dispatchItems SaleDispatchItem[]
 
+  @@unique([id, saleOrderId, productId])
   @@index([saleOrderId])
   @@index([productId])
   @@map("sale_order_items")
+}
+
+model SaleDispatch {
+  id              String             @id @default(uuid(7)) @db.Uuid
+  number          String             @unique @db.VarChar(32)
+  saleOrderId     String             @map("sale_order_id") @db.Uuid
+  dispatchedAt    DateTime           @map("dispatched_at") @db.Timestamptz(6)
+  createdByUserId String             @map("created_by_user_id") @db.Uuid
+  createdAt       DateTime           @default(now()) @map("created_at") @db.Timestamptz(6)
+  saleOrder       SaleOrder          @relation(fields: [saleOrderId], references: [id], onDelete: Restrict)
+  createdBy       User               @relation(fields: [createdByUserId], references: [id], onDelete: Restrict)
+  items           SaleDispatchItem[]
+
+  @@unique([id, saleOrderId])
+  @@index([saleOrderId, dispatchedAt])
+  @@map("sale_dispatches")
+}
+
+model SaleDispatchItem {
+  id              String             @id @default(uuid(7)) @db.Uuid
+  saleDispatchId  String             @map("sale_dispatch_id") @db.Uuid
+  saleOrderId     String             @map("sale_order_id") @db.Uuid
+  saleOrderItemId String             @map("sale_order_item_id") @db.Uuid
+  productId       String             @map("product_id") @db.Uuid
+  warehouseId     String             @map("warehouse_id") @db.Uuid
+  lotId           String?            @map("lot_id") @db.Uuid
+  quantity        Decimal            @db.Decimal(18, 4)
+  saleDispatch    SaleDispatch       @relation(fields: [saleDispatchId, saleOrderId], references: [id, saleOrderId], onDelete: Restrict, map: "sale_dispatch_items_dispatch_order_fkey")
+  saleOrderItem   SaleOrderItem      @relation(fields: [saleOrderItemId, saleOrderId, productId], references: [id, saleOrderId, productId], onDelete: Restrict, map: "sale_dispatch_items_order_item_product_fkey")
+  product         Product            @relation(fields: [productId], references: [id], onDelete: Restrict, map: "sale_dispatch_items_product_fkey")
+  warehouse       Warehouse          @relation(fields: [warehouseId], references: [id], onDelete: Restrict, map: "sale_dispatch_items_warehouse_fkey")
+  lot             Lot?               @relation(fields: [lotId, productId], references: [id, productId], onDelete: Restrict, map: "sale_dispatch_items_lot_product_fkey")
+  movement        InventoryMovement?
+
+  @@unique([id, productId, warehouseId])
+  @@index([saleDispatchId])
+  @@index([saleOrderItemId])
+  @@index([productId, warehouseId], map: "sale_dispatch_items_product_warehouse_idx")
+  @@map("sale_dispatch_items")
 }
 
 model PurchaseOrder {

@@ -11,8 +11,14 @@ import {
 } from '@/components/erp';
 import { ErrorNotice } from '@/components/ErrorNotice';
 import { useSession } from '@/features/auth/hooks/use-auth';
-import { useSalesOrder, useSalesOrderAction, useSaveSalesOrder } from '../api/sales-orders';
+import {
+  useCreateSaleDispatch,
+  useSalesOrder,
+  useSalesOrderAction,
+  useSaveSalesOrder,
+} from '../api/sales-orders';
 import { SaleOrderForm } from '../components/SaleOrderForm';
+import { SaleDispatchForm } from '../components/SaleDispatchForm';
 export function SaleOrderDetailPage() {
   const { id = '' } = useParams();
   const order = useSalesOrder(id);
@@ -20,9 +26,11 @@ export function SaleOrderDetailPage() {
   const confirm = useSalesOrderAction(id, 'confirm');
   const cancel = useSalesOrderAction(id, 'cancel');
   const update = useSaveSalesOrder(id);
+  const dispatch = useCreateSaleDispatch(id);
   const [editing, setEditing] = useState(false);
   const [confirmCancel, setConfirmCancel] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
+  const [dispatchOpen, setDispatchOpen] = useState(false);
   const [notice, setNotice] = useState('');
   const [cancelStarted, setCancelStarted] = useState(false);
   const confirmStarted = useRef(false);
@@ -70,11 +78,18 @@ export function SaleOrderDetailPage() {
               canManage &&
               !editing &&
               !confirmCancel &&
-              !confirmOpen && (
+              !confirmOpen &&
+              !dispatchOpen && (
                 <>
                   {current.status === 'DRAFT' && (
                     <Button variant="outline" onClick={() => setEditing(true)}>
                       Editar borrador
+                    </Button>
+                  )}
+                  {(current.status === 'CONFIRMED' ||
+                    current.status === 'PARTIALLY_DISPATCHED') && (
+                    <Button variant="outline" onClick={() => setDispatchOpen(true)}>
+                      Registrar despacho
                     </Button>
                   )}
                   {current.status === 'DRAFT' && (
@@ -106,12 +121,44 @@ export function SaleOrderDetailPage() {
               <SuccessNotice>{notice || String(routeNotice)}</SuccessNotice>
             </div>
           )}
-          {current.status === 'CONFIRMED' && (
+          {(current.status === 'CONFIRMED' || current.status === 'PARTIALLY_DISPATCHED') && (
             <SuccessNotice>
-              Pendiente de despacho. El inventario no está reservado y se validará nuevamente al
-              despachar.
+              {current.status === 'PARTIALLY_DISPATCHED'
+                ? 'Despacho parcial.'
+                : 'Pendiente de despacho.'}{' '}
+              El inventario se valida al registrar cada despacho.
             </SuccessNotice>
           )}
+          {dispatchOpen &&
+            (current.status === 'CONFIRMED' || current.status === 'PARTIALLY_DISPATCHED') && (
+              <FormSection title="Registrar despacho">
+                <p>
+                  Seleccioná almacén, lote liberado cuando corresponda y cantidad. El sistema
+                  registrará la salida de inventario en esta misma operación.
+                </p>
+                <ErrorNotice error={dispatch.error} />
+                <SaleDispatchForm
+                  order={current}
+                  pending={dispatch.isPending}
+                  onSubmit={(value) =>
+                    dispatch.mutate(value, {
+                      onSuccess: () => {
+                        setDispatchOpen(false);
+                        setNotice('Despacho registrado.');
+                      },
+                    })
+                  }
+                />
+                <Button
+                  type="button"
+                  variant="ghost"
+                  disabled={dispatch.isPending}
+                  onClick={() => setDispatchOpen(false)}
+                >
+                  Cerrar
+                </Button>
+              </FormSection>
+            )}
           {confirmOpen && current.status === 'DRAFT' && (
             <FormSection title="Confirmar orden de venta">
               <p>
@@ -213,6 +260,8 @@ export function SaleOrderDetailPage() {
                     <tr>
                       <th>Producto</th>
                       <th>Cantidad</th>
+                      <th>Despachado</th>
+                      <th>Pendiente</th>
                       <th>Precio unitario</th>
                       <th className="numeric">Subtotal</th>
                       <th className="numeric">Disponible ahora</th>
@@ -227,6 +276,8 @@ export function SaleOrderDetailPage() {
                         <td>
                           {item.quantity} {item.productUnit}
                         </td>
+                        <td>{item.quantityDispatched ?? '0.0000'}</td>
+                        <td>{item.quantityPending ?? item.quantity}</td>
                         <td>{item.unitPrice}</td>
                         <td className="numeric">{item.lineTotal}</td>
                         <td className="numeric">{item.availableQuantity ?? '—'}</td>
@@ -236,9 +287,42 @@ export function SaleOrderDetailPage() {
                 </table>
               </div>
               <p className="mt-4 text-sm text-muted-foreground">
-                La cantidad disponible es una consulta informativa. Confirmar la orden no reserva
-                inventario; se volverá a revisar al implementar el despacho.
+                La disponibilidad antes de confirmar es informativa. Cada despacho registra la
+                salida y descuenta inventario.
               </p>
+            </FormSection>
+          )}
+          {(current.dispatches?.length ?? 0) > 0 && (
+            <FormSection title="Despachos">
+              <ul className="space-y-3">
+                {current.dispatches?.map((entry) => (
+                  <li key={entry.id} className="rounded-md border p-3">
+                    <strong>{entry.number}</strong>
+                    <span className="ml-3 text-sm text-muted-foreground">
+                      {new Date(entry.dispatchedAt).toLocaleString('es-NI', {
+                        timeZone: 'America/Managua',
+                      })}
+                    </span>
+                    <p className="mt-1 text-sm text-muted-foreground">
+                      Usuario: {entry.createdBy.fullName}
+                    </p>
+                    <ul className="mt-2 list-inside list-disc text-sm">
+                      {entry.items.map((line) => {
+                        const item = current.items.find(
+                          (orderItem) => orderItem.id === line.saleOrderItemId,
+                        );
+                        return (
+                          <li key={line.id}>
+                            {item ? `${item.productCode} · ${item.productName} · ` : ''}
+                            {line.quantity} {item ? item.productUnit : ''} · {line.warehouse.code}
+                            {line.lot ? ` · ${line.lot.code}` : ''}
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  </li>
+                ))}
+              </ul>
             </FormSection>
           )}
           {confirmCancel && (

@@ -88,6 +88,24 @@ export class InventoryService {
     });
 
     const productionLines = lines.filter((line) => line.origin.kind === 'PRODUCTION_ORDER');
+    const dispatchLines = lines.filter((line) => line.origin.kind === 'SALE_DISPATCH');
+    if (dispatchLines.length) {
+      const itemIds = dispatchLines.map((line) =>
+        line.origin.kind === 'SALE_DISPATCH' ? line.origin.saleDispatchItemId : '',
+      );
+      if (
+        dispatchLines.length !== lines.length ||
+        new Set(itemIds).size !== itemIds.length ||
+        dispatchLines.some(
+          (line) => line.type !== InventoryMovementType.SALE_DISPATCH || line.newLot,
+        )
+      ) {
+        throw inventoryError(
+          InventoryErrorCode.INVALID_ORIGIN,
+          'El lote de movimientos de despacho no es válido',
+        );
+      }
+    }
     if (productionLines.length) {
       const origins = new Set(
         productionLines.map((line) =>
@@ -135,6 +153,17 @@ export class InventoryService {
       }
       if (!product.isActive) {
         throw inventoryError(InventoryErrorCode.INACTIVE_CATALOG, 'El producto está inactivo');
+      }
+      if (
+        lines.some(
+          (line) => line.productId === productId && line.origin.kind === 'SALE_DISPATCH',
+        ) &&
+        product.type !== ProductType.FINISHED_GOOD
+      ) {
+        throw inventoryError(
+          InventoryErrorCode.INVALID_ORIGIN,
+          'Solo se pueden despachar productos terminados',
+        );
       }
     }
 
@@ -308,13 +337,44 @@ export class InventoryService {
         );
       }
       if (
-        line.type === InventoryMovementType.PRODUCTION_CONSUMPTION &&
+        (line.type === InventoryMovementType.PRODUCTION_CONSUMPTION ||
+          line.type === InventoryMovementType.SALE_DISPATCH) &&
         lot.status !== LotStatus.RELEASED
       )
         throw inventoryError(
           InventoryErrorCode.LOT_NOT_RELEASED,
           'Solo se consumen lotes liberados',
         );
+    }
+    if (dispatchLines.length) {
+      const dispatchItems = await tx.saleDispatchItem.findMany({
+        where: {
+          id: {
+            in: dispatchLines.map((line) =>
+              line.origin.kind === 'SALE_DISPATCH' ? line.origin.saleDispatchItemId : '',
+            ),
+          },
+        },
+        include: { saleDispatch: { include: { saleOrder: { select: { status: true } } } } },
+      });
+      const itemsById = new Map(dispatchItems.map((item) => [item.id, item]));
+      for (const line of dispatchLines) {
+        if (line.origin.kind !== 'SALE_DISPATCH') continue;
+        const item = itemsById.get(line.origin.saleDispatchItemId);
+        if (
+          !item ||
+          item.productId !== line.productId ||
+          item.warehouseId !== line.warehouseId ||
+          item.lotId !== line.lotId ||
+          !item.quantity.equals(line.signedQuantity.abs()) ||
+          !['CONFIRMED', 'PARTIALLY_DISPATCHED'].includes(item.saleDispatch.saleOrder.status)
+        ) {
+          throw inventoryError(
+            InventoryErrorCode.INVALID_ORIGIN,
+            'El movimiento no coincide con la línea de despacho',
+          );
+        }
+      }
     }
     // New lots are inserted only after sequences, catalogs, balances and existing lots.
     for (const line of lines) {
@@ -351,6 +411,8 @@ export class InventoryService {
               line.origin.kind === 'PURCHASE_RECEIPT' ? line.origin.purchaseReceiptItemId : null,
             productionOrderId:
               line.origin.kind === 'PRODUCTION_ORDER' ? line.origin.productionOrderId : null,
+            saleDispatchItemId:
+              line.origin.kind === 'SALE_DISPATCH' ? line.origin.saleDispatchItemId : null,
             occurredAt,
             performedByUserId: command.performedByUserId,
             requestId: command.requestId ?? null,

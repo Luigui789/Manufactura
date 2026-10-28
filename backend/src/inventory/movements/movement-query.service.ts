@@ -44,6 +44,18 @@ export class MovementQueryService {
           occurredAt: true,
           requestId: true,
           ...businessOriginSelect,
+          saleDispatchItemId: true,
+          saleDispatchItem: {
+            select: {
+              saleDispatch: {
+                select: {
+                  id: true,
+                  number: true,
+                  saleOrder: { select: { id: true, number: true } },
+                },
+              },
+            },
+          },
           product: { select: { id: true, code: true, name: true, unit: true } },
           warehouse: { select: { id: true, code: true, name: true } },
           lot: { select: { id: true, code: true, status: true } },
@@ -54,10 +66,17 @@ export class MovementQueryService {
     ]);
 
     return {
-      data: data.map(({ purchaseReceiptItem, productionOrder, ...movement }) => ({
+      data: data.map(({ purchaseReceiptItem, productionOrder, saleDispatchItem, ...movement }) => ({
         ...movement,
         quantity: movement.quantity.toFixed(4),
-        businessReference: businessReference({ ...movement, purchaseReceiptItem, productionOrder }),
+        businessReference: saleDispatchItem
+          ? {
+              type: 'SALE_DISPATCH' as const,
+              id: saleDispatchItem.saleDispatch.id,
+              number: saleDispatchItem.saleDispatch.number,
+              saleOrder: saleDispatchItem.saleDispatch.saleOrder,
+            }
+          : businessReference({ ...movement, purchaseReceiptItem, productionOrder }),
       })),
       meta: { page, limit, total },
     };

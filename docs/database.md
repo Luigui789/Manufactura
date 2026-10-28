@@ -92,12 +92,14 @@ RoleCode              ADMIN · COMPRAS · INVENTARIO · PRODUCCION · VENTAS
 ProductType           RAW_MATERIAL · INTERMEDIATE · FINISHED_GOOD · CONSUMABLE
 UnitOfMeasure         UNIT · GRAM · KILOGRAM · MILLILITER · LITER
 LotStatus             QUARANTINED · RELEASED · REJECTED
-InventoryMovementType ADJUSTMENT_IN · ADJUSTMENT_OUT
+InventoryMovementType ADJUSTMENT_IN · ADJUSTMENT_OUT · PURCHASE_RECEIPT
+                      PRODUCTION_CONSUMPTION · PRODUCTION_OUTPUT · SALE_DISPATCH
 AdjustmentReason      INITIAL_LOAD · PHYSICAL_COUNT · DAMAGE · LOSS · EXPIRY · CORRECTION
 ActorType             USER · SYSTEM · ANONYMOUS
 AuditAction           CREATE · UPDATE · DELETE · ENABLE · DISABLE
                       LOGIN · LOGIN_FAILED · LOGOUT · ADJUST_STOCK
                       CHANGE_ROLE · CHANGE_PASSWORD · RESET_PASSWORD   (migración auth_rbac)
+                      CONFIRM · CANCEL · DISPATCH                        (Ventas)
 AuditEntityType       USER · ROLE · PRODUCT · WAREHOUSE · LOT · INVENTORY_MOVEMENT
 DocumentType          LOT
 ```
@@ -265,7 +267,7 @@ reemplace la restricción `CHECK` anterior por la ampliada.
 | Foundation (actual)          | `ADJUSTMENT_IN`, `ADJUSTMENT_OUT`                | ninguno; `reason` requerido en ajustes | —                          |
 | Compras (planificada)        | \+ `PURCHASE_RECEIPT`                            | `purchaseReceiptItemId`; `reason` nulo | `purchase_receipt_item_id` |
 | Producción C-2 (planificada) | \+ `PRODUCTION_CONSUMPTION`, `PRODUCTION_OUTPUT` | `productionOrderId`                    | `production_order_id`      |
-| Ventas (fuera de esta ronda) | \+ `SALE_DISPATCH`                               | `dispatchItemId`                       | `dispatch_item_id`         |
+| Ventas RF-VEN-003            | \+ `SALE_DISPATCH`                               | `saleDispatchItemId`; `reason` nulo    | `sale_dispatch_item_id`    |
 
 La restricción de la fundación es, literalmente:
 
@@ -954,3 +956,9 @@ no borrar lotes, consumos, inspecciones ni auditoría, ni ejecutar migraciones d
 La migración aditiva `20261026090000_sales_orders` añade el enum de estado, el tipo de secuencia `SALE_ORDER`, `AuditEntityType.SALES_ORDER` y las dos tablas con índices/FKs. No crea tablas de despacho ni amplía `InventoryMovementType`: el despacho pertenece al RF-VEN-003 posterior.
 
 Solo se permiten productos terminados activos y clientes activos. `CONFIRMED` refleja que la disponibilidad consumible se comprobó en ese instante; no se persiste reserva, cantidad despachada ni snapshot de disponibilidad. En productos trazables, la disponibilidad usa únicamente movimientos de lotes `RELEASED`; en los demás, usa saldo físico. La comprobación vuelve a ejecutarse en un despacho futuro.
+
+## RF-VEN-003 — despacho implementado localmente
+
+La implementación local de `feature/sales-dispatch` agrega `SaleDispatch`/`SaleDispatchItem` mediante `20261027120000_sales_dispatch`, después de agregar y confirmar los enums en `20261027110000_sales_dispatch_enums`. El movimiento `SALE_DISPATCH` tiene cantidad negativa, motivo nulo y un origen FK único hacia su item. Triggers impiden modificar/eliminar documentos y exigen un movimiento coincidente por item al confirmar la transacción. El origen empresarial de `Lot` sigue siendo exclusivamente recepción de Compras u orden de Producción; el despacho solo consume el lote.
+
+Las migraciones previas no se modifican. Esta implementación permanece pendiente de validar en PostgreSQL 18 con instalación limpia, upgrade con datos, constraints, idempotencia y drift.

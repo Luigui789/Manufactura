@@ -105,3 +105,25 @@ it('production uses explicit OP origins and opposite signs without adjustment re
   expect(() => resolveMovement('PRODUCTION_OUTPUT', '1', adjustment)).toThrow();
   expect(() => resolveMovement('ADJUSTMENT_IN', '1', origin)).toThrow();
 });
+
+it('sale dispatch uses an explicit dispatch-item origin and decrements stock', () => {
+  const origin = {
+    kind: 'SALE_DISPATCH',
+    saleDispatchItemId: '00000000-0000-4000-8000-000000000001',
+  } as const;
+  expect(resolveMovement(InventoryMovementType.SALE_DISPATCH, '2.5000', origin)).toMatchObject({
+    reason: null,
+  });
+  expect(
+    resolveMovement(InventoryMovementType.SALE_DISPATCH, '2.5000', origin).signedQuantity.toFixed(
+      4,
+    ),
+  ).toBe('-2.5000');
+  expect(() => resolveMovement(InventoryMovementType.SALE_DISPATCH, '1', adjustment)).toThrow();
+  expect(() =>
+    resolveMovement(InventoryMovementType.SALE_DISPATCH, '1', {
+      ...origin,
+      saleDispatchItemId: 'invalid',
+    }),
+  ).toThrow();
+});

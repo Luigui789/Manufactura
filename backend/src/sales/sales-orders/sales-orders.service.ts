@@ -36,7 +36,20 @@ const orderInclude = {
     },
     orderBy: { id: 'asc' as const },
   },
-} as const;
+  dispatches: {
+    include: {
+      createdBy: { select: { id: true, fullName: true } },
+      items: {
+        include: {
+          warehouse: { select: { id: true, code: true, name: true } },
+          lot: { select: { id: true, code: true, status: true } },
+        },
+        orderBy: { id: 'asc' as const },
+      },
+    },
+    orderBy: [{ dispatchedAt: 'asc' as const }, { id: 'asc' as const }],
+  },
+} satisfies Prisma.SaleOrderInclude;
 
 @Injectable()
 export class SalesOrdersService {
@@ -253,6 +266,15 @@ export class SalesOrdersService {
   }
 
   private serialize(row: LoadedOrder) {
+    const dispatchedByItem = new Map<string, Prisma.Decimal>();
+    for (const dispatch of row.dispatches)
+      for (const dispatchItem of dispatch.items)
+        dispatchedByItem.set(
+          dispatchItem.saleOrderItemId,
+          (dispatchedByItem.get(dispatchItem.saleOrderItemId) ?? new Prisma.Decimal(0)).plus(
+            dispatchItem.quantity,
+          ),
+        );
     const items = row.items.map((item) => ({
       id: item.id,
       productId: item.productId,
@@ -261,6 +283,10 @@ export class SalesOrdersService {
       productUnit: item.product.unit,
       isLotTracked: item.product.isLotTracked,
       quantity: item.quantity.toFixed(4),
+      quantityDispatched: (dispatchedByItem.get(item.id) ?? new Prisma.Decimal(0)).toFixed(4),
+      quantityPending: item.quantity
+        .minus(dispatchedByItem.get(item.id) ?? new Prisma.Decimal(0))
+        .toFixed(4),
       unitPrice: item.unitPrice.toFixed(4),
       lineTotal: item.lineTotal.toFixed(2),
     }));
@@ -275,6 +301,20 @@ export class SalesOrdersService {
         .toFixed(2),
       itemsCount: items.length,
       items,
+      dispatches: row.dispatches.map((dispatch) => ({
+        id: dispatch.id,
+        number: dispatch.number,
+        dispatchedAt: dispatch.dispatchedAt,
+        createdBy: dispatch.createdBy,
+        items: dispatch.items.map((item) => ({
+          id: item.id,
+          saleOrderItemId: item.saleOrderItemId,
+          productId: item.productId,
+          warehouse: item.warehouse,
+          lot: item.lot,
+          quantity: item.quantity.toFixed(4),
+        })),
+      })),
       createdAt: row.createdAt,
       updatedAt: row.updatedAt,
     };

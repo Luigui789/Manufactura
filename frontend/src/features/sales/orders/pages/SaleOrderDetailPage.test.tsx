@@ -6,6 +6,29 @@ import { createAppQueryClient, SESSION_KEY } from '@/app/query-client';
 import type { SessionUser } from '@/features/auth/types';
 import { SaleOrderDetailPage } from './SaleOrderDetailPage';
 
+vi.mock('@/features/inventory/components/InventoryEntityPicker', () => ({
+  InventoryEntityPicker: ({
+    kind,
+    onChange,
+  }: {
+    kind: 'product' | 'warehouse' | 'lot';
+    onChange: (id: string, entity?: { id: string; code: string; name: string }) => void;
+  }) => (
+    <button
+      type="button"
+      onClick={() =>
+        onChange(kind === 'warehouse' ? 'warehouse-1' : 'lot-1', {
+          id: kind === 'warehouse' ? 'warehouse-1' : 'lot-1',
+          code: kind === 'warehouse' ? 'ALM-01' : 'LOT-01',
+          name: kind === 'warehouse' ? 'Almacén Central' : 'Lote liberado',
+        })
+      }
+    >
+      Elegir {kind}
+    </button>
+  ),
+}));
+
 const user: SessionUser = {
   id: 'sales-user',
   email: 'sales@example.test',
@@ -78,10 +101,14 @@ beforeEach(() => {
       const method = init?.method ?? 'GET';
       requests.push({ url, method });
       if (url.pathname.endsWith('/confirm')) current = { ...current, status: 'CONFIRMED' };
+      if (url.pathname.endsWith('/dispatch'))
+        current = { ...current, status: 'PARTIALLY_DISPATCHED' };
       if (url.pathname.endsWith('/cancel')) {
         if (failCancel) return response({ message: 'No se pudo cancelar' }, 500);
         current = { ...current, status: 'CANCELLED' };
       }
+      if (url.pathname.endsWith('/inventory/stock'))
+        return response({ data: [{ quantity: '5.0000' }], meta: { page: 1, limit: 20, total: 1 } });
       return response({ data: current });
     }),
   );
@@ -109,11 +136,7 @@ describe('SaleOrderDetailPage', () => {
         ),
       ).toBe(true),
     );
-    expect(
-      await screen.findByText(
-        'Pendiente de despacho. El inventario no está reservado y se validará nuevamente al despachar.',
-      ),
-    ).toBeTruthy();
+    expect(await screen.findByText(/Pendiente de despacho/)).toBeTruthy();
     expect(screen.queryByRole('button', { name: 'Confirmar' })).toBeNull();
     expect(screen.queryByRole('button', { name: 'Editar borrador' })).toBeNull();
     expect(screen.getByRole('button', { name: 'Cancelar orden' })).toBeTruthy();
@@ -158,6 +181,46 @@ describe('SaleOrderDetailPage', () => {
     expect(screen.queryByRole('button', { name: 'Confirmar' })).toBeNull();
     expect(screen.queryByRole('button', { name: 'Editar borrador' })).toBeNull();
     expect(screen.getByRole('button', { name: 'Cancelar orden' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Registrar despacho' })).toBeTruthy();
+  });
+
+  it('abre el formulario de despacho y exige completar sus datos antes de enviar', async () => {
+    current = { ...current, status: 'CONFIRMED' };
+    mount();
+    await screen.findByText(/Pendiente de despacho/);
+    fireEvent.click(screen.getByRole('button', { name: 'Registrar despacho' }));
+
+    expect(screen.getByText(/El sistema registrará la salida de inventario/)).toBeTruthy();
+    const submit = screen.getByRole('button', { name: 'Revisar despacho' });
+    expect((submit as HTMLButtonElement).disabled).toBe(true);
+    expect(requests.some((request) => request.url.pathname.endsWith('/dispatch'))).toBe(false);
+  });
+
+  it('revisa el resumen del despacho y protege el registro de doble submit', async () => {
+    current = { ...current, status: 'CONFIRMED' };
+    mount();
+    await screen.findByText(/Pendiente de despacho/);
+    fireEvent.click(screen.getByRole('button', { name: 'Registrar despacho' }));
+    fireEvent.change(screen.getByLabelText('Producto de la orden'), {
+      target: { value: 'item-1' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Elegir warehouse' }));
+    expect(await screen.findByText(/Existencia física en este almacén: 5.0000/)).toBeTruthy();
+    fireEvent.change(screen.getByLabelText(/Cantidad a despachar/), { target: { value: '2' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Revisar despacho' }));
+    expect(screen.getByText(/disminuirá inmediatamente las existencias/)).toBeTruthy();
+    expect(screen.getByText(/DES: se asignará automáticamente/)).toBeTruthy();
+    expect(requests.some((request) => request.url.pathname.endsWith('/dispatch'))).toBe(false);
+    const confirm = screen.getByRole('button', { name: 'Confirmar y registrar despacho' });
+    fireEvent.click(confirm);
+    fireEvent.click(confirm);
+    await waitFor(() =>
+      expect(requests.filter((request) => request.url.pathname.endsWith('/dispatch'))).toHaveLength(
+        1,
+      ),
+    );
+    expect(await screen.findByText('Despacho registrado.')).toBeTruthy();
+    expect(await screen.findByText(/Despacho parcial/)).toBeTruthy();
   });
 
   it.each(['COMPRAS', 'INVENTARIO', 'PRODUCCION'] as const)(
