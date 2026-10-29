@@ -29,6 +29,20 @@ export type Traceability = {
       warehouse: { id: string; code: string; name: string };
       product: { id: string; code: string; name: string; unit: string };
     }>;
+    outbound: Array<{
+      id: string;
+      dispatchId: string;
+      dispatchNumber: string;
+      dispatchedAt: string;
+      quantity: string;
+      saleOrder: {
+        id: string;
+        number: string;
+        customer: { id: string; code: string; name: string };
+      };
+      warehouse: { id: string; code: string; name: string };
+      performedByUser: { id: string; fullName: string };
+    }>;
   }>;
 };
 async function data<T>(path: string, options?: RequestInit) {

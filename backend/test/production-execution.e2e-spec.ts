@@ -285,6 +285,244 @@ describe('C-2 production execution', () => {
     expect(trace.lots[1].origin.supplier?.name).toBe('Proveedor C2');
     await reconcile(f);
   });
+  it('traces purchase, production and committed dispatches from one produced lot to multiple customers', async () => {
+    const f = await fixture({ tracked: true, stock: '200', quality: true });
+    await post(`${base}/${f.order.id}/start`).send({}).expect(200);
+    const completed = data<Order>(await complete(f, '95').expect(200));
+    const lotId = completed.lot!.id;
+    await post(`/api/production/lots/${lotId}/inspection`)
+      .send({ result: 'APPROVED', observations: 'Lote conforme' })
+      .expect(201);
+
+    const customers = await Promise.all([
+      kit.prisma.customer.create({ data: { code: 'TRACE-' + randomUUID(), name: 'Cliente Uno' } }),
+      kit.prisma.customer.create({ data: { code: 'TRACE-' + randomUUID(), name: 'Cliente Dos' } }),
+    ]);
+    const firstOrder = data<{ id: string; items: Array<{ id: string }> }>(
+      await post('/api/sales/orders')
+        .send({
+          customerId: customers[0].id,
+          items: [{ productId: f.output.id, quantity: '2', unitPrice: '1' }],
+        })
+        .expect(201),
+    );
+    await post(`/api/sales/orders/${firstOrder.id}/confirm`).send({}).expect(200);
+    await post(`/api/sales/orders/${firstOrder.id}/dispatch`)
+      .send({
+        items: [
+          {
+            saleOrderItemId: firstOrder.items[0].id,
+            warehouseId: f.warehouseId,
+            lotId,
+            quantity: '1',
+          },
+        ],
+      })
+      .expect(200);
+    const partiallyFulfilledOrder = data<{
+      status: string;
+      items: Array<{ quantity: string; quantityDispatched: string; quantityPending: string }>;
+    }>(await get(`/api/sales/orders/${firstOrder.id}`).expect(200));
+    expect(partiallyFulfilledOrder.status).toBe('PARTIALLY_DISPATCHED');
+    expect(partiallyFulfilledOrder.items[0]).toMatchObject({
+      quantity: '2.0000',
+      quantityDispatched: '1.0000',
+      quantityPending: '1.0000',
+    });
+    await post(`/api/sales/orders/${firstOrder.id}/dispatch`)
+      .send({
+        items: [
+          {
+            saleOrderItemId: firstOrder.items[0].id,
+            warehouseId: f.warehouseId,
+            lotId,
+            quantity: '1',
+          },
+        ],
+      })
+      .expect(200);
+    const fulfilledOrder = data<{
+      status: string;
+      items: Array<{ quantity: string; quantityDispatched: string; quantityPending: string }>;
+    }>(await get(`/api/sales/orders/${firstOrder.id}`).expect(200));
+    expect(fulfilledOrder.status).toBe('DISPATCHED');
+    expect(fulfilledOrder.items[0]).toMatchObject({
+      quantity: '2.0000',
+      quantityDispatched: '2.0000',
+      quantityPending: '0.0000',
+    });
+
+    const secondOrder = data<{ id: string; items: Array<{ id: string }> }>(
+      await post('/api/sales/orders')
+        .send({
+          customerId: customers[1].id,
+          items: [{ productId: f.output.id, quantity: '1', unitPrice: '1' }],
+        })
+        .expect(201),
+    );
+    await post(`/api/sales/orders/${secondOrder.id}/confirm`).send({}).expect(200);
+    await post(`/api/sales/orders/${secondOrder.id}/dispatch`)
+      .send({
+        items: [
+          {
+            saleOrderItemId: secondOrder.items[0].id,
+            warehouseId: f.warehouseId,
+            lotId,
+            quantity: '1',
+          },
+        ],
+      })
+      .expect(200);
+
+    const cancelledOrder = data<{ id: string }>(
+      await post('/api/sales/orders')
+        .send({
+          customerId: customers[0].id,
+          items: [{ productId: f.output.id, quantity: '1', unitPrice: '1' }],
+        })
+        .expect(201),
+    );
+    await post(`/api/sales/orders/${cancelledOrder.id}/cancel`).send({}).expect(200);
+    const failedOrder = data<{ id: string; items: Array<{ id: string }> }>(
+      await post('/api/sales/orders')
+        .send({
+          customerId: customers[1].id,
+          items: [{ productId: f.output.id, quantity: '1', unitPrice: '1' }],
+        })
+        .expect(201),
+    );
+    await post(`/api/sales/orders/${failedOrder.id}/confirm`).send({}).expect(200);
+    await post(`/api/sales/orders/${failedOrder.id}/dispatch`)
+      .send({
+        items: [
+          {
+            saleOrderItemId: failedOrder.items[0].id,
+            warehouseId: f.warehouseId,
+            lotId,
+            quantity: '2',
+          },
+        ],
+      })
+      .expect(409);
+
+    const trace = data<{
+      lots: Array<{
+        id: string;
+        origin: { type: string };
+        outbound: Array<{
+          dispatchNumber: string;
+          dispatchedAt: string;
+          quantity: string;
+          warehouse: { code: string; name: string };
+          performedByUser: { fullName: string };
+          saleOrder: { number: string; customer: { id: string; code: string; name: string } };
+        }>;
+      }>;
+    }>(await get(`/api/production/lots/${lotId}/traceability`).expect(200));
+    const produced = trace.lots.find((lot) => lot.id === lotId)!;
+    expect(produced.origin.type).toBe('PRODUCTION_ORDER');
+    expect(produced.outbound).toHaveLength(3);
+    expect(produced.outbound.map((row) => row.quantity)).toEqual(['1.0000', '1.0000', '1.0000']);
+    expect(new Date(produced.outbound[0].dispatchedAt).toString()).not.toBe('Invalid Date');
+    expect(produced.outbound[0].warehouse.code.length).toBeGreaterThan(0);
+    expect(produced.outbound[0].warehouse.name.length).toBeGreaterThan(0);
+    expect(produced.outbound[0].performedByUser.fullName.length).toBeGreaterThan(0);
+    expect(new Set(produced.outbound.map((row) => row.dispatchNumber)).size).toBe(3);
+    expect(produced.outbound.map((row) => row.saleOrder.customer.id).sort()).toEqual(
+      [customers[0].id, customers[0].id, customers[1].id].sort(),
+    );
+
+    const purchaseLot = trace.lots.find((lot) => lot.origin.type === 'PURCHASE_RECEIPT');
+    expect(purchaseLot?.outbound).toEqual([]);
+    const movements = (
+      await get(`/api/inventory/movements?type=SALE_DISPATCH&lotId=${lotId}`).expect(200)
+    ).body as { data: Array<{ businessReference: { saleOrder: { customer: { name: string } } } }> };
+    expect(
+      movements.data.map((row) => row.businessReference.saleOrder.customer.name).sort(),
+    ).toEqual(['Cliente Uno', 'Cliente Uno', 'Cliente Dos'].sort());
+  });
+  it('traces one sale order dispatched from two produced lots', async () => {
+    const f = await fixture({ tracked: true, quality: true, stock: '400' });
+
+    await post(`${base}/${f.order.id}/start`).send({}).expect(200);
+    const firstProduction = data<Order>(await complete(f, '95').expect(200));
+
+    const secondOrder = data<Order>(
+      await post(base)
+        .send({
+          productId: f.output.id,
+          bomVersionId: f.versionId,
+          warehouseId: f.warehouseId,
+          quantityPlanned: '100',
+        })
+        .expect(201),
+    );
+    const secondFixture = { ...f, order: secondOrder };
+    await post(`${base}/${secondOrder.id}/start`).send({}).expect(200);
+    const secondProduction = data<Order>(await complete(secondFixture, '95').expect(200));
+
+    const firstLotId = firstProduction.lot!.id;
+    const secondLotId = secondProduction.lot!.id;
+    expect(secondLotId).not.toBe(firstLotId);
+    for (const lotId of [firstLotId, secondLotId]) {
+      await post(`/api/production/lots/${lotId}/inspection`)
+        .send({ result: 'APPROVED', observations: 'Lote conforme' })
+        .expect(201);
+    }
+
+    const customer = await kit.prisma.customer.create({
+      data: { code: 'TRACE-' + randomUUID(), name: 'Cliente Dos Lotes' },
+    });
+    const saleOrder = data<{ id: string; number: string; items: Array<{ id: string }> }>(
+      await post('/api/sales/orders')
+        .send({
+          customerId: customer.id,
+          items: [{ productId: f.output.id, quantity: '3', unitPrice: '1' }],
+        })
+        .expect(201),
+    );
+    await post(`/api/sales/orders/${saleOrder.id}/confirm`).send({}).expect(200);
+    await post(`/api/sales/orders/${saleOrder.id}/dispatch`)
+      .send({
+        items: [
+          {
+            saleOrderItemId: saleOrder.items[0].id,
+            warehouseId: f.warehouseId,
+            lotId: firstLotId,
+            quantity: '1',
+          },
+          {
+            saleOrderItemId: saleOrder.items[0].id,
+            warehouseId: f.warehouseId,
+            lotId: secondLotId,
+            quantity: '2',
+          },
+        ],
+      })
+      .expect(200);
+
+    type LotTrace = {
+      id: string;
+      outbound: Array<{ quantity: string; saleOrder: { id: string; number: string } }>;
+    };
+    const traceLot = async (lotId: string): Promise<LotTrace> => {
+      const trace = data<{ lots: LotTrace[] }>(
+        await get(`/api/production/lots/${lotId}/traceability`).expect(200),
+      );
+      const lot = trace.lots.find((node) => node.id === lotId);
+      expect(lot).toBeDefined();
+      return lot!;
+    };
+
+    const firstLotTrace = await traceLot(firstLotId);
+    const secondLotTrace = await traceLot(secondLotId);
+    expect(firstLotTrace.outbound).toMatchObject([
+      { quantity: '1.0000', saleOrder: { id: saleOrder.id, number: saleOrder.number } },
+    ]);
+    expect(secondLotTrace.outbound).toMatchObject([
+      { quantity: '2.0000', saleOrder: { id: saleOrder.id, number: saleOrder.number } },
+    ]);
+  });
   it.each(['0', '-1', '101', '1.00001'])(
     'rejects invalid produced quantity %s atomically',
     async (quantity) => {

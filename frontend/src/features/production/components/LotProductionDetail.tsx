@@ -179,6 +179,50 @@ function TraceabilityTree({ trace }: { trace: Traceability }) {
                 : 'Esta orden no registra consumos asociados en la trazabilidad.'}
             </p>
           )}
+          <section className="space-y-3" aria-label={'Despachos de venta del lote ' + lot.code}>
+            <h4 className="text-sm font-semibold">Despachos de venta</h4>
+            {(lot.outbound ?? []).length === 0 ? (
+              <p className="text-sm text-muted-foreground">
+                Este lote no tiene despachos de venta registrados.
+              </p>
+            ) : (
+              <ul className="space-y-3">
+                {(lot.outbound ?? []).map((dispatch) => (
+                  <li key={dispatch.id} className="rounded-md border p-3 text-sm">
+                    <p>
+                      Despacho <span className="font-medium">{dispatch.dispatchNumber}</span> ·
+                      Orden de venta{' '}
+                      <Link
+                        className="font-medium underline underline-offset-4"
+                        to={'/sales/orders/' + dispatch.saleOrder.id}
+                      >
+                        {dispatch.saleOrder.number}
+                      </Link>
+                    </p>
+                    <p>
+                      Cliente: {dispatch.saleOrder.customer.code} ·{' '}
+                      {dispatch.saleOrder.customer.name}
+                    </p>
+                    <p className="tabular-nums">
+                      Cantidad despachada: {dispatch.quantity} {unitLabel(lot.product.unit)}
+                    </p>
+                    <p className="text-muted-foreground">
+                      Almacén: {dispatch.warehouse.code} · {dispatch.warehouse.name}
+                    </p>
+                    <p className="text-muted-foreground">
+                      Fecha · Managua:{' '}
+                      {new Date(dispatch.dispatchedAt).toLocaleString('es-NI', {
+                        timeZone: 'America/Managua',
+                      })}
+                    </p>
+                    <p className="text-muted-foreground">
+                      Responsable: {dispatch.performedByUser.fullName}
+                    </p>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </section>
         </div>
       </details>
     );

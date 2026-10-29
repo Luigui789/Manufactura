@@ -4,6 +4,7 @@ import { MemoryRouter, Route, Routes } from 'react-router';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createAppQueryClient, SESSION_KEY } from '@/app/query-client';
 import type { SessionUser } from '@/features/auth/types';
+import type { SaleOrder } from '../api/sales-orders';
 import { SaleOrderDetailPage } from './SaleOrderDetailPage';
 
 vi.mock('@/features/inventory/components/InventoryEntityPicker', () => ({
@@ -39,7 +40,7 @@ const user: SessionUser = {
   createdAt: '',
   updatedAt: '',
 };
-const order = {
+const order: SaleOrder = {
   id: '00000000-0000-4000-8000-000000000019',
   number: 'OV-2026-000019',
   status: 'DRAFT',
@@ -182,6 +183,37 @@ describe('SaleOrderDetailPage', () => {
     expect(screen.queryByRole('button', { name: 'Editar borrador' })).toBeNull();
     expect(screen.getByRole('button', { name: 'Cancelar orden' })).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Registrar despacho' })).toBeTruthy();
+  });
+
+  it('muestra cantidades derivadas en una orden parcialmente despachada', async () => {
+    current = {
+      ...current,
+      status: 'PARTIALLY_DISPATCHED',
+      items: [{ ...order.items[0], quantityDispatched: '1.0000', quantityPending: '1.0000' }],
+    };
+    mount();
+    await screen.findByText('Parcialmente despachada');
+    expect(screen.getAllByText('1.0000')).toHaveLength(2);
+    expect(screen.getByText(/Despacho parcial\./)).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Confirmar' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Editar borrador' })).toBeNull();
+    expect(screen.getByRole('button', { name: 'Registrar despacho' })).toBeTruthy();
+  });
+
+  it('muestra el estado y las cantidades de una orden completamente despachada sin acciones', async () => {
+    current = {
+      ...current,
+      status: 'DISPATCHED',
+      items: [{ ...order.items[0], quantityDispatched: '2.0000', quantityPending: '0.0000' }],
+    };
+    mount();
+    expect(await screen.findByText('Despachada')).toBeTruthy();
+    expect(screen.getByText('La orden está despachada por completo.')).toBeTruthy();
+    expect(screen.getByRole('cell', { name: '2.0000 UNIT' })).toBeTruthy();
+    expect(screen.getByRole('cell', { name: '2.0000' })).toBeTruthy();
+    expect(screen.getByText('0.0000')).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Registrar despacho' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Cancelar orden' })).toBeNull();
   });
 
   it('abre el formulario de despacho y exige completar sus datos antes de enviar', async () => {

@@ -51,7 +51,13 @@ export class MovementQueryService {
                 select: {
                   id: true,
                   number: true,
-                  saleOrder: { select: { id: true, number: true } },
+                  saleOrder: {
+                    select: {
+                      id: true,
+                      number: true,
+                      customer: { select: { id: true, code: true, name: true } },
+                    },
+                  },
                 },
               },
             },

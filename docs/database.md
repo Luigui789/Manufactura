@@ -957,8 +957,10 @@ La migración aditiva `20261026090000_sales_orders` añade el enum de estado, el
 
 Solo se permiten productos terminados activos y clientes activos. `CONFIRMED` refleja que la disponibilidad consumible se comprobó en ese instante; no se persiste reserva, cantidad despachada ni snapshot de disponibilidad. En productos trazables, la disponibilidad usa únicamente movimientos de lotes `RELEASED`; en los demás, usa saldo físico. La comprobación vuelve a ejecutarse en un despacho futuro.
 
-## RF-VEN-003 — despacho implementado localmente
+## RF-VEN-003 — despacho integrado y trazabilidad de salida
 
-La implementación local de `feature/sales-dispatch` agrega `SaleDispatch`/`SaleDispatchItem` mediante `20261027120000_sales_dispatch`, después de agregar y confirmar los enums en `20261027110000_sales_dispatch_enums`. El movimiento `SALE_DISPATCH` tiene cantidad negativa, motivo nulo y un origen FK único hacia su item. Triggers impiden modificar/eliminar documentos y exigen un movimiento coincidente por item al confirmar la transacción. El origen empresarial de `Lot` sigue siendo exclusivamente recepción de Compras u orden de Producción; el despacho solo consume el lote.
+PR #20 integró `SaleDispatch`/`SaleDispatchItem` en `develop` mediante `20261027120000_sales_dispatch`, después de agregar y confirmar los enums en `20261027110000_sales_dispatch_enums`. El movimiento `SALE_DISPATCH` tiene cantidad negativa, motivo nulo y un origen FK único hacia su item. Triggers impiden modificar/eliminar documentos y exigen un movimiento coincidente por item al confirmar la transacción. El origen empresarial de `Lot` sigue siendo exclusivamente recepción de Compras u orden de Producción; el despacho solo consume el lote.
 
-Las migraciones previas no se modifican. Esta implementación permanece pendiente de validar en PostgreSQL 18 con instalación limpia, upgrade con datos, constraints, idempotencia y drift.
+La migración de despacho conserva las migraciones anteriores y se verificó en PostgreSQL 18 con instalación limpia, upgrade con datos, constraints, idempotencia y drift.
+
+La Fase 3 añade localmente al grafo de trazabilidad las salidas `SALE_DISPATCH` de cada lote. La relación se deriva desde `InventoryMovement.saleDispatchItem` hasta `SaleDispatch`, `SaleOrder` y `Customer`; incluye cantidad positiva de presentación, fecha DES, almacén y responsable. No se persiste una segunda relación ni un total despachado en `Lot`, y no se requiere migración. Esta extensión está en `feature/sales-traceability` y no se considera integrada hasta su propio PR.

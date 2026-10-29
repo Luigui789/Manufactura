@@ -35,7 +35,57 @@ export class TraceabilityService {
           ].reverse())
             stack.push({ id, exit: false });
         }
-        return { rootLotId, lots: nodes };
+        const outbound = await tx.inventoryMovement.findMany({
+          where: { lotId: { in: nodes.map((node) => node.id) }, type: 'SALE_DISPATCH' },
+          orderBy: [{ occurredAt: 'asc' }, { id: 'asc' }],
+          select: {
+            id: true,
+            lotId: true,
+            quantity: true,
+            occurredAt: true,
+            warehouse: { select: { id: true, code: true, name: true } },
+            performedByUser: { select: { id: true, fullName: true } },
+            saleDispatchItem: {
+              select: {
+                saleDispatch: {
+                  select: {
+                    id: true,
+                    number: true,
+                    dispatchedAt: true,
+                    saleOrder: {
+                      select: {
+                        id: true,
+                        number: true,
+                        customer: { select: { id: true, code: true, name: true } },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+        });
+        const outboundByLot = new Map<string, typeof outbound>();
+        for (const movement of outbound) {
+          if (!movement.lotId || !movement.saleDispatchItem) continue;
+          const entries = outboundByLot.get(movement.lotId) ?? [];
+          entries.push(movement);
+          outboundByLot.set(movement.lotId, entries);
+        }
+        const lots = nodes.map((node) => ({
+          ...node,
+          outbound: (outboundByLot.get(node.id) ?? []).map((movement) => ({
+            id: movement.id,
+            dispatchId: movement.saleDispatchItem!.saleDispatch.id,
+            dispatchNumber: movement.saleDispatchItem!.saleDispatch.number,
+            dispatchedAt: movement.saleDispatchItem!.saleDispatch.dispatchedAt,
+            quantity: movement.quantity.abs().toFixed(4),
+            saleOrder: movement.saleDispatchItem!.saleDispatch.saleOrder,
+            warehouse: movement.warehouse,
+            performedByUser: movement.performedByUser,
+          })),
+        }));
+        return { rootLotId, lots };
       },
       { isolationLevel: Prisma.TransactionIsolationLevel.RepeatableRead, timeout: 30000 },
     );

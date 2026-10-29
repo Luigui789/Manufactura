@@ -16,8 +16,8 @@ export function BusinessReference({ reference }: { reference: Reference }) {
         title={reference.saleOrder.number}
         to={`/sales/orders/${reference.saleOrder.id}`}
       >
-        {reference.number}
-        <span className="sr-only"> · {reference.saleOrder.number}</span>
+        {reference.number} · {reference.saleOrder.number} · {reference.saleOrder.customer.code}{' '}
+        {reference.saleOrder.customer.name}
       </Link>
     );
   return (

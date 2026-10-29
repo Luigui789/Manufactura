@@ -5,9 +5,9 @@
 - PR: #20, `feature/sales-dispatch` → `develop`.
 - Base incorporada: `d410d397728d81cd72058693d334df044570b10e` (merge de PR #19).
 - HEAD publicado revisado antes de estas correcciones: `3f30d27014d8d8a80ff66ea141f583c03530a07d`.
-- HEAD final: pendiente de commit y publicación de las correcciones actuales.
+- HEAD corregido integrado: `13286aab514d01af5f409aac79081f1999fa2757`; merge PR #20 en `develop`: `e79e6f7f5cb3a5d6d13a07282c1d2bf473ada0bb`.
 - Alcance: RF-VEN-003. No se implementa el trabajo del Integrante 3.
-- Estado: **In Progress** hasta validar y publicar este cambio; antes del merge debe quedar **Verified**, nunca `Integrated`.
+- Estado RF-VEN-003: **Integrated** en `develop` por PR #20. La Fase 3 de trazabilidad de salidas se documenta separadamente en `sales-traceability-validation.md`.
 
 ## Correcciones de esta revisión
 
@@ -37,6 +37,6 @@
 | Backend y frontend builds                 | PASS: `pnpm build`                                                                                       |
 | Docker development                        | PASS: `docker compose up --build -d --wait --wait-timeout 180`; PostgreSQL, backend y frontend `healthy` |
 | `git diff --check`                        | PASS en la última revisión antes de esta actualización                                                   |
-| CI de GitHub                              | Pendiente: ejecutar sobre el HEAD final después de commit y push                                         |
+| CI de GitHub                              | PASS en PR #20: `CI / Quality and tests` y `CI / Docker development` exitosos                            |
 
-La validación local de esta corrección ya pasó. El SHA final y los checks de GitHub todavía deben actualizarse después de commit/push; los checks anteriores no sustituyen el CI del nuevo HEAD.
+Esta validación corresponde al HEAD corregido de PR #20, que ya se integró en `develop`. No representa la validación de la Fase 3.

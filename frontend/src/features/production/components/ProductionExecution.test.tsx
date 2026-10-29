@@ -231,12 +231,27 @@ describe('C-2 execution and inventory integration', () => {
           }}
         />
         <BusinessReference reference={{ type: 'PRODUCTION_ORDER', id: ids[0], number: 'OP-1' }} />
+        <BusinessReference
+          reference={{
+            type: 'SALE_DISPATCH',
+            id: 'dispatch',
+            number: 'DES-1',
+            saleOrder: {
+              id: 'sale-order',
+              number: 'OV-1',
+              customer: { id: 'customer', code: 'CLI-1', name: 'Cliente Uno' },
+            },
+          }}
+        />
       </>,
     );
     expect(screen.getByText('REC-1').getAttribute('title')).toBe('OC-1');
     expect(screen.getByRole('link', { name: 'OP-1' }).getAttribute('href')).toBe(
       '/production/orders/' + ids[0],
     );
+    expect(
+      screen.getByRole('link', { name: /DES-1 · OV-1 · CLI-1 Cliente Uno/ }).getAttribute('href'),
+    ).toBe('/sales/orders/sale-order');
   });
 });
 
@@ -313,6 +328,22 @@ describe('C-2 lot quality and traceability UI', () => {
                     warehouse: { id: ids[2], code: 'ALM', name: 'Principal' },
                   },
                 ],
+                outbound: [
+                  {
+                    id: 'sale-movement',
+                    dispatchId: 'dispatch',
+                    dispatchNumber: 'DES-2026-000001',
+                    dispatchedAt: '2026-10-28T12:00:00Z',
+                    quantity: '3.2500',
+                    saleOrder: {
+                      id: 'sale-order',
+                      number: 'OV-2026-000001',
+                      customer: { id: 'customer', code: 'CLI-1', name: 'Cliente Uno' },
+                    },
+                    warehouse: { id: ids[2], code: 'ALM', name: 'Principal' },
+                    performedByUser: { id: 'actor', fullName: 'Miguel' },
+                  },
+                ],
               },
               {
                 id: ids[4],
@@ -331,6 +362,7 @@ describe('C-2 lot quality and traceability UI', () => {
                     warehouse: { id: ids[2], code: 'ALM', name: 'Principal' },
                   },
                 ],
+                outbound: [],
               },
               {
                 id: ids[3],
@@ -343,6 +375,7 @@ describe('C-2 lot quality and traceability UI', () => {
                   supplier: { id: 's', code: 'SUP-1', name: 'Proveedor' },
                 },
                 consumptions: [],
+                outbound: [],
               },
             ],
           },
@@ -363,6 +396,15 @@ describe('C-2 lot quality and traceability UI', () => {
     expect(output.contains(intermediate)).toBe(true);
     expect(intermediate.contains(purchase)).toBe(true);
     expect(screen.getByText(/Sin trazabilidad por lote/)).toBeTruthy();
+    expect(screen.getByText('DES-2026-000001')).toBeTruthy();
+    expect(screen.getByText(/CLI-1 · Cliente Uno/)).toBeTruthy();
+    expect(screen.getByText(/Cantidad despachada: 3\.2500/)).toBeTruthy();
+    expect(screen.getByRole('link', { name: 'OV-2026-000001' }).getAttribute('href')).toBe(
+      '/sales/orders/sale-order',
+    );
+    expect(screen.getAllByText('Este lote no tiene despachos de venta registrados.')).toHaveLength(
+      2,
+    );
     expect(screen.getByRole('link', { name: 'OC-1', hidden: true }).getAttribute('href')).toBe(
       '/purchases/orders/o',
     );
