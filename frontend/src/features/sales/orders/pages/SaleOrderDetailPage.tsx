@@ -129,6 +129,9 @@ export function SaleOrderDetailPage() {
               El inventario se valida al registrar cada despacho.
             </SuccessNotice>
           )}
+          {current.status === 'DISPATCHED' && (
+            <SuccessNotice>La orden está despachada por completo.</SuccessNotice>
+          )}
           {dispatchOpen &&
             (current.status === 'CONFIRMED' || current.status === 'PARTIALLY_DISPATCHED') && (
               <FormSection title="Registrar despacho">

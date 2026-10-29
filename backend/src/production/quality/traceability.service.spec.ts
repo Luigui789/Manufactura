@@ -2,8 +2,9 @@ import { describe, expect, it, vi } from 'vitest';
 import type { PrismaService } from '../../prisma/prisma.service.js';
 import { TraceabilityService } from './traceability.service.js';
 
+const product = { id: 'product', code: 'P', name: 'Producto', unit: 'UNIT' };
+
 function service(edges: Record<string, string[]>) {
-  const product = { id: 'product', code: 'P', name: 'Producto', unit: 'UNIT' };
   const tx = {
     lot: {
       findUnique: vi.fn(({ where }: { where: { id: string } }) =>
@@ -24,16 +25,18 @@ function service(edges: Record<string, string[]>) {
       ),
     },
     inventoryMovement: {
-      findMany: vi.fn(({ where }: { where: { productionOrderId: string } }) =>
-        Promise.resolve(
-          (edges[where.productionOrderId] ?? []).map((id, index) => ({
-            id: `${where.productionOrderId}-${index}`,
+      findMany: vi.fn((args: { where: { productionOrderId?: string; type?: string } }) => {
+        if (args.where.type === 'SALE_DISPATCH') return Promise.resolve([]);
+        const orderId = args.where.productionOrderId!;
+        return Promise.resolve(
+          (edges[orderId] ?? []).map((id, index) => ({
+            id: `${orderId}-${index}`,
             lotId: id,
             product,
             quantity: { abs: () => ({ toFixed: () => '1.0000' }) },
           })),
-        ),
-      ),
+        );
+      }),
     },
   };
   const prisma = {
@@ -66,5 +69,68 @@ describe('Iterative lot traceability', () => {
     await expect(service({ root: ['child'], child: ['root'] }).trace.get('root')).rejects.toThrow(
       'Cycle detected',
     );
+  });
+  it('loads outbound dispatches for every visited lot in one batch', async () => {
+    const { trace, tx } = service({ root: ['child'], child: [] });
+    const movements = tx.inventoryMovement.findMany;
+    movements.mockImplementation(
+      (args: { where: { productionOrderId?: string; type?: string } }) => {
+        if (args.where.type === 'SALE_DISPATCH')
+          return Promise.resolve([
+            ...['root', 'child'].map((lotId, index) => ({
+              id: `movement-${index + 1}`,
+              lotId,
+              quantity: { abs: () => ({ toFixed: () => '2.5000' }) },
+              occurredAt: new Date('2026-10-28T12:00:00Z'),
+              warehouse: { id: 'warehouse', code: 'ALM-1', name: 'Principal' },
+              performedByUser: { id: 'user', fullName: 'Miguel' },
+              saleDispatchItem: {
+                saleDispatch: {
+                  id: `dispatch-${index + 1}`,
+                  number: `DES-2026-00000${index + 1}`,
+                  dispatchedAt: new Date('2026-10-28T12:00:00Z'),
+                  saleOrder: {
+                    id: 'order',
+                    number: 'OV-2026-000001',
+                    customer: { id: 'customer', code: 'CLI-1', name: 'Cliente Uno' },
+                  },
+                },
+              },
+            })),
+          ]);
+        const orderId = args.where.productionOrderId!;
+        return Promise.resolve(
+          (orderId === 'root' ? ['child'] : []).map((id, index) => ({
+            id: `${orderId}-${index}`,
+            lotId: id,
+            product,
+            quantity: { abs: () => ({ toFixed: () => '1.0000' }) },
+          })),
+        );
+      },
+    );
+
+    const result = await trace.get('root');
+    expect(
+      movements.mock.calls.filter(([args]) => args.where.type === 'SALE_DISPATCH'),
+    ).toHaveLength(1);
+    expect(result.lots.find((lot) => lot.id === 'root')?.outbound).toMatchObject([
+      {
+        id: 'movement-1',
+        dispatchNumber: 'DES-2026-000001',
+        quantity: '2.5000',
+        saleOrder: {
+          number: 'OV-2026-000001',
+          customer: { code: 'CLI-1', name: 'Cliente Uno' },
+        },
+      },
+    ]);
+    expect(result.lots.find((lot) => lot.id === 'child')?.outbound).toMatchObject([
+      {
+        id: 'movement-2',
+        dispatchNumber: 'DES-2026-000002',
+        saleOrder: { id: 'order', number: 'OV-2026-000001' },
+      },
+    ]);
   });
 });

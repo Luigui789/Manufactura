@@ -725,13 +725,13 @@ Implementado en `feature/production-execution`, desde `develop` con A-1 + C-1 + 
 A-2 integrado (`f5fcc28`). Toda lectura exige sesión vigente; las mutaciones admiten únicamente
 `ADMIN`/`PRODUCCION`.
 
-| Método | Ruta                                    | Resultado                                                               |
-| ------ | --------------------------------------- | ----------------------------------------------------------------------- |
-| POST   | `/api/production/orders/:id/start`      | 200, OP IN_PROGRESS; disponibilidad consistente, sin consumo ni reserva |
-| POST   | `/api/production/orders/:id/complete`   | 200, OP COMPLETED con cantidad real y `lot: { id, code, status }`       |
-| GET    | `/api/production/lots/:id/inspection`   | 200, inspección del lote o `null` si no existe                          |
-| POST   | `/api/production/lots/:id/inspection`   | 201, inspección y transición del lote producido en cuarentena           |
-| GET    | `/api/production/lots/:id/traceability` | 200, grafo histórico de lotes y consumos hasta recepción/proveedor      |
+| Método | Ruta                                    | Resultado                                                                   |
+| ------ | --------------------------------------- | --------------------------------------------------------------------------- |
+| POST   | `/api/production/orders/:id/start`      | 200, OP IN_PROGRESS; disponibilidad consistente, sin consumo ni reserva     |
+| POST   | `/api/production/orders/:id/complete`   | 200, OP COMPLETED con cantidad real y `lot: { id, code, status }`           |
+| GET    | `/api/production/lots/:id/inspection`   | 200, inspección del lote o `null` si no existe                              |
+| POST   | `/api/production/lots/:id/inspection`   | 201, inspección y transición del lote producido en cuarentena               |
+| GET    | `/api/production/lots/:id/traceability` | 200, grafo histórico de lotes, consumos y despachos hasta proveedor/cliente |
 
 Operaciones individuales conservan `{ data, message }`. La OP incorpora `lot` también en
 lista/detalle: `null` antes de producir. START recibe `{}` y registra `startedAt`. Usa una
@@ -776,11 +776,19 @@ Una inspección por lote; se inspeccionan únicamente lotes producidos QUARANTIN
 solicita RELEASED a Inventario; rechazar solicita REJECTED. No hay reinspección ni inspección
 de compras en este alcance. Inspección, estado y auditoría específica comparten transacción.
 
-Trazabilidad retorna `{ rootLotId, lots }`. Cada nodo incluye `id`, `code`, `status`, producto,
-`origin` y `consumptions` con `id`, producto, cantidad positiva, almacén, OP consumidora y `lotId` o `null`. Los nodos
-Purchase conservan REC/OC/proveedor; Production incorpora OP y `bomVersion`. Los intermedios
-enlazan OP anteriores. El grafo evita duplicar antecesores compartidos, no impone una profundidad
-pequeña y detecta ciclos/corrupción explícitamente. Componentes no trazables no inventan proveedor.
+La respuesta de trazabilidad es `{ rootLotId, lots }`. Cada nodo incluye `id`, `code`, `status`,
+producto, `origin` y `consumptions` con `id`, producto, cantidad positiva, almacén, OP consumidora
+y `lotId` o `null`. Los nodos Purchase conservan REC/OC/proveedor; Production incorpora OP y
+`bomVersion`. Los intermedios enlazan OP anteriores. El grafo evita duplicar antecesores
+compartidos, no impone una profundidad pequeña y detecta ciclos/corrupción explícitamente.
+Componentes no trazables no inventan proveedor.
+
+En `feature/sales-traceability`, cada nodo también incluye `outbound`: los movimientos
+`SALE_DISPATCH` del lote con DES, fecha de despacho, cantidad positiva como string decimal, orden
+de venta y cliente, almacén y responsable. Se deriva del ledger y sus referencias empresariales;
+una salida parcial no implica que se haya vendido el lote completo. Todas las salidas se consultan
+en una sola consulta para los lotes visitados dentro de la misma transacción `REPEATABLE READ`,
+evitando una consulta por lote. Esta extensión aún no está integrada en `develop`.
 
 Inventario A-2 conserva sus rutas, filtros, paginación y DATE. `business-origin.ts` sustituye el
 resolver Purchase-only: origen de lote es unión PURCHASE_RECEIPT/PRODUCTION_ORDER; movimientos

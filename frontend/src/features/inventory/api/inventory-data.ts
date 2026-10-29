@@ -36,7 +36,16 @@ export type BusinessReference =
       purchaseOrder: { id: string; number: string };
     }
   | { type: 'PRODUCTION_ORDER'; id: string; number: string }
-  | { type: 'SALE_DISPATCH'; id: string; number: string; saleOrder: { id: string; number: string } }
+  | {
+      type: 'SALE_DISPATCH';
+      id: string;
+      number: string;
+      saleOrder: {
+        id: string;
+        number: string;
+        customer: { id: string; code: string; name: string };
+      };
+    }
   | null;
 export type InventoryMovementRow = {
   id: string;
