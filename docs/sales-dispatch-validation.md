@@ -1,40 +1,42 @@
-# RF-VEN-003 — informe de implementación y validación
+# RF-VEN-003 — validación de despachos de venta
 
 ## Identificación
 
-- Rama: `feature/sales-dispatch`.
-- Base prevista: merge del PR #19, `d410d397728d81cd72058693d334df044570b10e`.
-- HEAD revisado en esta sesión: `d410d39` (base); los cambios descritos siguen sin commit.
-- Alcance: despachos de órdenes de venta y salida automática de producto terminado.
-- Estado: **In Progress**. No afirmar `Verified` ni `Integrated` antes de completar validaciones y merge.
+- PR: #20, `feature/sales-dispatch` → `develop`.
+- Base incorporada: `d410d397728d81cd72058693d334df044570b10e` (merge de PR #19).
+- HEAD publicado revisado antes de estas correcciones: `3f30d27014d8d8a80ff66ea141f583c03530a07d`.
+- HEAD final: pendiente de commit y publicación de las correcciones actuales.
+- Alcance: RF-VEN-003. No se implementa el trabajo del Integrante 3.
+- Estado: **In Progress** hasta validar y publicar este cambio; antes del merge debe quedar **Verified**, nunca `Integrated`.
 
-## Implementación local
+## Correcciones de esta revisión
 
-- La migración `20261027110000_sales_dispatch_enums` agrega los enums y la secuencia. `20261027120000_sales_dispatch` agrega `SaleDispatch`, `SaleDispatchItem`, la FK de origen, restricciones de ledger e inmutabilidad.
-- `POST /api/sales/orders/:id/dispatch` bloquea la orden, valida pendientes, toma la secuencia DES y bloquea productos, almacenes, balances y lotes en el orden de ADR 012. Delega el plan completo una sola vez al writer `InventoryService` y audita dentro de la transacción.
-- La cantidad despachada y pendiente se deriva de los items. No hay reserva, FEFO, FIFO ni asignación automática. Los lotes trazables deben ser `RELEASED` y disponibles en el almacén seleccionado.
-- La UI permite varias asignaciones por producto, filtra lotes por producto/almacén/estado, enseña cantidades, presenta resumen y advierte que el despacho descuenta inventario y no se revierte desde la pantalla. Se invalida la caché de órdenes, inventario y lotes.
-- Se amplía el historial de la orden con usuario, almacén, lote y cantidad; los movimientos muestran la referencia DES con etiqueta humana.
+1. `SaleDispatchForm` asigna una clave local estable a cada fila. La selección de almacén y lote queda dentro de la fila junto con sus valores de request; la eliminación no puede reasociar datos por índice. El resumen usa la misma fila que produce el payload.
+2. `InventoryService.prepareExistingMovementResources()` comparte el protocolo de productos ordenados, almacenes ordenados, creación de balances faltantes con `skipDuplicates`, bloqueo ordenado de balances y bloqueo ordenado de lotes. No escribe movimientos. `SalesDispatchService` lo llama dentro de su transacción antes de crear `SaleDispatchItem`; `applyMovements()` reutiliza el mismo helper.
+3. Producto/almacén inexistente o inactivo y lote inexistente o ajeno se validan antes de insertar las líneas de despacho. Un almacén inexistente produce `REFERENCE_NOT_FOUND` controlado, no un error FK de Prisma.
+4. El selector de lotes muestra etiquetas humanas (`Liberado`, `En cuarentena`, `Rechazado`) a través del helper compartido `inventory-labels.ts`.
+5. La prueba de migraciones en CI ahora se denomina “Purchase, production, sales order and dispatch migration proofs”.
 
-## Cobertura agregada
+## Cobertura añadida
 
-El E2E de despacho cubre flujos parcial/completo, líneas repetidas, excedentes, lotes QUARANTINED/REJECTED y ajenos, lote sin saldo en el almacén pedido, lote obligatorio/prohibido según trazabilidad, stock insuficiente, RBAC para roles no autorizados, numeración concurrente, competencia por balance y lote, fallo tardío, inmutabilidad de estado y rollback de auditoría/secuencia. La prueba de migraciones valida constraints SQL, una línea sin movimiento, unicidad e inmutabilidad.
+- Frontend: elimina la primera de dos filas y comprueba que resumen y request conservan ALM-B/LOT-B; elimina la fila intermedia de tres y comprueba que A y C conservan sus asignaciones.
+- Frontend: el selector muestra `Liberado` y no expone el enum técnico `RELEASED`.
+- E2E PostgreSQL: despacho sin balance inicial falla con 409 y revierte el balance cero, DES, despacho, movimientos y estado; dos solicitudes concurrentes sin balance inicial fallan de forma controlada sin dejar balances duplicados; un lote RELEASED sin balance falla limpiamente; un UUID de almacén inexistente devuelve `REFERENCE_NOT_FOUND` y revierte secuencia y documentos.
 
-## Estado real de validación
+## Verificación de esta revisión
 
-La suite completa E2E fue ejecutada por el usuario contra PostgreSQL en Docker después de corregir los tres fallos: **417 pruebas aprobadas en 30 archivos**. La ejecución duró 106.57 s. `pnpm test:migrations` también pasó en PostgreSQL 18: instalación vacía, upgrade preservando datos, restricciones de despacho, deploy idempotente y drift limpio. La verificación del stack Docker y CI para el HEAD final aún deben ejecutarse; el asistente no tiene acceso al engine Docker desde su entorno.
+| Validación                                | Resultado                                                                                                |
+| ----------------------------------------- | -------------------------------------------------------------------------------------------------------- |
+| Backend unitario                          | PASS: 198 pruebas                                                                                        |
+| Backend E2E PostgreSQL 18                 | PASS: 421 pruebas en 30 archivos; Sales Dispatch: 21/21                                                  |
+| Frontend focal                            | PASS: 32 pruebas en `InventoryPages.test.tsx` y `SaleDispatchForm.test.tsx`                              |
+| Suite frontend completa                   | PASS según salida reportada por el usuario; total no consignado                                          |
+| Migraciones, upgrade, idempotencia, drift | PASS: `pnpm test:migrations`                                                                             |
+| ESLint                                    | PASS: backend y frontend                                                                                 |
+| Prettier                                  | PASS: `pnpm format:check`                                                                                |
+| Backend y frontend builds                 | PASS: `pnpm build`                                                                                       |
+| Docker development                        | PASS: `docker compose up --build -d --wait --wait-timeout 180`; PostgreSQL, backend y frontend `healthy` |
+| `git diff --check`                        | PASS en la última revisión antes de esta actualización                                                   |
+| CI de GitHub                              | Pendiente: ejecutar sobre el HEAD final después de commit y push                                         |
 
-| Validación                                                     | Estado al editar este informe                                  |
-| -------------------------------------------------------------- | -------------------------------------------------------------- |
-| Rama/base y cambios locales                                    | Revisados; HEAD aún es la base `d410d39`                       |
-| E2E backend completo                                           | PASS: 417 pruebas en 30 archivos                               |
-| E2E RF-VEN-003 ampliado                                        | PASS dentro de la suite completa de PostgreSQL                 |
-| Instalación limpia, upgrade, constraints, idempotencia y drift | PASS: `pnpm test:migrations` en PostgreSQL 18                  |
-| Suite frontend completa                                        | PASS: 502 pruebas en 24 archivos                               |
-| Frontend detalle de despacho                                   | PASS: 10 pruebas                                               |
-| Backend unit tests                                             | PASS: 198 pruebas en 14 archivos                               |
-| Prisma generate/validate y builds                              | PASS: Prisma, Nest build, `tsc --noEmit` y Vite build          |
-| Lint y formato                                                 | PASS: ESLint backend/frontend y Prettier check del repositorio |
-| Docker development y CI de GitHub para el HEAD final           | Pendientes; los cambios no están publicados                    |
-
-No se declara el PR listo para merge hasta que estas validaciones se ejecuten y CI termine en verde.
+La validación local de esta corrección ya pasó. El SHA final y los checks de GitHub todavía deben actualizarse después de commit/push; los checks anteriores no sustituyen el CI del nuevo HEAD.

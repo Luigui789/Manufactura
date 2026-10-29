@@ -12,7 +12,9 @@ import {
   AuditEntityType,
   DocumentType,
   InventoryMovementType,
+  LotStatus,
   Prisma,
+  ProductType,
   SaleOrderStatus,
 } from '../../generated/prisma/client.js';
 import { InventoryErrorCode, inventoryError } from '../../inventory/movements/inventory-errors.js';
@@ -81,14 +83,34 @@ export class SalesDispatchService {
       // product → warehouse → balances → lot locks, as required by ADR 012.
       const now = new Date();
       const number = await this.sequence.nextCode(tx, DocumentType.SALE_DISPATCH, now);
+      const resources = await this.inventory.prepareExistingMovementResources(
+        tx,
+        requested.map((line) => ({
+          productId: orderItems.get(line.saleOrderItemId)!.productId,
+          warehouseId: line.warehouseId,
+          lotId: line.lotId,
+        })),
+      );
+      for (const line of requested) {
+        const product = resources.productsById.get(
+          orderItems.get(line.saleOrderItemId)!.productId,
+        )!;
+        if (product.type !== ProductType.FINISHED_GOOD) {
+          throw new ConflictException('Solo se pueden despachar productos terminados');
+        }
+        if (product.isLotTracked !== Boolean(line.lotId)) {
+          throw inventoryError(
+            InventoryErrorCode.LOT_TRACKING_MISMATCH,
+            'La presencia de lote debe coincidir con la trazabilidad del producto',
+          );
+        }
+        if (line.lotId && resources.lotsById.get(line.lotId)!.status !== LotStatus.RELEASED) {
+          throw new ConflictException('Solo se pueden despachar lotes liberados');
+        }
+      }
       const dispatch = await tx.saleDispatch.create({
         data: { number, saleOrderId, dispatchedAt: now, createdByUserId: actor.id },
       });
-      // SaleDispatchItem foreign keys acquire implicit locks on products, warehouses,
-      // and lots. Take the inventory resource locks first, in ADR 012 order, so those
-      // FK checks cannot invert the global lock order before InventoryService runs.
-      await lockDispatchResources(tx, requested, orderItems);
-      await validateLotProducts(tx, requested, orderItems);
       const dispatchItems = await tx.saleDispatchItem.createManyAndReturn({
         data: requested.map((line) => ({
           saleDispatchId: dispatch.id,
@@ -148,81 +170,6 @@ export class SalesDispatchService {
       };
     });
   }
-}
-
-async function validateLotProducts(
-  tx: Prisma.TransactionClient,
-  lines: ReturnType<typeof aggregateLines>,
-  orderItems: ReadonlyMap<string, { productId: string }>,
-): Promise<void> {
-  const lotIds = [...new Set(lines.flatMap((line) => (line.lotId ? [line.lotId] : [])))];
-  if (!lotIds.length) return;
-
-  const lots = await tx.lot.findMany({
-    where: { id: { in: lotIds } },
-    select: { id: true, productId: true },
-  });
-  const lotsById = new Map(lots.map((lot) => [lot.id, lot]));
-  for (const line of lines) {
-    if (!line.lotId) continue;
-    const lot = lotsById.get(line.lotId);
-    if (!lot) {
-      throw inventoryError(
-        InventoryErrorCode.REFERENCE_NOT_FOUND,
-        'No se encontró el lote indicado',
-      );
-    }
-    if (lot.productId !== orderItems.get(line.saleOrderItemId)!.productId) {
-      throw inventoryError(
-        InventoryErrorCode.LOT_PRODUCT_MISMATCH,
-        'El lote no pertenece al producto de la línea de despacho',
-      );
-    }
-  }
-}
-
-async function lockDispatchResources(
-  tx: Prisma.TransactionClient,
-  lines: ReturnType<typeof aggregateLines>,
-  orderItems: ReadonlyMap<string, { productId: string }>,
-): Promise<void> {
-  const productIds = [
-    ...new Set(lines.map((line) => orderItems.get(line.saleOrderItemId)!.productId)),
-  ].sort(compareText);
-  const warehouseIds = [...new Set(lines.map((line) => line.warehouseId))].sort(compareText);
-  const balanceKeys = [
-    ...new Map(
-      lines.map((line) => {
-        const productId = orderItems.get(line.saleOrderItemId)!.productId;
-        return [`${productId}:${line.warehouseId}`, { productId, warehouseId: line.warehouseId }];
-      }),
-    ).values(),
-  ].sort(
-    (left, right) =>
-      compareText(left.productId, right.productId) ||
-      compareText(left.warehouseId, right.warehouseId),
-  );
-  const lotIds = [...new Set(lines.flatMap((line) => (line.lotId ? [line.lotId] : [])))].sort(
-    compareText,
-  );
-
-  for (const id of productIds) {
-    await tx.$queryRaw`SELECT id FROM products WHERE id = ${id}::uuid FOR SHARE`;
-  }
-  for (const id of warehouseIds) {
-    await tx.$queryRaw`SELECT id FROM warehouses WHERE id = ${id}::uuid FOR SHARE`;
-  }
-  for (const { productId, warehouseId } of balanceKeys) {
-    // Missing rows are left for InventoryService to create and validate.
-    await tx.$queryRaw`SELECT id FROM stock_balances WHERE product_id = ${productId}::uuid AND warehouse_id = ${warehouseId}::uuid FOR UPDATE`;
-  }
-  for (const id of lotIds) {
-    await tx.$queryRaw`SELECT id FROM lots WHERE id = ${id}::uuid FOR SHARE`;
-  }
-}
-
-function compareText(left: string, right: string): number {
-  return left < right ? -1 : left > right ? 1 : 0;
 }
 
 function aggregateLines(lines: readonly DispatchRequestLine[]) {

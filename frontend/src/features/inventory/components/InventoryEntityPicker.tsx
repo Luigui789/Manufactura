@@ -7,6 +7,7 @@ import { useProducts } from '../api/product-hooks';
 import { useWarehouses } from '../api/hooks';
 import { useInventoryLots } from '../api/inventory-hooks';
 import { unitLabel } from '@/lib/presentation';
+import { lotStatusLabel } from '../inventory-labels';
 
 export type InventoryPickerEntity = {
   id: string;
@@ -73,7 +74,7 @@ function Lots({ children, page, search, lotFilters }: QueryProps) {
     q.data?.data.map((l) => ({
       id: l.id,
       code: l.code,
-      name: `${l.product.name} · ${l.status} · Disponible: ${l.quantityOnHand} ${unitLabel(l.product.unit)}`,
+      name: `${l.product.name} · ${lotStatusLabel(l.status)} · Disponible: ${l.quantityOnHand} ${unitLabel(l.product.unit)}`,
       status: l.status,
       expiresAt: l.expiresAt,
     })) ?? [],

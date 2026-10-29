@@ -32,15 +32,10 @@ import {
 import { ErrorNotice } from '@/components/ErrorNotice';
 import type { InventoryLotOrigin } from '../api/inventory-data';
 import { useInventoryLots, useInventoryLot } from '../api/inventory-hooks';
-import { movementLabel } from '../inventory-labels';
+import { LOT_STATUS_LABELS, movementLabel } from '../inventory-labels';
 import { BusinessReference } from '../components/BusinessReference';
 import { InventoryEntityPicker } from '../components/InventoryEntityPicker';
 
-const lotStatuses = {
-  QUARANTINED: 'En cuarentena',
-  RELEASED: 'Liberado',
-  REJECTED: 'Rechazado',
-};
 const displayTime = (value: string) =>
   new Date(value).toLocaleString('es-NI', { timeZone: 'America/Managua' });
 const displayDate = (value: string) =>
@@ -324,7 +319,7 @@ export function LotsPage() {
               }}
             >
               <option value="">Todos</option>
-              {Object.entries(lotStatuses).map(([value, label]) => (
+              {Object.entries(LOT_STATUS_LABELS).map(([value, label]) => (
                 <option key={value} value={value}>
                   {label}
                 </option>

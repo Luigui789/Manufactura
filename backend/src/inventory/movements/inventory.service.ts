@@ -1,6 +1,9 @@
 import { Injectable } from '@nestjs/common';
 import {
   type InventoryMovement,
+  type Lot,
+  type Product,
+  type Warehouse,
   InventoryMovementType,
   LotStatus,
   ProductType,
@@ -34,6 +37,19 @@ export type ApplyMovementsCommand = {
   lines: readonly MovementLine[];
 };
 
+export type MovementResourceLine = {
+  productId: string;
+  warehouseId: string;
+  lotId?: string | null;
+};
+
+type PreparedMovementResources = {
+  productsById: Map<string, Product>;
+  warehousesById: Map<string, Warehouse>;
+  balancesByKey: Map<string, { quantity: Prisma.Decimal }>;
+  lotsById: Map<string, Lot>;
+};
+
 type PreparedLine = MovementLine & {
   lotId: string | null;
   signedQuantity: Prisma.Decimal;
@@ -55,6 +71,101 @@ export class InventoryService {
     await this.lockCatalogRows(tx, 'warehouses', uniqueSorted(warehouseIds));
     return tx.product.findMany({ where: { id: { in: productIds } } });
   }
+
+  /**
+   * Locks the resources referenced by a future movement without writing ledger rows or
+   * changing balances. Missing balance rows are created at zero here so callers can
+   * safely insert business-origin FKs before applyMovements, without inverting ADR 012.
+   */
+  async prepareExistingMovementResources(
+    tx: Prisma.TransactionClient,
+    lines: readonly MovementResourceLine[],
+  ): Promise<PreparedMovementResources> {
+    if (!lines.length) {
+      throw inventoryError(InventoryErrorCode.EMPTY_MOVEMENT, 'Se requiere al menos una línea');
+    }
+    for (const line of lines) {
+      assertUuid(line.productId, 'productId');
+      assertUuid(line.warehouseId, 'warehouseId');
+      if (line.lotId) assertUuid(line.lotId, 'lotId');
+    }
+
+    const productIds = uniqueSorted(lines.map((line) => line.productId));
+    const warehouseIds = uniqueSorted(lines.map((line) => line.warehouseId));
+    const lotIds = uniqueSorted(lines.flatMap((line) => (line.lotId ? [line.lotId] : [])));
+    const balanceKeys = uniqueResourceBalanceKeys(lines);
+
+    await this.lockCatalogRows(tx, 'products', productIds);
+    const products = await tx.product.findMany({ where: { id: { in: productIds } } });
+    const productsById = new Map(products.map((product) => [product.id, product]));
+    for (const productId of productIds) {
+      const product = productsById.get(productId);
+      if (!product) {
+        throw inventoryError(InventoryErrorCode.REFERENCE_NOT_FOUND, 'No se encontró un producto');
+      }
+      if (!product.isActive) {
+        throw inventoryError(InventoryErrorCode.INACTIVE_CATALOG, 'El producto está inactivo');
+      }
+    }
+
+    await this.lockCatalogRows(tx, 'warehouses', warehouseIds);
+    const warehouses = await tx.warehouse.findMany({ where: { id: { in: warehouseIds } } });
+    const warehousesById = new Map(warehouses.map((warehouse) => [warehouse.id, warehouse]));
+    for (const warehouseId of warehouseIds) {
+      const warehouse = warehousesById.get(warehouseId);
+      if (!warehouse) {
+        throw inventoryError(InventoryErrorCode.REFERENCE_NOT_FOUND, 'No se encontró un almacén');
+      }
+      if (!warehouse.isActive) {
+        throw inventoryError(InventoryErrorCode.INACTIVE_CATALOG, 'El almacén está inactivo');
+      }
+    }
+
+    await tx.stockBalance.createMany({
+      data: balanceKeys.map(({ productId, warehouseId }) => ({
+        productId,
+        warehouseId,
+        quantity: new Prisma.Decimal(0),
+      })),
+      skipDuplicates: true,
+    });
+    await this.lockBalances(tx, balanceKeys);
+    const balances = await tx.stockBalance.findMany({
+      where: { OR: balanceKeys.map(({ productId, warehouseId }) => ({ productId, warehouseId })) },
+    });
+    const balancesByKey = new Map(
+      balances.map((balance) => [balanceKey(balance.productId, balance.warehouseId), balance]),
+    );
+    if (balancesByKey.size !== balanceKeys.length) {
+      throw inventoryError(
+        InventoryErrorCode.REFERENCE_NOT_FOUND,
+        'No se pudieron preparar todos los saldos de inventario',
+      );
+    }
+
+    await this.lockCatalogRows(tx, 'lots', lotIds);
+    const lots = lotIds.length ? await tx.lot.findMany({ where: { id: { in: lotIds } } }) : [];
+    const lotsById = new Map(lots.map((lot) => [lot.id, lot]));
+    for (const line of lines) {
+      if (!line.lotId) continue;
+      const lot = lotsById.get(line.lotId);
+      if (!lot) {
+        throw inventoryError(
+          InventoryErrorCode.REFERENCE_NOT_FOUND,
+          'No se encontró el lote indicado',
+        );
+      }
+      if (lot.productId !== line.productId) {
+        throw inventoryError(
+          InventoryErrorCode.LOT_PRODUCT_MISMATCH,
+          'El lote no pertenece al producto del movimiento',
+        );
+      }
+    }
+
+    return { productsById, warehousesById, balancesByKey, lotsById };
+  }
+
   /** Uses the caller's transaction; it never opens or commits one itself. */
   async applyMovements(
     tx: Prisma.TransactionClient,
@@ -137,23 +248,12 @@ export class InventoryService {
         );
     }
 
-    const productIds = uniqueSorted(lines.map(({ productId }) => productId));
-    const warehouseIds = uniqueSorted(lines.map(({ warehouseId }) => warehouseId));
-    const lotIds = uniqueSorted(lines.flatMap(({ lotId }) => (lotId ? [lotId] : [])));
     const balanceKeys = uniqueBalanceKeys(lines);
     const lotBalanceKeys = uniqueLotBalanceKeys(lines);
-
-    await this.lockCatalogRows(tx, 'products', productIds);
-    const products = await tx.product.findMany({ where: { id: { in: productIds } } });
-    const productsById = new Map(products.map((product) => [product.id, product]));
-    for (const productId of productIds) {
-      const product = productsById.get(productId);
-      if (!product) {
-        throw inventoryError(InventoryErrorCode.REFERENCE_NOT_FOUND, 'No se encontró un producto');
-      }
-      if (!product.isActive) {
-        throw inventoryError(InventoryErrorCode.INACTIVE_CATALOG, 'El producto está inactivo');
-      }
+    const resources = await this.prepareExistingMovementResources(tx, lines);
+    const { productsById, balancesByKey, lotsById } = resources;
+    for (const productId of uniqueSorted(lines.map((line) => line.productId))) {
+      const product = productsById.get(productId)!;
       if (
         lines.some(
           (line) => line.productId === productId && line.origin.kind === 'SALE_DISPATCH',
@@ -164,19 +264,6 @@ export class InventoryService {
           InventoryErrorCode.INVALID_ORIGIN,
           'Solo se pueden despachar productos terminados',
         );
-      }
-    }
-
-    await this.lockCatalogRows(tx, 'warehouses', warehouseIds);
-    const warehouses = await tx.warehouse.findMany({ where: { id: { in: warehouseIds } } });
-    const warehousesById = new Map(warehouses.map((warehouse) => [warehouse.id, warehouse]));
-    for (const warehouseId of warehouseIds) {
-      const warehouse = warehousesById.get(warehouseId);
-      if (!warehouse) {
-        throw inventoryError(InventoryErrorCode.REFERENCE_NOT_FOUND, 'No se encontró un almacén');
-      }
-      if (!warehouse.isActive) {
-        throw inventoryError(InventoryErrorCode.INACTIVE_CATALOG, 'El almacén está inactivo');
       }
     }
 
@@ -295,32 +382,6 @@ export class InventoryService {
       }
     }
 
-    // Create missing balances in a stable order, then serialize every affected pair.
-    await tx.stockBalance.createMany({
-      data: balanceKeys.map(({ productId, warehouseId }) => ({
-        productId,
-        warehouseId,
-        quantity: new Prisma.Decimal(0),
-      })),
-      skipDuplicates: true,
-    });
-    await this.lockBalances(tx, balanceKeys);
-
-    const balances = await tx.stockBalance.findMany({
-      where: {
-        OR: balanceKeys.map(({ productId, warehouseId }) => ({ productId, warehouseId })),
-      },
-    });
-    const balancesByKey = new Map(
-      balances.map((balance) => [balanceKey(balance.productId, balance.warehouseId), balance]),
-    );
-    if (balancesByKey.size !== balanceKeys.length) {
-      throw new Error('No se pudo crear o bloquear todos los saldos de inventario');
-    }
-
-    await this.lockCatalogRows(tx, 'lots', lotIds);
-    const lots = lotIds.length ? await tx.lot.findMany({ where: { id: { in: lotIds } } }) : [];
-    const lotsById = new Map(lots.map((lot) => [lot.id, lot]));
     for (const line of lines) {
       if (!line.lotId) continue;
       const lot = lotsById.get(line.lotId);
@@ -546,6 +607,15 @@ function uniqueBalanceKeys(lines: readonly PreparedLine[]): BalanceKey[] {
   for (const { productId, warehouseId } of lines) {
     keys.set(balanceKey(productId, warehouseId), { productId, warehouseId });
   }
+  return [...keys.values()].sort(
+    (a, b) => compareText(a.productId, b.productId) || compareText(a.warehouseId, b.warehouseId),
+  );
+}
+
+function uniqueResourceBalanceKeys(lines: readonly MovementResourceLine[]): BalanceKey[] {
+  const keys = new Map<string, BalanceKey>();
+  for (const { productId, warehouseId } of lines)
+    keys.set(balanceKey(productId, warehouseId), { productId, warehouseId });
   return [...keys.values()].sort(
     (a, b) => compareText(a.productId, b.productId) || compareText(a.warehouseId, b.warehouseId),
   );

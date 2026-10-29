@@ -10,12 +10,16 @@ import { unitLabel } from '@/lib/presentation';
 import type { SaleOrder, SaleDispatchValues } from '../api/sales-orders';
 
 type DispatchRow = {
+  key: string;
   saleOrderItemId: string;
   warehouseId: string;
+  warehouse?: InventoryPickerEntity;
   lotId: string;
+  lot?: InventoryPickerEntity;
   quantity: string;
 };
-const blank = (): DispatchRow => ({
+const blank = (key: string): DispatchRow => ({
+  key,
   saleOrderItemId: '',
   warehouseId: '',
   lotId: '',
@@ -58,21 +62,17 @@ export function SaleDispatchForm({
   pending: boolean;
   onSubmit: (value: SaleDispatchValues) => void;
 }) {
-  const [rows, setRows] = useState<DispatchRow[]>([blank()]);
-  const [entities, setEntities] = useState<
-    Record<number, { warehouse?: InventoryPickerEntity; lot?: InventoryPickerEntity }>
-  >({});
+  const nextRowKey = useRef(1);
+  const [rows, setRows] = useState<DispatchRow[]>(() => [blank('dispatch-row-0')]);
   const [review, setReview] = useState(false);
   const submitStarted = useRef(false);
   useEffect(() => {
     if (!pending) submitStarted.current = false;
   }, [pending]);
   const itemById = new Map(order.items.map((item) => [item.id, item]));
-  const update = (index: number, patch: Partial<DispatchRow>) => {
+  const update = (key: string, patch: Partial<DispatchRow>) => {
     setReview(false);
-    setRows((current) =>
-      current.map((row, rowIndex) => (rowIndex === index ? { ...row, ...patch } : row)),
-    );
+    setRows((current) => current.map((row) => (row.key === key ? { ...row, ...patch } : row)));
   };
   const valid =
     rows.length > 0 &&
@@ -115,7 +115,7 @@ export function SaleDispatchForm({
       {rows.map((row, index) => {
         const item = itemById.get(row.saleOrderItemId);
         return (
-          <fieldset key={index} className="grid gap-4 rounded-md border p-4 md:grid-cols-2">
+          <fieldset key={row.key} className="grid gap-4 rounded-md border p-4 md:grid-cols-2">
             <legend className="px-1 text-sm font-medium">Línea de despacho {index + 1}</legend>
             <label className="grid gap-2 text-sm">
               Producto de la orden
@@ -124,11 +124,11 @@ export function SaleDispatchForm({
                 value={row.saleOrderItemId}
                 disabled={pending || review}
                 onChange={(event) => {
-                  update(index, { saleOrderItemId: event.target.value, lotId: '' });
-                  setEntities((current) => ({
-                    ...current,
-                    [index]: { warehouse: current[index]?.warehouse },
-                  }));
+                  update(row.key, {
+                    saleOrderItemId: event.target.value,
+                    lotId: '',
+                    lot: undefined,
+                  });
                 }}
                 required
               >
@@ -153,11 +153,7 @@ export function SaleDispatchForm({
                 activeOnly
                 disabled={pending || review}
                 onChange={(warehouseId, warehouse) => {
-                  update(index, { warehouseId, lotId: '' });
-                  setEntities((current) => ({
-                    ...current,
-                    [index]: { warehouse, lot: undefined },
-                  }));
+                  update(row.key, { warehouseId, warehouse, lotId: '', lot: undefined });
                 }}
               />
             </div>
@@ -181,8 +177,7 @@ export function SaleDispatchForm({
                     ...(row.warehouseId ? { warehouseId: row.warehouseId } : {}),
                   }}
                   onChange={(lotId, lot) => {
-                    update(index, { lotId });
-                    setEntities((current) => ({ ...current, [index]: { ...current[index], lot } }));
+                    update(row.key, { lotId, lot });
                   }}
                 />
               </div>
@@ -197,7 +192,7 @@ export function SaleDispatchForm({
                 value={row.quantity}
                 disabled={pending || review}
                 required
-                onChange={(event) => update(index, { quantity: event.target.value })}
+                onChange={(event) => update(row.key, { quantity: event.target.value })}
               />
             </label>
             {rows.length > 1 && (
@@ -206,7 +201,7 @@ export function SaleDispatchForm({
                 variant="ghost"
                 disabled={pending || review}
                 onClick={() => {
-                  setRows((current) => current.filter((_, i) => i !== index));
+                  setRows((current) => current.filter((candidate) => candidate.key !== row.key));
                   setReview(false);
                 }}
               >
@@ -225,15 +220,13 @@ export function SaleDispatchForm({
             operación no podrá editarse ni revertirse desde esta pantalla.
           </p>
           <ul className="list-inside list-disc text-sm">
-            {rows.map((row, index) => {
+            {rows.map((row) => {
               const item = itemById.get(row.saleOrderItemId)!;
-              const chosen = entities[index];
               return (
-                <li key={`${row.saleOrderItemId}-${index}`}>
+                <li key={row.key}>
                   {item.productCode} · {item.productName}: {row.quantity}{' '}
-                  {unitLabel(item.productUnit)} ·{' '}
-                  {chosen?.warehouse?.code ?? 'Almacén seleccionado'}
-                  {item.isLotTracked && ` · ${chosen?.lot?.code ?? 'Lote seleccionado'}`}
+                  {unitLabel(item.productUnit)} · {row.warehouse?.code ?? 'Almacén seleccionado'}
+                  {item.isLotTracked && ` · ${row.lot?.code ?? 'Lote seleccionado'}`}
                 </li>
               );
             })}
@@ -246,7 +239,9 @@ export function SaleDispatchForm({
             type="button"
             variant="outline"
             disabled={pending}
-            onClick={() => setRows((current) => [...current, blank()])}
+            onClick={() =>
+              setRows((current) => [...current, blank(`dispatch-row-${nextRowKey.current++}`)])
+            }
           >
             Agregar asignación
           </Button>

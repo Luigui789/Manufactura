@@ -9,3 +9,13 @@ export const MOVEMENT_LABELS = {
 export function movementLabel(type: string) {
   return MOVEMENT_LABELS[type as keyof typeof MOVEMENT_LABELS] ?? type;
 }
+
+export const LOT_STATUS_LABELS = {
+  QUARANTINED: 'En cuarentena',
+  RELEASED: 'Liberado',
+  REJECTED: 'Rechazado',
+} as const;
+
+export function lotStatusLabel(status: string) {
+  return LOT_STATUS_LABELS[status as keyof typeof LOT_STATUS_LABELS] ?? status;
+}

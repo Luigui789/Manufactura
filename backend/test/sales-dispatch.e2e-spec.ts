@@ -1,6 +1,7 @@
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { AuditService } from '../src/audit/audit.service.js';
 import { InventoryService } from '../src/inventory/movements/inventory.service.js';
+import { InventoryErrorCode } from '../src/inventory/movements/inventory-errors.js';
 import {
   AdjustmentReason,
   AuditEntityType,
@@ -120,8 +121,149 @@ async function confirmedOrder(productId: string, quantity: string) {
   await http().post(`/api/sales/orders/${id}/confirm`).send({}).expect(200);
   return { id, itemId };
 }
+async function confirmedOrderWithoutInventory(productId: string, quantity: string) {
+  const client = await customer();
+  const created = await http()
+    .post('/api/sales/orders')
+    .send({ customerId: client.id, items: [{ productId, quantity, unitPrice: '1' }] })
+    .expect(201);
+  const data = bodyData(created);
+  await kit.prisma.saleOrder.update({
+    where: { id: data.id },
+    data: { status: SaleOrderStatus.CONFIRMED },
+  });
+  return { id: data.id, itemId: data.items[0].id };
+}
 
 describe('Despachos de venta RF-VEN-003', () => {
+  it('revierte el saldo inicial creado al fallar un despacho sin existencia', async () => {
+    const product = await finishedProduct();
+    const warehouse = await createInventoryWarehouse(kit.prisma);
+    const order = await confirmedOrderWithoutInventory(product.id, '2');
+    const beforeSequence = await kit.prisma.documentSequence.findMany({
+      where: { documentType: DocumentType.SALE_DISPATCH },
+    });
+
+    const response = await http()
+      .post(`/api/sales/orders/${order.id}/dispatch`)
+      .send({
+        items: [{ saleOrderItemId: order.itemId, warehouseId: warehouse.id, quantity: '1' }],
+      })
+      .expect(409);
+
+    expect(response.body).toMatchObject({ code: InventoryErrorCode.INSUFFICIENT_STOCK });
+    expect(
+      await kit.prisma.stockBalance.findUnique({
+        where: { productId_warehouseId: { productId: product.id, warehouseId: warehouse.id } },
+      }),
+    ).toBeNull();
+    expect(await kit.prisma.saleDispatch.count({ where: { saleOrderId: order.id } })).toBe(0);
+    expect(await kit.prisma.saleDispatchItem.count({ where: { saleOrderId: order.id } })).toBe(0);
+    expect(
+      await kit.prisma.inventoryMovement.count({
+        where: { productId: product.id, type: InventoryMovementType.SALE_DISPATCH },
+      }),
+    ).toBe(0);
+    expect((await kit.prisma.saleOrder.findUniqueOrThrow({ where: { id: order.id } })).status).toBe(
+      SaleOrderStatus.CONFIRMED,
+    );
+    expect(
+      await kit.prisma.documentSequence.findMany({
+        where: { documentType: DocumentType.SALE_DISPATCH },
+      }),
+    ).toEqual(beforeSequence);
+  });
+
+  it('serializa despachos concurrentes cuando el saldo todavía no existe', async () => {
+    const product = await finishedProduct();
+    const warehouse = await createInventoryWarehouse(kit.prisma);
+    const orders = await Promise.all([
+      confirmedOrderWithoutInventory(product.id, '2'),
+      confirmedOrderWithoutInventory(product.id, '2'),
+    ]);
+    const results = await Promise.all(
+      orders.map((order) =>
+        http()
+          .post(`/api/sales/orders/${order.id}/dispatch`)
+          .send({
+            items: [{ saleOrderItemId: order.itemId, warehouseId: warehouse.id, quantity: '1' }],
+          }),
+      ),
+    );
+
+    expect(results.map((result) => result.status)).toEqual([409, 409]);
+    expect(
+      await kit.prisma.saleDispatch.count({
+        where: { saleOrderId: { in: orders.map((o) => o.id) } },
+      }),
+    ).toBe(0);
+    expect(
+      await kit.prisma.stockBalance.findUnique({
+        where: { productId_warehouseId: { productId: product.id, warehouseId: warehouse.id } },
+      }),
+    ).toBeNull();
+  });
+
+  it('falla limpiamente para lote RELEASED cuando aún no existe saldo general', async () => {
+    const product = await finishedProduct(true);
+    const warehouse = await createInventoryWarehouse(kit.prisma);
+    const lot = await createInventoryLot(kit.prisma, product.id, LotStatus.RELEASED);
+    const order = await confirmedOrderWithoutInventory(product.id, '1');
+
+    const response = await http()
+      .post(`/api/sales/orders/${order.id}/dispatch`)
+      .send({
+        items: [
+          {
+            saleOrderItemId: order.itemId,
+            warehouseId: warehouse.id,
+            lotId: lot.id,
+            quantity: '1',
+          },
+        ],
+      })
+      .expect(409);
+
+    expect(response.body).toMatchObject({ code: InventoryErrorCode.INSUFFICIENT_STOCK });
+    expect(await kit.prisma.saleDispatch.count({ where: { saleOrderId: order.id } })).toBe(0);
+    expect(
+      await kit.prisma.stockBalance.findUnique({
+        where: { productId_warehouseId: { productId: product.id, warehouseId: warehouse.id } },
+      }),
+    ).toBeNull();
+    expect((await kit.prisma.saleOrder.findUniqueOrThrow({ where: { id: order.id } })).status).toBe(
+      SaleOrderStatus.CONFIRMED,
+    );
+  });
+
+  it('devuelve error de referencia controlado para un almacén inexistente', async () => {
+    const product = await finishedProduct();
+    const order = await confirmedOrderWithoutInventory(product.id, '1');
+    const beforeSequence = await kit.prisma.documentSequence.findMany({
+      where: { documentType: DocumentType.SALE_DISPATCH },
+    });
+
+    const response = await http()
+      .post(`/api/sales/orders/${order.id}/dispatch`)
+      .send({
+        items: [{ saleOrderItemId: order.itemId, warehouseId: randomUUID(), quantity: '1' }],
+      })
+      .expect(422);
+
+    expect(response.body).toMatchObject({ code: InventoryErrorCode.REFERENCE_NOT_FOUND });
+    expect(await kit.prisma.saleDispatch.count({ where: { saleOrderId: order.id } })).toBe(0);
+    expect(await kit.prisma.saleDispatchItem.count({ where: { saleOrderId: order.id } })).toBe(0);
+    expect(await kit.prisma.inventoryMovement.count({ where: { productId: product.id } })).toBe(0);
+    expect((await kit.prisma.saleOrder.findUniqueOrThrow({ where: { id: order.id } })).status).toBe(
+      SaleOrderStatus.CONFIRMED,
+    );
+    expect(
+      await kit.prisma.documentSequence.findMany({
+        where: { documentType: DocumentType.SALE_DISPATCH },
+      }),
+    ).toEqual(beforeSequence);
+  });
+
   it('registra despachos parciales y completa el estado sin exceder la orden', async () => {
     const product = await finishedProduct();
     const warehouse = await createInventoryWarehouse(kit.prisma);
