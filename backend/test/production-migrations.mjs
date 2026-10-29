@@ -44,7 +44,7 @@ async function capture() {
   ])
     result[table] = (
       await db.query(
-        `SELECT to_jsonb(t) - 'production_order_id' AS row FROM ${table} t ORDER BY id`,
+        `SELECT to_jsonb(t) - 'production_order_id' - 'sale_dispatch_item_id' AS row FROM ${table} t ORDER BY id`,
       )
     ).rows;
   return result;

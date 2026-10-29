@@ -7,8 +7,18 @@ import { useProducts } from '../api/product-hooks';
 import { useWarehouses } from '../api/hooks';
 import { useInventoryLots } from '../api/inventory-hooks';
 import { unitLabel } from '@/lib/presentation';
+import { lotStatusLabel } from '../inventory-labels';
 
-type Entity = { id: string; code: string; name: string; isLotTracked?: boolean; unit?: string };
+export type InventoryPickerEntity = {
+  id: string;
+  code: string;
+  name: string;
+  isLotTracked?: boolean;
+  unit?: string;
+  status?: string;
+  expiresAt?: string | null;
+};
+type Entity = InventoryPickerEntity;
 type Props = {
   kind: 'product' | 'warehouse' | 'lot';
   value: string;
@@ -17,6 +27,7 @@ type Props = {
   lotFilters?: Record<string, string | boolean>;
   error?: string;
   allowClear?: boolean;
+  disabled?: boolean;
 };
 type QueryProps = {
   page: number;
@@ -63,7 +74,9 @@ function Lots({ children, page, search, lotFilters }: QueryProps) {
     q.data?.data.map((l) => ({
       id: l.id,
       code: l.code,
-      name: `${l.product.name} · Disponible: ${l.quantityOnHand} ${unitLabel(l.product.unit)}`,
+      name: `${l.product.name} · ${lotStatusLabel(l.status)} · Disponible: ${l.quantityOnHand} ${unitLabel(l.product.unit)}`,
+      status: l.status,
+      expiresAt: l.expiresAt,
     })) ?? [],
     q.data?.meta.total ?? 0,
     q.data?.meta.limit ?? 20,
@@ -81,6 +94,7 @@ export function InventoryEntityPicker({
   lotFilters,
   error,
   allowClear,
+  disabled = false,
 }: Props) {
   const id = useId();
   const searchRef = useRef<HTMLInputElement>(null);
@@ -101,17 +115,27 @@ export function InventoryEntityPicker({
         <div ref={summaryRef} tabIndex={-1}>
           <EntitySummary
             label={`${label} seleccionado`}
-            onChange={() => {
-              setOpen(true);
-              requestAnimationFrame(() => searchRef.current?.focus());
-            }}
+            onChange={
+              !disabled
+                ? () => {
+                    setOpen(true);
+                    requestAnimationFrame(() => searchRef.current?.focus());
+                  }
+                : undefined
+            }
           >
             {selected?.code} {selected?.name ?? 'Selección conservada'}
             {selected?.unit && <p>{unitLabel(selected.unit)}</p>}
           </EntitySummary>
         </div>
       ) : (
-        <Button type="button" variant="outline" aria-expanded={open} onClick={() => setOpen(!open)}>
+        <Button
+          type="button"
+          variant="outline"
+          aria-expanded={open}
+          disabled={disabled}
+          onClick={() => setOpen(!open)}
+        >
           {label}: {allowClear ? 'Todos' : 'Seleccionar'}
         </Button>
       )}
@@ -119,6 +143,7 @@ export function InventoryEntityPicker({
         <Button
           type="button"
           variant="ghost"
+          disabled={disabled}
           onClick={() => {
             onChange('');
             setSelected(undefined);
@@ -137,6 +162,7 @@ export function InventoryEntityPicker({
             ref={searchRef}
             id={id}
             type="search"
+            disabled={disabled}
             placeholder="Código o nombre"
             maxLength={100}
             value={search}
@@ -166,10 +192,16 @@ export function InventoryEntityPicker({
                     <li key={entity.id} className="flex items-center justify-between gap-3 py-2">
                       <span className="min-w-0 break-words text-sm">
                         <strong>{entity.code}</strong> · {entity.name}
+                        {entity.expiresAt && (
+                          <span className="block text-xs text-muted-foreground">
+                            Vence: {entity.expiresAt}
+                          </span>
+                        )}
                       </span>
                       <Button
                         type="button"
                         variant="outline"
+                        disabled={disabled}
                         aria-label={`Seleccionar ${entity.code} · ${entity.name}`}
                         onClick={() => {
                           setSelected(entity);

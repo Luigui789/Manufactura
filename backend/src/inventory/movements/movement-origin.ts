@@ -7,4 +7,5 @@ export type MovementOrigin =
       reason: AdjustmentReason;
     }
   | { kind: 'PURCHASE_RECEIPT'; purchaseReceiptItemId: string }
-  | { kind: 'PRODUCTION_ORDER'; productionOrderId: string };
+  | { kind: 'PRODUCTION_ORDER'; productionOrderId: string }
+  | { kind: 'SALE_DISPATCH'; saleDispatchItemId: string };

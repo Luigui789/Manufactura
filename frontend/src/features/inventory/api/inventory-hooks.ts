@@ -10,10 +10,12 @@ import {
 export function useInventoryStock(
   filters: Record<string, string | boolean | undefined>,
   page: number,
+  enabled = true,
 ) {
   return useQuery({
     queryKey: ['inventory', 'stock', page, filters],
     queryFn: ({ signal }) => getInventoryStock(filters, page, signal),
+    enabled,
   });
 }
 export function useInventoryMovements(filters: Record<string, string | undefined>, page: number) {

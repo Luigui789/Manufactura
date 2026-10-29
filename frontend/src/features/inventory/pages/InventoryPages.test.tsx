@@ -8,6 +8,7 @@ import { StockPage } from './StockPage';
 import { MovementsPage } from './MovementsPage';
 import { LotsPage } from './LotsPage';
 import { AdjustmentDialog } from '../components/stock/AdjustmentDialog';
+import { InventoryEntityPicker } from '../components/InventoryEntityPicker';
 
 const product = {
   id: 'product',
@@ -284,6 +285,20 @@ describe('MovementsPage', () => {
   });
 });
 describe('LotsPage', () => {
+  it('muestra etiquetas humanas de estado de lote en el selector', async () => {
+    const { show } = setup();
+    show(
+      <InventoryEntityPicker
+        kind="lot"
+        value=""
+        onChange={() => undefined}
+        lotFilters={{ status: 'RELEASED' }}
+      />,
+    );
+    expect(await screen.findByText(/Liberado/)).toBeTruthy();
+    expect(screen.queryByText(/RELEASED/)).toBeNull();
+  });
+
   it('opens the exact output lot linked from a production order', async () => {
     const { show, requests } = setup();
     show(<LotsPage />, '/inventory/lots?lotId=lot');

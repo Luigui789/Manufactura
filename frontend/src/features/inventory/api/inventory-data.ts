@@ -36,6 +36,7 @@ export type BusinessReference =
       purchaseOrder: { id: string; number: string };
     }
   | { type: 'PRODUCTION_ORDER'; id: string; number: string }
+  | { type: 'SALE_DISPATCH'; id: string; number: string; saleOrder: { id: string; number: string } }
   | null;
 export type InventoryMovementRow = {
   id: string;
@@ -43,6 +44,7 @@ export type InventoryMovementRow = {
   quantity: string;
   purchaseReceiptItemId: string | null;
   productionOrderId: string | null;
+  saleDispatchItemId: string | null;
   businessReference: BusinessReference;
   reason: string | null;
   occurredAt: string;

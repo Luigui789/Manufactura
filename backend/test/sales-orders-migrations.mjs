@@ -16,7 +16,9 @@ const backend = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const root = path.join(backend, 'prisma', 'migrations');
 const names = (await readdir(root)).filter((name) => /^\d/.test(name)).sort();
 const salesMigration = names.indexOf('20261026090000_sales_orders');
+const dispatchMigration = names.indexOf('20261027120000_sales_dispatch');
 assert(salesMigration > 0, 'Sales orders migration must exist after the existing schema');
+assert(dispatchMigration > salesMigration, 'Sales dispatch migration must follow Sales Orders');
 const schema = 'sales_upgrade_' + randomUUID().replaceAll('-', '');
 async function apply(list) {
   for (const name of list)
@@ -45,8 +47,14 @@ async function capture() {
     'inventory_movements',
     'audit_logs',
     'document_sequences',
-  ])
-    rows[table] = (await db.query(`SELECT to_jsonb(t) AS row FROM ${table} t ORDER BY id`)).rows;
+  ]) {
+    // Dispatch adds this nullable column to historical movement rows. Exclude it
+    // from the before/after snapshot so this assertion compares preserved data,
+    // not the expected schema expansion.
+    const row =
+      table === 'inventory_movements' ? `to_jsonb(t) - 'sale_dispatch_item_id'` : 'to_jsonb(t)';
+    rows[table] = (await db.query(`SELECT ${row} AS row FROM ${table} t ORDER BY id`)).rows;
+  }
   return rows;
 }
 function runPrisma(args, databaseUrl) {
@@ -230,12 +238,21 @@ try {
     ['20261026090000_sales_orders'],
   );
   assert.equal(firstApplied.rows[0].count, 1, 'Prisma deploy must record the Sales migration once');
+  const dispatchApplied = await db.query(
+    `SELECT count(*)::int AS count FROM "_prisma_migrations" WHERE migration_name=$1 AND finished_at IS NOT NULL`,
+    ['20261027120000_sales_dispatch'],
+  );
+  assert.equal(
+    dispatchApplied.rows[0].count,
+    1,
+    'Prisma deploy must record the Dispatch migration once',
+  );
   runPrisma(['migrate', 'deploy', '--schema', 'prisma/schema.prisma'], databaseUrl);
   const repeatApplied = await db.query(
-    `SELECT count(*)::int AS count FROM "_prisma_migrations" WHERE migration_name=$1 AND finished_at IS NOT NULL`,
-    ['20261026090000_sales_orders'],
+    `SELECT count(*)::int AS count FROM "_prisma_migrations" WHERE migration_name IN ($1,$2) AND finished_at IS NOT NULL`,
+    ['20261026090000_sales_orders', '20261027120000_sales_dispatch'],
   );
-  assert.equal(repeatApplied.rows[0].count, 1, 'Second migrate deploy must be idempotent');
+  assert.equal(repeatApplied.rows[0].count, 2, 'Second migrate deploy must be idempotent');
   runPrisma(
     [
       'migrate',
@@ -249,12 +266,12 @@ try {
   );
 
   const tables = await db.query(
-    `SELECT table_name FROM information_schema.tables WHERE table_schema = $1 AND table_name IN ('sale_orders','sale_order_items') ORDER BY table_name`,
+    `SELECT table_name FROM information_schema.tables WHERE table_schema = $1 AND table_name IN ('sale_orders','sale_order_items','sale_dispatches','sale_dispatch_items') ORDER BY table_name`,
     [schema],
   );
   assert.deepEqual(
     tables.rows.map((row) => row.table_name),
-    ['sale_order_items', 'sale_orders'],
+    ['sale_dispatch_items', 'sale_dispatches', 'sale_order_items', 'sale_orders'],
   );
   const status = await db.query(
     `SELECT enumlabel FROM pg_enum e JOIN pg_type t ON t.oid=e.enumtypid JOIN pg_namespace n ON n.oid=t.typnamespace WHERE n.nspname=$1 AND t.typname='SaleOrderStatus' ORDER BY enumsortorder`,
@@ -265,8 +282,117 @@ try {
     ['DRAFT', 'CONFIRMED', 'PARTIALLY_DISPATCHED', 'DISPATCHED', 'CANCELLED'],
   );
   assert.equal((await db.query(`SELECT count(*)::int AS count FROM sale_orders`)).rows[0].count, 0);
+
+  // Exercise dispatch database rules against rows in the upgraded schema: a committed
+  // dispatch item needs its ledger movement, and documents/items are append-only.
+  await db.query('BEGIN');
+  const orderId = randomUUID();
+  const orderItemId = randomUUID();
+  const dispatchId = randomUUID();
+  const dispatchItemId = randomUUID();
+  await db.query(
+    `INSERT INTO sale_orders(id,number,customer_id,status,ordered_at,created_by_user_id,updated_at)
+     VALUES ($1,'OV-DISPATCH-MIGRATION',$2,'CONFIRMED',now(),$3,now())`,
+    [orderId, customer, user],
+  );
+  await db.query(
+    `INSERT INTO sale_order_items(id,sale_order_id,product_id,quantity,unit_price,line_total)
+     VALUES ($1,$2,$3,2,1,2)`,
+    [orderItemId, orderId, output],
+  );
+  await db.query(
+    `INSERT INTO sale_dispatches(id,number,sale_order_id,dispatched_at,created_by_user_id)
+     VALUES ($1,'DES-MIGRATION-000001',$2,now(),$3)`,
+    [dispatchId, orderId, user],
+  );
+  await db.query(
+    `INSERT INTO sale_dispatch_items(id,sale_dispatch_id,sale_order_id,sale_order_item_id,product_id,warehouse_id,quantity)
+     VALUES ($1,$2,$3,$4,$5,$6,1)`,
+    [dispatchItemId, dispatchId, orderId, orderItemId, output, warehouse],
+  );
+  await db.query(
+    `INSERT INTO inventory_movements(id,product_id,warehouse_id,type,quantity,reason,performed_by_user_id,sale_dispatch_item_id)
+     VALUES (gen_random_uuid(),$1,$2,'SALE_DISPATCH',-1,NULL,$3,$4)`,
+    [output, warehouse, user, dispatchItemId],
+  );
+
+  async function expectConstraintFailure(sql, values, message) {
+    await db.query('SAVEPOINT dispatch_constraint_test');
+    await assert.rejects(db.query(sql, values), undefined, message);
+    await db.query('ROLLBACK TO SAVEPOINT dispatch_constraint_test');
+    await db.query('RELEASE SAVEPOINT dispatch_constraint_test');
+  }
+  const missingMovementItemId = randomUUID();
+  await db.query('SAVEPOINT missing_dispatch_movement');
+  await db.query(
+    `INSERT INTO sale_dispatch_items(id,sale_dispatch_id,sale_order_id,sale_order_item_id,product_id,warehouse_id,quantity)
+     VALUES ($1,$2,$3,$4,$5,$6,1)`,
+    [missingMovementItemId, dispatchId, orderId, orderItemId, output, warehouse],
+  );
+  await assert.rejects(
+    db.query('SET CONSTRAINTS sale_dispatch_item_movement_required IMMEDIATE'),
+    undefined,
+    'Committed dispatch item without a movement must fail',
+  );
+  await db.query('ROLLBACK TO SAVEPOINT missing_dispatch_movement');
+  await db.query('RELEASE SAVEPOINT missing_dispatch_movement');
+  const invalidMovementBase = `INSERT INTO inventory_movements
+    (id,product_id,warehouse_id,type,quantity,reason,performed_by_user_id,sale_dispatch_item_id)
+    VALUES (gen_random_uuid(),$1,$2,'SALE_DISPATCH',$3,$4,$5,$6)`;
+  await expectConstraintFailure(
+    invalidMovementBase,
+    [output, warehouse, 1, null, user, dispatchItemId],
+    'SALE_DISPATCH movement must be negative',
+  );
+  await expectConstraintFailure(
+    invalidMovementBase,
+    [output, warehouse, -1, 'DAMAGE', user, dispatchItemId],
+    'SALE_DISPATCH movement must not have an adjustment reason',
+  );
+  await expectConstraintFailure(
+    `INSERT INTO inventory_movements
+      (id,product_id,warehouse_id,type,quantity,reason,performed_by_user_id)
+      VALUES (gen_random_uuid(),$1,$2,'SALE_DISPATCH',-1,NULL,$3)`,
+    [output, warehouse, user],
+    'SALE_DISPATCH movement must reference its dispatch item',
+  );
+  await expectConstraintFailure(
+    `INSERT INTO inventory_movements
+      (id,product_id,warehouse_id,type,quantity,reason,performed_by_user_id,sale_dispatch_item_id,production_order_id)
+      VALUES (gen_random_uuid(),$1,$2,'SALE_DISPATCH',-1,NULL,$3,$4,$5)`,
+    [output, warehouse, user, dispatchItemId, productionOrder],
+    'SALE_DISPATCH movement must have exactly one business origin',
+  );
+  await expectConstraintFailure(
+    `INSERT INTO inventory_movements
+      (id,product_id,warehouse_id,type,quantity,reason,performed_by_user_id,sale_dispatch_item_id)
+      VALUES (gen_random_uuid(),$1,$2,'SALE_DISPATCH',-1,NULL,$3,$4)`,
+    [output, warehouse, user, dispatchItemId],
+    'Each dispatch item must have at most one inventory movement',
+  );
+  await expectConstraintFailure(
+    `UPDATE sale_dispatches SET dispatched_at=now() WHERE id=$1`,
+    [dispatchId],
+    'Sale dispatch documents must be immutable',
+  );
+  await expectConstraintFailure(
+    `DELETE FROM sale_dispatch_items WHERE id=$1`,
+    [dispatchItemId],
+    'Sale dispatch items must be immutable',
+  );
+  const movementResult = await db.query(
+    `SELECT type, quantity::text, reason, sale_dispatch_item_id FROM inventory_movements WHERE sale_dispatch_item_id=$1`,
+    [dispatchItemId],
+  );
+  assert.deepEqual(movementResult.rows[0], {
+    type: 'SALE_DISPATCH',
+    quantity: '-1.0000',
+    reason: null,
+    sale_dispatch_item_id: dispatchItemId,
+  });
+  await db.query('COMMIT');
   console.log(
-    'PASS PostgreSQL 18: Prisma upgrade preserves 20 historical tables, deploy is idempotent and schema drift is clean',
+    'PASS PostgreSQL 18: upgrade preserves 20 historical tables, dispatch movement/immutability constraints hold, deploy is idempotent and schema drift is clean',
   );
 } finally {
   await db.query('ROLLBACK').catch(() => {});

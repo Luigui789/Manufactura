@@ -121,6 +121,7 @@ try {
     ...m,
     purchase_receipt_item_id: null,
     production_order_id: null,
+    sale_dispatch_item_id: null,
   }));
   assert.deepEqual(after, expected);
   await assert.rejects(

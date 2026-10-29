@@ -49,6 +49,12 @@ export function resolveMovement(
       reason: null,
     };
   }
+  if (type === InventoryMovementType.SALE_DISPATCH) {
+    if (!origin || origin.kind !== 'SALE_DISPATCH')
+      throw inventoryError(InventoryErrorCode.INVALID_ORIGIN, 'Se requiere origen de despacho');
+    assertUuid(origin.saleDispatchItemId, 'saleDispatchItemId');
+    return { quantity, signedQuantity: quantity.negated(), reason: null };
+  }
   const reason = resolveAdjustmentReason(origin);
 
   switch (type) {

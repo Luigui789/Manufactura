@@ -11,6 +11,7 @@ const DOCUMENT_PREFIX: Record<DocumentType, string> = {
   PURCHASE_ORDER: 'OC',
   PURCHASE_RECEIPT: 'REC',
   SALE_ORDER: 'OV',
+  SALE_DISPATCH: 'DES',
 };
 
 @Injectable()

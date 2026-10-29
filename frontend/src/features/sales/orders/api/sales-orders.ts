@@ -27,12 +27,31 @@ export type SaleOrder = {
     productUnit: string;
     isLotTracked: boolean;
     quantity: string;
+    quantityDispatched?: string;
+    quantityPending?: string;
     unitPrice: string;
     lineTotal: string;
     availableQuantity?: string;
   }[];
+  dispatches?: {
+    id: string;
+    number: string;
+    dispatchedAt: string;
+    createdBy: { id: string; fullName: string };
+    items: {
+      id: string;
+      saleOrderItemId: string;
+      productId: string;
+      warehouse: { id: string; code: string; name: string };
+      lot: { id: string; code: string; status: string } | null;
+      quantity: string;
+    }[];
+  }[];
   createdAt: string;
   updatedAt: string;
+};
+export type SaleDispatchValues = {
+  items: { saleOrderItemId: string; warehouseId: string; lotId?: string; quantity: string }[];
 };
 const base = '/sales/orders';
 function result(path: string, options?: RequestInit) {
@@ -77,6 +96,24 @@ export function useSalesOrderAction(id: string, action: 'confirm' | 'cancel') {
     mutationFn: () => result(`${base}/${id}/${action}`, { method: 'POST', body: '{}' }),
     onSuccess: async () => {
       await client.invalidateQueries({ queryKey: ['sales-orders'] });
+    },
+  });
+}
+
+export function useCreateSaleDispatch(id: string) {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: (value: SaleDispatchValues) =>
+      apiFetch<{ data: unknown; message: string }>(`${base}/${id}/dispatch`, {
+        method: 'POST',
+        body: JSON.stringify(value),
+      }),
+    onSuccess: async () => {
+      await Promise.all([
+        client.invalidateQueries({ queryKey: ['sales-orders'] }),
+        client.invalidateQueries({ queryKey: ['inventory'] }),
+        client.invalidateQueries({ queryKey: ['lots'] }),
+      ]);
     },
   });
 }

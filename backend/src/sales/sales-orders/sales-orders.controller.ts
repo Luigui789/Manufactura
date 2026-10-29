@@ -29,6 +29,8 @@ import { CreateSaleOrderDto, UpdateSaleOrderDto } from './dto/sale-orders.dto.js
 import { SaleOrdersQueryDto } from './dto/sale-orders-query.dto.js';
 import { SaleOrderResponseDto, SaleOrdersListResponseDto } from './sale-orders-response.js';
 import { SalesOrdersService } from './sales-orders.service.js';
+import { SalesDispatchService } from '../sales-dispatch/sales-dispatch.service.js';
+import { CreateSaleDispatchDto } from '../sales-dispatch/dto/create-sale-dispatch.dto.js';
 
 @ApiTags('Sales Orders')
 @ApiCookieAuth(SESSION_COOKIE)
@@ -36,7 +38,10 @@ import { SalesOrdersService } from './sales-orders.service.js';
 @ApiResponse({ status: 403, description: 'Acceso denegado' })
 @Controller('sales/orders')
 export class SalesOrdersController {
-  constructor(private readonly orders: SalesOrdersService) {}
+  constructor(
+    private readonly orders: SalesOrdersService,
+    private readonly dispatches: SalesDispatchService,
+  ) {}
 
   @Get()
   @Authenticated()
@@ -94,5 +99,22 @@ export class SalesOrdersController {
     @Param('id', new ParseUUIDPipe()) id: string,
   ) {
     return { data: await this.orders.cancel(actor, id), message: 'Orden de venta cancelada' };
+  }
+
+  @Post(':id/dispatch')
+  @HttpCode(200)
+  @Roles(RoleCode.ADMIN, RoleCode.VENTAS)
+  @ApiOperation({ summary: 'Despacha cantidades de una orden de venta y registra la salida' })
+  @ApiOkResponse({ description: 'Despacho registrado' })
+  @ApiResponse({
+    status: 409,
+    description: 'Estado inválido, cantidad excedida o stock insuficiente',
+  })
+  async dispatch(
+    @CurrentUser() actor: AuthenticatedUser,
+    @Param('id', new ParseUUIDPipe()) id: string,
+    @Body() dto: CreateSaleDispatchDto,
+  ) {
+    return { data: await this.dispatches.create(actor, id, dto), message: 'Despacho registrado' };
   }
 }
