@@ -126,3 +126,6 @@ Docker ahora verifica también ambos perfiles deviation y sus alertas.
 La [Fase 6](iiot-monitoring-api.md) consulta lecturas y alertas con Prisma mediante
 una API REST autenticada de solo lectura. Reutiliza el modelo e índices existentes,
 sin cambios de schema ni migraciones, y conserva acceso al historial de OP completadas.
+
+La [Fase 8](iiot-quality-integration.md) vincula evidencia y Calidad mediante la OP existente.
+No duplica snapshots en QualityInspection ni modifica schema o migraciones.

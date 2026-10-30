@@ -183,3 +183,6 @@ MQTT → NestJS → PostgreSQL. Repite la consulta tras completar la OP, verific
 sesión y compara los seis conteos antes/después. Ejecutar exclusivamente en base `_test`,
 según la [guía Docker](docker.md). Las pruebas e2e usan la base aislada del
 [setup](setup.md#8-pruebas) y se ejecutan con `pnpm --filter backend test:e2e`.
+
+La [Fase 8](iiot-quality-integration.md) consume overview y alerts desde Calidad.
+Las APIs conservan su contrato de solo lectura y el histórico tras COMPLETED e inspección.
