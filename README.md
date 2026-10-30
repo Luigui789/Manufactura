@@ -234,6 +234,10 @@ aprobación de otro miembro antes del merge. `main` se reserva para bloques esta
 
 ## Simulador IIoT
 
+El [dashboard de telemetría IIoT (Fase 7)](docs/iiot-dashboard.md) se abre desde una
+orden de producción en curso o completada: `/production/orders/:id/iiot`.
+Muestra métricas, histórico y alertas mediante REST, con polling solo durante producción.
+
 La [API de monitoreo IIoT (Fase 6)](docs/iiot-monitoring-api.md) expone overview,
 lecturas y alertas paginadas para cualquier usuario autenticado, incluyendo OP
 completadas. Es de solo lectura, sin frontend, streaming ni acknowledgement.

@@ -165,9 +165,10 @@ Las respuestas JSON serializan fechas como timestamps UTC.
 
 ## Alcance y verificación
 
-No hay frontend, gráficas, buckets, downsampling, SSE, WebSocket, MQTT desde navegador,
-acknowledgement ni integración con calidad. Fase 7 podrá usar TanStack Query con polling
-HTTP, invertir puntos para gráficas y mostrar métricas actuales y conteos de alertas.
+El [dashboard frontend de Fase 7](iiot-dashboard.md) consume estos tres endpoints con
+TanStack Query y polling HTTP durante `IN_PROGRESS`. Invierte una copia de las últimas
+100 lecturas para la gráfica y utiliza los agregados para los conteos. No hay buckets,
+downsampling, SSE, WebSocket, MQTT desde navegador, acknowledgement ni integración con calidad.
 
 `backend/test/iiot-monitoring.e2e-spec.ts` usa AppModule, guards, validación y PostgreSQL
 real. Cubre overview vacío/multimétrica, empates, conteos, filtros, paginación, fechas,
