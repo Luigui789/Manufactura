@@ -1,8 +1,9 @@
 # IIoT — Modelo de persistencia (Fase 2)
 
 La migración `20261030040000_iiot_data_model` añade tres tablas y dos enums.
-Esta fase **no consume MQTT**. La Fase 3 conectará Mosquitto con NestJS; todavía no
-hay módulo, cliente, endpoints, reglas ni generación automática de alertas.
+La Fase 2 solo añade persistencia. La [Fase 3](iiot-mqtt-ingestion.md) conecta
+Mosquitto con NestJS para guardar lecturas validadas; no añade endpoints, reglas
+ni generación automática de alertas.
 El seed principal conserva sus cinco roles y un almacén, sin dispositivos ni telemetría ficticia.
 
 ```text
@@ -34,8 +35,9 @@ como en el resto del ERP; no hay un trigger ni default SQL para ese campo.
 `IiotMetric`: `TEMPERATURE`, `HUMIDITY`, `PH`, `TANK_LEVEL`, `MIXER_RPM`.
 Soporta jabón en barra (temperatura/humedad) y líquido (temperatura/pH/nivel/RPM)
 en un único modelo. Las unidades se guardan con la lectura (`°C`, `%`, `pH`, `RPM`),
-sin ampliar `UnitOfMeasure`, que corresponde al inventario. No se fijan todavía
-asociaciones métrica/unidad, límites ni rangos del proceso.
+sin ampliar `UnitOfMeasure`, que corresponde al inventario. El modelo no impone
+asociaciones métrica/unidad ni límites del proceso; la ingesta MQTT de Fase 3
+valida las unidades canónicas antes de escribir.
 
 `IiotAlertSeverity`: `WARNING`, `CRITICAL`. El tipo de alerta es un string limitado
 para permitir evolución del futuro motor (`HIGH_TEMPERATURE`, `LOW_TEMPERATURE`,
@@ -43,8 +45,8 @@ para permitir evolución del futuro motor (`HIGH_TEMPERATURE`, `LOW_TEMPERATURE`
 sin usuario ni flujo de reconocimiento en esta fase.
 
 `Decimal(18,4)` conserva cuatro decimales y hasta catorce dígitos enteros; PostgreSQL
-redondea entradas con mayor escala. La futura ingesta deberá decidir cómo validar
-esa escala antes de persistir. Se permiten valores negativos (por ejemplo, temperatura).
+redondea entradas con mayor escala. La ingesta MQTT de Fase 3 rechaza el exceso
+de escala antes de persistir. Se permiten valores negativos (por ejemplo, temperatura).
 El CHECK de finitud rechaza `NaN`; la precisión numérica rechaza infinitos y overflow.
 `recordedAt` lo declara la fuente y `receivedAt` lo genera la base; no se exige un
 orden entre ambos porque el reloj de la fuente puede diferir del ERP.

@@ -37,6 +37,7 @@ describe('Validación de JWT_SECRET al arrancar', () => {
   const env = {
     DATABASE_URL: 'postgresql://u:p@localhost:5433/db',
     FRONTEND_URL: 'http://localhost:5173',
+    MQTT_URL: 'mqtt://localhost:1883',
   };
 
   it('rechaza un secreto ausente o el change-me de .env.example', () => {

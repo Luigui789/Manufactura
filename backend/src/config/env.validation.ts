@@ -9,6 +9,7 @@ import {
   Min,
   MinLength,
   validateSync,
+  ValidateIf,
 } from 'class-validator';
 
 export enum NodeEnv {
@@ -54,6 +55,15 @@ class EnvironmentVariables {
       `node -e "console.log(require('node:crypto').randomBytes(48).toString('base64url'))"`,
   })
   JWT_SECRET: string;
+
+  @ValidateIf(
+    (env: EnvironmentVariables) => env.NODE_ENV !== NodeEnv.Test || env.MQTT_URL !== undefined,
+  )
+  @IsUrl(
+    { protocols: ['mqtt', 'mqtts'], require_protocol: true, require_tld: false },
+    { message: 'MQTT_URL debe ser una URL mqtt:// o mqtts:// valida' },
+  )
+  MQTT_URL?: string;
 }
 
 export function validateEnv(raw: Record<string, unknown>): EnvironmentVariables {

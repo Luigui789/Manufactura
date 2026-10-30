@@ -139,9 +139,11 @@ mismos puertos.
 
 ## IIoT / MQTT con Mosquitto
 
-Eclipse Mosquitto será el broker entre sensores/PLC simulados y el futuro módulo IIoT
+Eclipse Mosquitto es el broker entre los futuros sensores/PLC simulados y el módulo IIoT
 de EcoSoap para fabricación de jabón en barra y líquido. **La Fase 1 solo instala la
-infraestructura MQTT; el backend todavía no se conecta al broker.**
+infraestructura MQTT.** La [Fase 3](iiot-mqtt-ingestion.md) añade ingesta en NestJS:
+el backend recibe `MQTT_URL=mqtt://mosquitto:1883`, espera a que el broker esté
+saludable al arrancar y se reconecta ante caídas posteriores sin detener REST.
 
 Se usa `eclipse-mosquitto:2.0.22`, con configuración versionada en
 `docker/mosquitto/mosquitto.conf` montada en modo de solo lectura. El puerto del host

@@ -8,6 +8,7 @@ import { SESSION_COOKIE } from './auth/session-cookie.js';
 
 async function bootstrap(): Promise<void> {
   const app = await NestFactory.create(AppModule);
+  app.enableShutdownHooks();
   const configService = app.get(ConfigService);
   const logger = new Logger('Bootstrap');
 
