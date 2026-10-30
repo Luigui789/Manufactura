@@ -141,6 +141,19 @@ enum PurchaseOrderStatus {
   CANCELLED
 }
 
+enum IiotMetric {
+  TEMPERATURE
+  HUMIDITY
+  PH
+  TANK_LEVEL
+  MIXER_RPM
+}
+
+enum IiotAlertSeverity {
+  WARNING
+  CRITICAL
+}
+
 model Role {
   id    String   @id @default(uuid(7)) @db.Uuid
   code  RoleCode @unique
@@ -291,6 +304,9 @@ model ProductionOrder {
   lot              Lot?
   movements        InventoryMovement[]
 
+  iiotReadings IiotReading[]
+  iiotAlerts   IiotAlert[]
+
   @@unique([id, productId])
   @@unique([id, warehouseId])
   @@index([status, createdAt])
@@ -298,6 +314,59 @@ model ProductionOrder {
   @@index([warehouseId])
   @@index([bomVersionId])
   @@map("production_orders")
+}
+
+// Fase 2: persistencia solamente, sin consumo MQTT ni motor de reglas.
+// La migración añade CHECK para textos obligatorios no vacíos y value distinto de NaN.
+model IiotDevice {
+  id          String        @id @default(uuid(7)) @db.Uuid
+  code        String        @unique @db.VarChar(80)
+  name        String        @db.VarChar(120)
+  description String?       @db.VarChar(1000)
+  isActive    Boolean       @default(true) @map("is_active")
+  createdAt   DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime      @updatedAt @map("updated_at") @db.Timestamptz(6)
+  readings    IiotReading[]
+
+  @@map("iiot_devices")
+}
+
+model IiotReading {
+  id                String          @id @default(uuid(7)) @db.Uuid
+  productionOrderId String          @map("production_order_id") @db.Uuid
+  deviceId          String          @map("device_id") @db.Uuid
+  metric            IiotMetric
+  value             Decimal         @db.Decimal(18, 4)
+  unit              String          @db.VarChar(16)
+  recordedAt        DateTime        @map("recorded_at") @db.Timestamptz(6)
+  receivedAt        DateTime        @default(now()) @map("received_at") @db.Timestamptz(6)
+  productionOrder   ProductionOrder @relation(fields: [productionOrderId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  device            IiotDevice      @relation(fields: [deviceId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  alerts            IiotAlert[]
+
+  // Clave candidata para que la FK de alerta exija la misma OP.
+  @@unique([id, productionOrderId])
+  @@index([productionOrderId, recordedAt])
+  @@index([productionOrderId, metric, recordedAt])
+  @@index([deviceId, recordedAt])
+  @@map("iiot_readings")
+}
+
+model IiotAlert {
+  id                String            @id @default(uuid(7)) @db.Uuid
+  productionOrderId String            @map("production_order_id") @db.Uuid
+  readingId         String?           @map("reading_id") @db.Uuid
+  type              String            @db.VarChar(80)
+  severity          IiotAlertSeverity
+  message           String            @db.VarChar(1000)
+  createdAt         DateTime          @default(now()) @map("created_at") @db.Timestamptz(6)
+  acknowledgedAt    DateTime?         @map("acknowledged_at") @db.Timestamptz(6)
+  productionOrder   ProductionOrder   @relation(fields: [productionOrderId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  reading           IiotReading?      @relation(fields: [readingId, productionOrderId], references: [id, productionOrderId], onDelete: Restrict, onUpdate: Restrict, map: "iiot_alerts_reading_order_fkey")
+
+  @@index([productionOrderId, createdAt])
+  @@index([readingId, productionOrderId])
+  @@map("iiot_alerts")
 }
 
 model Lot {
