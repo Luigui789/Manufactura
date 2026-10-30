@@ -1,12 +1,13 @@
 # Puesta en marcha — EcoSoap ERP
 
-**Para el equipo, el arranque recomendado es con Docker:** PostgreSQL, backend y
+**Para el equipo, el arranque recomendado es con Docker:** PostgreSQL, Mosquitto, backend y
 frontend se levantan con `docker compose up --build --watch`, sin instalar Node
 ni pnpm en la computadora. Sigue [la guía de Docker](docker.md) para configurar
 `.env`, aplicar el seed inicial y crear el primer administrador.
 
 Las secciones siguientes conservan el flujo con Node/pnpm en el host y únicamente
 PostgreSQL en Docker. Usa uno de los dos modos a la vez para evitar choques de puertos.
+Mosquitto puede ejecutarse también en Docker junto al flujo Node/pnpm del host.
 
 ## 1. Requisitos
 
@@ -83,6 +84,27 @@ docker compose ps   # debe mostrar "healthy"
 ```
 
 Otros comandos: `pnpm db:down` para detenerlo y `pnpm db:logs` para seguir sus registros.
+
+### IIoT / MQTT (Fase 1)
+
+Eclipse Mosquitto es el broker MQTT para la futura simulación de fabricación de jabón.
+Esta fase solo incorpora infraestructura: el backend todavía no se conecta a MQTT.
+
+```bash
+pnpm mqtt:up                 # levanta solamente Mosquitto
+docker compose ps mosquitto  # espera el estado healthy
+pnpm mqtt:logs               # sigue los registros; Ctrl+C sale de la vista
+pnpm mqtt:down               # detiene el broker conservando sus datos
+```
+
+`MQTT_PORT=1883` en `.env` controla el puerto publicado en `127.0.0.1`; el puerto
+interno sigue siendo 1883. Si ya tienes `.env`, puedes agregar esta variable o usar
+el valor predeterminado. No hace falta instalar clientes MQTT en el host: sigue la
+[prueba publisher/subscriber con Docker](docker.md#prueba-manual-mqtt).
+
+**Solo desarrollo local:** la autenticación está deshabilitada (`allow_anonymous true`)
+y no hay TLS. Esta configuración no es apropiada para producción; usuarios, ACL y
+certificados quedan para una futura etapa de hardening.
 
 ### Por qué el puerto 5433 y no el 5432
 

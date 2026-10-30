@@ -25,13 +25,14 @@ docker run --rm node:22.16.0-bookworm-slim node -e "console.log(require('node:cr
 El marcador `change-me` falla la validación a propósito. `.env` no se versiona ni se
 copia a las imágenes. El frontend solo recibe `FRONTEND_URL` y `VITE_API_URL`.
 
-Desde la raíz del repositorio, arranca los tres servicios:
+Desde la raíz del repositorio, arranca los cuatro servicios (PostgreSQL, backend,
+frontend y Mosquitto):
 
 ```bash
 docker compose up --build --watch
 ```
 
-La primera construcción descarga Node, PostgreSQL y las dependencias de pnpm;
+La primera construcción descarga Node, PostgreSQL, Mosquitto y las dependencias de pnpm;
 las siguientes reutilizan la caché. Espera a que el backend esté `healthy` y Vite
 anuncie su URL. En otra terminal, aplica el seed **una sola vez por base nueva**:
 
@@ -121,9 +122,9 @@ docker compose down
 ```
 
 `Ctrl+C` detiene el arranque con Watch. `docker compose down` elimina los contenedores
-y la red, conservando `ecosoap-postgres-data`. Al arrancar nuevamente se aplican solo
-migraciones pendientes; no se repite el seed ni se borran datos.
-**No uses `down -v` para detener el proyecto**: eliminaría el volumen de la base.
+y la red, conservando `ecosoap-postgres-data` y `ecosoap-mosquitto-data`. Al arrancar
+nuevamente se aplican solo migraciones pendientes; no se repite el seed ni se borran datos.
+**No uses `down -v` para detener el proyecto**: eliminaría los volúmenes de PostgreSQL y MQTT.
 Cambiar las credenciales del `.env` tampoco cambia las de una base ya inicializada.
 
 Para ver la aplicación sin sincronizar ediciones:
@@ -135,6 +136,88 @@ docker compose up --build -d --wait
 Si prefieres ejecutar Node/pnpm en tu computadora, sigue [setup.md](setup.md):
 `pnpm db:up` levanta solamente PostgreSQL. No arranques ambos modos a la vez en los
 mismos puertos.
+
+## IIoT / MQTT con Mosquitto
+
+Eclipse Mosquitto será el broker entre sensores/PLC simulados y el futuro módulo IIoT
+de EcoSoap para fabricación de jabón en barra y líquido. **La Fase 1 solo instala la
+infraestructura MQTT; el backend todavía no se conecta al broker.**
+
+Se usa `eclipse-mosquitto:2.0.22`, con configuración versionada en
+`docker/mosquitto/mosquitto.conf` montada en modo de solo lectura. El puerto del host
+es `127.0.0.1:1883`, configurable mediante `MQTT_PORT` en `.env`; dentro de Docker
+el broker escucha en `mosquitto:1883`. No cambies los puertos del ERP.
+
+**Esta configuración es exclusivamente para desarrollo local:** permite conexiones
+anónimas (`allow_anonymous true`) sin TLS. No es apropiada para producción. Usuarios,
+contraseñas, ACL y certificados se incorporarán en una futura etapa de hardening.
+El acceso anónimo también está disponible para otros contenedores de la red Compose.
+
+Para trabajar solo con el broker, sin levantar el ERP:
+
+```bash
+docker compose up -d --wait mosquitto
+docker compose ps mosquitto
+docker compose logs -f mosquitto
+docker compose stop mosquitto
+```
+
+Con pnpm en el host, los equivalentes son `pnpm mqtt:up`, `pnpm mqtt:logs` y
+`pnpm mqtt:down`. `mqtt:up` inicia en segundo plano; espera a que `ps` muestre
+`healthy` antes de probar. `Ctrl+C` sale de la vista de logs sin detener el broker.
+
+El healthcheck usa `mosquitto_sub`, incluido en la imagen, para recibir un mensaje
+de `$SYS/broker/version` con `-C 1 -W 3`. Comprueba conexión, suscripción y recepción
+MQTT con un tiempo acotado, sin instalar dependencias ni publicar mensajes de prueba.
+Las opciones se describen en el [manual oficial de mosquitto_sub](https://mosquitto.org/man/mosquitto_sub-1.html).
+
+Los datos MQTT persistentes (por ejemplo, mensajes retenidos y sesiones durables) se
+guardan en `/mosquitto/data/`, mediante el volumen `ecosoap-mosquitto-data`, que se
+conserva al detener o recrear el contenedor. Los mensajes normales de la prueba
+siguiente no son retenidos. Los logs salen por stdout y se consultan con Compose.
+Después de editar `mosquitto.conf`, ejecuta `docker compose restart mosquitto` para
+que el broker relea la configuración; Compose Watch no recarga este archivo.
+
+### Prueba manual MQTT
+
+No necesitas instalar `mosquitto_pub` ni `mosquitto_sub` en tu computadora: ambos
+clientes están en el contenedor. Ejecuta los comandos desde la raíz del repositorio.
+
+1. Inicia el broker y espera su healthcheck:
+
+   ```bash
+   docker compose up -d --wait mosquitto
+   ```
+
+2. En la terminal A, inicia el subscriber:
+
+   ```bash
+   docker compose exec mosquitto mosquitto_sub -h 127.0.0.1 -p 1883 -t ecosoap/test -C 1 -d
+   ```
+
+   Espera el mensaje de depuración `Subscribed` (confirma el SUBACK) antes de publicar.
+   El subscriber espera un mensaje y termina después de recibirlo; puedes cancelar
+   la espera con `Ctrl+C`.
+
+3. En la terminal B, publica:
+
+   ```bash
+   docker compose exec mosquitto mosquitto_pub -h 127.0.0.1 -p 1883 -t ecosoap/test -m "EcoSoap MQTT OK" -q 1
+   ```
+
+4. En la terminal A debe aparecer `EcoSoap MQTT OK`, además de los mensajes de
+   depuración. Esto verifica **publisher → Mosquitto → subscriber** en `ecosoap/test`.
+   Para repetir, vuelve a iniciar el subscriber y luego publica. Si publicaste antes
+   del SUBACK, repite la publicación: la prueba no utiliza mensajes retenidos.
+
+Estos clientes se ejecutan dentro del contenedor y usan su puerto interno 1883,
+incluso si cambiaste `MQTT_PORT` en el host. Para consultar el mapeo publicado usa
+`docker compose port mosquitto 1883`. Para ver los registros o detener el broker:
+
+```bash
+docker compose logs --tail 50 mosquitto
+docker compose stop mosquitto
+```
 
 ## Comprobaciones dentro de Docker
 

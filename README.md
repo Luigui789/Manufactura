@@ -91,7 +91,7 @@ No lo compartas ni lo prefijes con `VITE_`. Los pasos completos están en
 ## Docker
 
 ```bash
-docker compose up --build --watch  # PostgreSQL, API y frontend con recarga de código
+docker compose up --build --watch  # PostgreSQL, Mosquitto, API y frontend con recarga de código
 ```
 
 En otra terminal, aplica el seed una sola vez por base nueva y crea el primer
@@ -191,7 +191,7 @@ fusiona PR automáticamente.
 Manufactura/
 ├── package.json            privado; scripts del monorepo
 ├── pnpm-workspace.yaml
-├── docker-compose.yml      solo PostgreSQL
+├── docker-compose.yml      PostgreSQL, Mosquitto, backend y frontend
 ├── .env.example
 ├── CLAUDE.md               identidad del proyecto y reglas de trabajo
 │
