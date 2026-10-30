@@ -122,3 +122,7 @@ La [Fase 5](iiot-alert-rules.md) añade evaluación determinista de las lecturas
 persistidas y alertas transaccionales con umbrales sintéticos de demostración.
 Las descripciones de Fases 2–4 corresponden a su alcance original. La aceptación
 Docker ahora verifica también ambos perfiles deviation y sus alertas.
+
+La [Fase 6](iiot-monitoring-api.md) consulta lecturas y alertas con Prisma mediante
+una API REST autenticada de solo lectura. Reutiliza el modelo e índices existentes,
+sin cambios de schema ni migraciones, y conserva acceso al historial de OP completadas.

@@ -47,7 +47,8 @@ por cada alerta; la persistencia constituye su historial.
 
 CRITICAL solamente persiste IiotAlert: no cambia OP, lotes, inventario, calidad ni
 publica comandos MQTT. No hay controllers, endpoints, frontend ni integración con
-calidad (Fase 8). La API de monitoreo corresponde a Fase 6.
+calidad (Fase 8) dentro del motor. La [API de monitoreo de Fase 6](iiot-monitoring-api.md)
+añade consultas REST autenticadas de readings y alertas, sin acknowledgement ni streaming.
 
 ## Verificación
 
