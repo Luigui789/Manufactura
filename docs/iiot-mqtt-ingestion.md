@@ -179,5 +179,8 @@ No ejecutes `verify.mjs` contra tu base de desarrollo: requiere stack y administ
 de prueba. La configuración reproducible de ese stack, seed, bootstrap de ADMIN y
 comando de verificación está en `.github/workflows/ci.yml`.
 
+La [Fase 4 añade un simulador industrial TypeScript](iiot-simulator.md) compatible
+con este contrato, cuatro perfiles reproducibles y aceptación MQTT real en Docker.
+
 La Fase 3 termina en `IiotReading`. No incluye simulador, alertas automáticas,
 control de producción/inventario/calidad, controllers, endpoints ni frontend IIoT.

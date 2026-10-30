@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { get } from 'node:http';
 import { randomUUID } from 'node:crypto';
 import { createRequire } from 'node:module';
+import { verifySimulator } from './verify-simulator.mjs';
 
 // Solo contra el stack efimero de verificacion; usa el ADMIN creado por la CI.
 assert.ok(process.env.POSTGRES_DB?.endsWith('_test'), 'Se requiere una base _test');
@@ -270,6 +271,7 @@ const op = await request('/production/orders', 'POST', {
 });
 const started = await request(`/production/orders/${op.id}/start`, 'POST', {});
 assert.equal(started.status, 'IN_PROGRESS');
+await verifySimulator(Client, op.id, suffix);
 
 // Fase 3: actual publisher → Mosquitto → NestJS → PostgreSQL while the OP is active.
 const mqttDb = new Client({ connectionString: process.env.DATABASE_URL });

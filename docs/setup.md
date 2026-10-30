@@ -210,13 +210,13 @@ cookie `HttpOnly` y la envía automáticamente a las otras rutas; no pegues el J
 ## 7. Calidad
 
 ```bash
-pnpm lint           # ESLint en backend y frontend
+pnpm lint           # ESLint en backend, frontend y simulator
 pnpm format         # Prettier sobre todo el repositorio
 pnpm format:check   # comprueba sin modificar
-pnpm build          # compila ambos proyectos
+pnpm build          # compila los tres workspaces
 ```
 
-Prettier está configurado una sola vez en la raíz y aplica a los dos proyectos. ESLint está
+Prettier está configurado una sola vez en la raíz y aplica a los tres workspaces. ESLint está
 configurado por proyecto porque los entornos son distintos: Node con decoradores en el backend,
 navegador con React en el frontend.
 
@@ -226,6 +226,7 @@ navegador con React en el frontend.
 pnpm --filter backend test       # unitarias de guards, hashing, snapshots y CLI
 pnpm --filter backend test:e2e   # extremo a extremo
 pnpm --filter frontend test      # Vitest + RTL, incluye F1–F6
+pnpm --filter simulator test     # perfiles deterministas y publicación MQTT (unitarias)
 ```
 
 La prueba e2e **requiere PostgreSQL en ejecución** (`pnpm db:up`), porque verifica una conexión

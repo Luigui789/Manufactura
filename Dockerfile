@@ -13,9 +13,16 @@ USER node
 COPY --chown=node:node package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY --chown=node:node backend/package.json ./backend/package.json
 COPY --chown=node:node frontend/package.json ./frontend/package.json
+COPY --chown=node:node simulator/package.json ./simulator/package.json
 RUN corepack install
 RUN --mount=type=cache,id=ecosoap-pnpm,target=/pnpm/store,uid=1000,gid=1000 \
     pnpm install --frozen-lockfile --store-dir /pnpm/store
+
+FROM dependencies AS simulator-dev
+COPY --chown=node:node simulator ./simulator
+WORKDIR /app/simulator
+RUN pnpm build
+ENTRYPOINT ["node", "dist/cli.js"]
 
 FROM dependencies AS backend-dev
 USER root
@@ -31,6 +38,8 @@ WORKDIR /app/backend
 RUN DATABASE_URL=postgresql://build@localhost:5432/build pnpm prisma:generate \
     && pnpm build
 COPY --chown=node:node docker /app/docker
+# The external Docker smoke starts the simulator as an isolated child process.
+COPY --from=simulator-dev --chown=node:node /app/simulator/dist /app/simulator/dist
 RUN chmod +x /app/docker/backend-entrypoint.sh
 EXPOSE 3000
 ENTRYPOINT ["/app/docker/backend-entrypoint.sh"]
