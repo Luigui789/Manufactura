@@ -15,7 +15,10 @@
     "format:check": "prettier --check .",
     "db:up": "docker compose up -d postgres",
     "db:down": "docker compose stop postgres",
-    "db:logs": "docker compose logs -f postgres"
+    "db:logs": "docker compose logs -f postgres",
+    "mqtt:up": "docker compose up -d mosquitto",
+    "mqtt:down": "docker compose stop mosquitto",
+    "mqtt:logs": "docker compose logs -f mosquitto"
   },
   "devDependencies": {
     "prettier": "3.9.8"

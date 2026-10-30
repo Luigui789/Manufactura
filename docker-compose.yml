@@ -137,6 +137,35 @@ services:
       retries: 5
       start_period: 10s
 
+  mosquitto:
+    image: eclipse-mosquitto:2.0.22
+    restart: unless-stopped
+    ports:
+      - '127.0.0.1:${MQTT_PORT:-1883}:1883'
+    volumes:
+      - ./docker/mosquitto/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
+      - mosquitto_data:/mosquitto/data
+    healthcheck:
+      # Recibir un mensaje del broker comprueba la conexion y la suscripcion MQTT.
+      # Compose convierte $$ en un $ literal; CMD evita expandirlo en una shell.
+      test:
+        - CMD
+        - mosquitto_sub
+        - -h
+        - 127.0.0.1
+        - -t
+        - $$SYS/broker/version
+        - -C
+        - '1'
+        - -W
+        - '3'
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
 volumes:
   postgres_data:
     name: ecosoap-postgres-data
+  mosquitto_data:
+    name: ecosoap-mosquitto-data
