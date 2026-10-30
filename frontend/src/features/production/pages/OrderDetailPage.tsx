@@ -94,6 +94,10 @@ export function OrderDetailPage() {
                     Cancelar orden
                   </Button>
                 </>
+              ) : current.status === 'IN_PROGRESS' || current.status === 'COMPLETED' ? (
+                <Button asChild variant="outline">
+                  <Link to={'/production/orders/' + current.id + '/iiot'}>Monitoreo IIoT</Link>
+                </Button>
               ) : undefined
             }
           />

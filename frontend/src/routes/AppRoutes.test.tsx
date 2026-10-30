@@ -5,6 +5,11 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { createAppQueryClient, SESSION_KEY } from '@/app/query-client';
 import type { SessionUser } from '@/features/auth/types';
 import { AppRoutes } from './AppRoutes';
+import {
+  overview as iiotOverview,
+  page as iiotPage,
+  response as iiotResponse,
+} from '@/features/iiot/test/fixtures';
 
 const account: SessionUser = {
   id: 'admin-test',
@@ -47,6 +52,38 @@ beforeEach(() => {
 });
 
 describe('Aceptación F1–F5', () => {
+  it('protege la ruta IIoT sin sesión', async () => {
+    const fetch = vi.fn();
+    vi.stubGlobal('fetch', fetch);
+    const client = mount('/production/orders/order/iiot', null);
+    expect(await screen.findByRole('button', { name: 'Iniciar sesión' })).toBeTruthy();
+    expect(fetch).not.toHaveBeenCalled();
+    client.clear();
+  });
+  it('carga IIoT por URL para VENTAS y mantiene Producción activa sin módulo global', async () => {
+    const summary = iiotOverview('COMPLETED');
+    summary.telemetry = { totalReadings: 0, latestByMetric: [], lastReadingAt: null };
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url: string) =>
+        iiotResponse(url.endsWith('/overview') ? { data: summary } : iiotPage([])),
+      ),
+    );
+    const client = mount('/production/orders/order/iiot', other);
+    expect(
+      await screen.findByRole(
+        'heading',
+        { name: 'Monitoreo IIoT · OP-000001' },
+        { timeout: 10000 },
+      ),
+    ).toBeTruthy();
+    const nav = within(screen.getByRole('navigation', { name: 'Menú principal' }));
+    expect(
+      nav.getByRole('link', { name: 'Producción · Órdenes' }).getAttribute('aria-current'),
+    ).toBe('page');
+    expect(nav.queryByRole('link', { name: /IIoT/ })).toBeNull();
+    client.clear();
+  });
   it('F1: correo inválido y contraseña vacía no llaman al servidor', async () => {
     const fetch = vi.fn();
     vi.stubGlobal('fetch', fetch);
