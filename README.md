@@ -234,6 +234,10 @@ aprobación de otro miembro antes del merge. `main` se reserva para bloques esta
 
 ## Simulador IIoT
 
+La [API de monitoreo IIoT (Fase 6)](docs/iiot-monitoring-api.md) expone overview,
+lecturas y alertas paginadas para cualquier usuario autenticado, incluyendo OP
+completadas. Es de solo lectura, sin frontend, streaming ni acknowledgement.
+
 La [guía del simulador industrial TypeScript](docs/iiot-simulator.md) explica los
 cuatro escenarios barra/líquido, CLI/environment, seed determinista y ejecución
 opcional con Docker. Publica MQTT con el contrato de Fase 3 hasta `IiotReading`.
