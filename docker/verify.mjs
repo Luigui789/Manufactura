@@ -310,7 +310,7 @@ try {
   while (Date.now() < deadline) {
     readings = (
       await mqttDb.query(
-        'SELECT production_order_id,device_id,metric,value::text,unit,recorded_at,received_at FROM iiot_readings WHERE production_order_id=$1 AND device_id=$2 ORDER BY metric::text',
+        'SELECT production_order_id,device_id,metric,value::text,unit,recorded_at,received_at FROM iiot_readings WHERE production_order_id=$1 AND device_id=$2 ORDER BY metric',
         [op.id, deviceId],
       )
     ).rows;
