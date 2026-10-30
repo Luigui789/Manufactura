@@ -35,6 +35,9 @@ Decisiones que lo sostienen:
 
 ## 2. Convenciones
 
+El modelo físico IIoT de Fase 2 se detalla en [iiot-data-model.md](iiot-data-model.md).
+Solo añade persistencia de dispositivos, lecturas y alertas vinculadas a OP.
+
 | Aspecto              | Convención                                                               |
 | -------------------- | ------------------------------------------------------------------------ |
 | Clave primaria       | `String @id @default(uuid(7)) @db.Uuid`                                  |
