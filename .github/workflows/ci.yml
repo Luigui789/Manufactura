@@ -72,12 +72,14 @@ jobs:
         run: pnpm lint
       - name: Check formatting
         run: pnpm format:check
-      - name: Build backend and frontend
+      - name: Build workspaces
         run: pnpm build
       - name: Seed test database
         run: pnpm --filter backend db:seed
       - name: Backend unit tests
         run: pnpm --filter backend test
+      - name: Simulator unit tests
+        run: pnpm --filter simulator test
       - name: Frontend tests
         run: pnpm --filter frontend test
       - name: Purchase, production, sales and IIoT migration proofs

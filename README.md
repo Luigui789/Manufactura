@@ -231,3 +231,9 @@ aprobación de otro miembro antes del merge. `main` se reserva para bloques esta
 - [Puesta en marcha](docs/setup.md) — instalación y problemas frecuentes
 - [Avance](docs/progress.md) — estado real de cada etapa
 - [Decisiones (ADR)](docs/decisions/) — decisiones arquitectónicas registradas
+
+## Simulador IIoT
+
+La [guía del simulador industrial TypeScript](docs/iiot-simulator.md) explica los
+cuatro escenarios barra/líquido, CLI/environment, seed determinista y ejecución
+opcional con Docker. Publica MQTT con el contrato de Fase 3 hasta `IiotReading`.

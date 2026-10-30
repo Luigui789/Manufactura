@@ -239,3 +239,9 @@ pruebas ya migrada y sembrada. No apuntes esas pruebas a la base de trabajo.
 Compose Watch y la instalación de pnpm siguen la documentación de
 [Docker](https://docs.docker.com/compose/how-tos/file-watch/) y
 [pnpm](https://pnpm.io/docker).
+
+## Simulador opcional
+
+El [simulador IIoT de Fase 4](iiot-simulator.md#docker) se ejecuta a demanda con
+el profile `simulation`. No se inicia con `docker compose up --build --watch`;
+requiere una OP `IN_PROGRESS` y un dispositivo activo previamente aprovisionados.

@@ -1,6 +1,7 @@
 packages:
   - 'frontend'
   - 'backend'
+  - 'simulator'
 
 # Desde pnpm 10 los scripts de instalacion de las dependencias estan bloqueados
 # por defecto. Esta lista se construyo a partir de lo que pnpm reporto realmente
