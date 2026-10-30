@@ -1,5 +1,37 @@
 import assert from 'node:assert/strict';
 
+/** Capture every persisted field so inspection cannot silently mutate IIoT evidence. */
+export async function qualityEvidence(Client, orderId, lotId) {
+  assert.ok(process.env.POSTGRES_DB?.endsWith('_test'), 'Se requiere una base _test');
+  const db = new Client({ connectionString: process.env.DATABASE_URL });
+  await db.connect();
+  try {
+    return {
+      readings: (
+        await db.query('SELECT * FROM iiot_readings WHERE production_order_id=$1 ORDER BY id', [
+          orderId,
+        ])
+      ).rows,
+      alerts: (
+        await db.query('SELECT * FROM iiot_alerts WHERE production_order_id=$1 ORDER BY id', [
+          orderId,
+        ])
+      ).rows,
+      lot: (await db.query('SELECT status FROM lots WHERE id=$1', [lotId])).rows[0],
+      inspection: (await db.query('SELECT * FROM quality_inspections WHERE lot_id=$1', [lotId]))
+        .rows,
+      movements: (
+        await db.query(
+          'SELECT * FROM inventory_movements WHERE production_order_id=$1 ORDER BY id',
+          [orderId],
+        )
+      ).rows,
+    };
+  } finally {
+    await db.end();
+  }
+}
+
 /** Real HTTP reconciliation after simulator normal/deviation → MQTT → ingestion. */
 export async function verifyMonitoring(Client, api, Cookie, orderId, status) {
   assert.ok(process.env.POSTGRES_DB?.endsWith('_test'), 'Se requiere una base _test');

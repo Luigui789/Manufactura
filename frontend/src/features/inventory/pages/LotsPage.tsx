@@ -239,7 +239,11 @@ function LotDetail({ id, onClose }: { id: string; onClose: () => void }) {
               </div>
             </section>
             {q.data.origin?.type === 'PRODUCTION_ORDER' && (
-              <LotProductionDetail lotId={q.data.id} status={q.data.status} />
+              <LotProductionDetail
+                lotId={q.data.id}
+                status={q.data.status}
+                productionOrderId={q.data.origin.productionOrder.id}
+              />
             )}
           </div>
         )}

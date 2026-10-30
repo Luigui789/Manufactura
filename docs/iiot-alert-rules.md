@@ -68,3 +68,6 @@ añade consultas REST autenticadas de readings y alertas, sin acknowledgement ni
 
 Las suites existentes de migraciones y el diff Prisma deben demostrar ausencia de
 schema drift; esta fase no modifica schema.prisma ni migraciones históricas.
+
+La [Fase 8](iiot-quality-integration.md) prueba CRITICAL + APPROVED → RELEASED.
+Las alertas no deciden Calidad y la inspección no modifica ni reconoce las alertas.

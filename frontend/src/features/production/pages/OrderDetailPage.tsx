@@ -404,7 +404,11 @@ export function OrderDetailPage() {
                 </DetailGrid>
               </FormSection>
               {current.lot && (
-                <LotProductionDetail lotId={current.lot.id} status={current.lot.status} />
+                <LotProductionDetail
+                  lotId={current.lot.id}
+                  status={current.lot.status}
+                  productionOrderId={current.id}
+                />
               )}
             </>
           )}

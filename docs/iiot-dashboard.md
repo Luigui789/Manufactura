@@ -86,7 +86,8 @@ datos previos y ofrece **Volver a órdenes de producción**.
 
 Solo lectura REST: no hay conexión MQTT desde el navegador, WebSocket, SSE ni
 acknowledgement. Tampoco se modifican backend, schema, migraciones, simulador,
-calidad ni inventario. La integración con calidad sigue reservada para Fase 8.
+inventario. La [Fase 8](iiot-quality-integration.md) reutiliza estos hooks para mostrar
+evidencia compacta dentro de Calidad, manteniendo la decisión humana.
 
 Las pruebas de `api/monitoring.test.tsx` usan TanStack Query real y verifican rutas,
 filtros, claves, errores y polling con reloj simulado, incluida la transición a

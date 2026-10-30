@@ -250,3 +250,7 @@ La [Fase 5](docs/iiot-alert-rules.md) añade evaluación determinista de las lec
 persistidas y alertas transaccionales con umbrales sintéticos de demostración.
 Las descripciones de Fases 2–4 corresponden a su alcance original. La aceptación
 Docker ahora verifica también ambos perfiles deviation y sus alertas.
+
+La [integración IIoT en Calidad (Fase 8)](docs/iiot-quality-integration.md) presenta evidencia
+antes de inspeccionar el lote: CRITICAL no implica rechazo automático. La decisión sigue
+siendo explícita del inspector, con pruebas PostgreSQL y aceptación Docker.
