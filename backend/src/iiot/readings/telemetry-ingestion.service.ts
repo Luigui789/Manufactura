@@ -3,10 +3,14 @@ import { Injectable } from '@nestjs/common';
 import { Prisma } from '../../generated/prisma/client.js';
 import { PrismaService } from '../../prisma/prisma.service.js';
 import { TelemetryRejectedError, type TelemetryMessage } from '../mqtt/mqtt-message.types.js';
+import { RuleEngineService } from '../rules/rule-engine.service.js';
 
 @Injectable()
 export class TelemetryIngestionService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly ruleEngine: RuleEngineService,
+  ) {}
 
   async ingest(message: TelemetryMessage): Promise<void> {
     await this.prisma.$transaction(
@@ -23,7 +27,7 @@ export class TelemetryIngestionService {
         });
         if (!device?.isActive) throw new TelemetryRejectedError('device missing or inactive');
         // One atomic INSERT batch; receivedAt remains the database default.
-        await tx.iiotReading.createMany({
+        const readings = await tx.iiotReading.createManyAndReturn({
           data: message.metrics.map((metric) => ({
             productionOrderId: message.productionOrderId,
             deviceId: device.id,
@@ -31,6 +35,17 @@ export class TelemetryIngestionService {
             ...metric,
           })),
         });
+        const alerts: Prisma.IiotAlertCreateManyInput[] = [];
+        for (const reading of readings) {
+          const decision = this.ruleEngine.evaluate(reading);
+          if (decision)
+            alerts.push({
+              ...decision,
+              productionOrderId: reading.productionOrderId,
+              readingId: reading.id,
+            });
+        }
+        if (alerts.length) await tx.iiotAlert.createMany({ data: alerts });
       },
       { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
     );

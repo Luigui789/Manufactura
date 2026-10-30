@@ -237,3 +237,8 @@ aprobación de otro miembro antes del merge. `main` se reserva para bloques esta
 La [guía del simulador industrial TypeScript](docs/iiot-simulator.md) explica los
 cuatro escenarios barra/líquido, CLI/environment, seed determinista y ejecución
 opcional con Docker. Publica MQTT con el contrato de Fase 3 hasta `IiotReading`.
+
+La [Fase 5](docs/iiot-alert-rules.md) añade evaluación determinista de las lecturas
+persistidas y alertas transaccionales con umbrales sintéticos de demostración.
+Las descripciones de Fases 2–4 corresponden a su alcance original. La aceptación
+Docker ahora verifica también ambos perfiles deviation y sus alertas.

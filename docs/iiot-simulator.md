@@ -194,11 +194,12 @@ republicación, interrupciones y cierre. MQTT se mockea solo en unitarias.
 
 El smoke Docker existente (`docker/verify.mjs`) llama a
 `docker/verify-simulator.mjs` entre START y COMPLETE de su OP exclusiva.
-Exige una base `_test`, crea dos dispositivos activos y ejecuta el CLI compilado
+Exige una base `_test`, crea cuatro dispositivos activos y ejecuta el CLI compilado
 como proceso separado **con un environment que solo contiene MQTT/SIM**.
-Con tres muestras normales exige 6 filas de barra y 12 de líquido, comprueba
-toda la secuencia determinista, unidades, OP/dispositivo, recordedAt/receivedAt y
-ausencia de alertas nuevas. Consulta cada 100 ms hasta 10 segundos, sin sleeps largos.
+Con 60 muestras por perfil y seed 42 exige 120 filas de barra y 240 de líquido,
+comprueba toda la secuencia determinista, unidades, OP/dispositivo y fechas.
+Los perfiles normales no crean alertas; deviation genera los tipos y severidades
+documentados en [reglas sintéticas](iiot-alert-rules.md), con FK y OP coherentes. Consulta cada 100 ms hasta 10 segundos, sin sleeps largos.
 Reutiliza el Mosquitto, NestJS y PostgreSQL reales del stack; no usa mocks.
 
 También envía las 60 muestras de cada uno de los cuatro perfiles al parser real
@@ -213,6 +214,11 @@ al mismo flujo, sin otro broker. Para reproducirlo usa las variables efímeras,
 seed y bootstrap de ADMIN documentados en `.github/workflows/ci.yml`; no ejecutes
 el smoke contra una base de desarrollo ni reinicies datos para limpiarlo.
 
-El alcance termina en IiotReading: no hay alertas, límites de calidad, dashboards,
-endpoints IIoT ni integración con PLC real. La futura Fase 5 definirá por separado
-las reglas de alerta de demostración.
+El alcance original de Fase 4 terminaba en IiotReading: no incluía alertas, límites de calidad, dashboards,
+endpoints IIoT ni integración con PLC real. Fase 5 añade las reglas sintéticas
+de alerta de demostración sin modificar los perfiles.
+
+La [Fase 5](iiot-alert-rules.md) añade evaluación determinista de las lecturas
+persistidas y alertas transaccionales con umbrales sintéticos de demostración.
+Las descripciones de Fases 2–4 corresponden a su alcance original. La aceptación
+Docker ahora verifica también ambos perfiles deviation y sus alertas.

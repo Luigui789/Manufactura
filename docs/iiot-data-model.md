@@ -117,3 +117,8 @@ contra la base de trabajo. La guía de [setup](setup.md#8-pruebas) explica el ai
 `test/iiot-persistence.e2e-spec.ts` prueba además la creación mediante Prisma,
 UUID v7, Decimal, defaults y navegación de las relaciones inversas, usando el
 cliente generado y la base real de pruebas.
+
+La [Fase 5](iiot-alert-rules.md) añade evaluación determinista de las lecturas
+persistidas y alertas transaccionales con umbrales sintéticos de demostración.
+Las descripciones de Fases 2–4 corresponden a su alcance original. La aceptación
+Docker ahora verifica también ambos perfiles deviation y sus alertas.

@@ -184,3 +184,8 @@ con este contrato, cuatro perfiles reproducibles y aceptación MQTT real en Dock
 
 La Fase 3 termina en `IiotReading`. No incluye simulador, alertas automáticas,
 control de producción/inventario/calidad, controllers, endpoints ni frontend IIoT.
+
+La [Fase 5](iiot-alert-rules.md) añade evaluación determinista de las lecturas
+persistidas y alertas transaccionales con umbrales sintéticos de demostración.
+Las descripciones de Fases 2–4 corresponden a su alcance original. La aceptación
+Docker ahora verifica también ambos perfiles deviation y sus alertas.

@@ -26,69 +26,103 @@ export async function verifySimulator(Client, orderId, suffix) {
         }
       }
     }
-    const alertsBefore = (await db.query('SELECT count(*) FROM iiot_alerts')).rows[0].count;
     for (const process of ['bar', 'liquid']) {
-      const id = randomUUID();
-      const code = `SIM-${process}-${suffix}`;
-      await db.query('INSERT INTO iiot_devices(id,code,name,updated_at) VALUES ($1,$2,$3,now())', [
-        id,
-        code,
-        'Isolated simulator fixture',
-      ]);
-      const expected = [];
-      const next = createScenario({ process, scenario: 'normal', samples: 3, seed: 42 });
-      for (let i = 0; i < 3; i++) expected.push(...next());
-      const { stdout } = await exec(execPath, ['/app/simulator/dist/cli.js'], {
-        env: {
-          MQTT_URL: 'mqtt://mosquitto:1883',
-          SIM_PRODUCTION_ORDER_ID: orderId,
-          SIM_DEVICE_CODE: code,
-          SIM_PROCESS: process,
-          SIM_SCENARIO: 'normal',
-          SIM_SAMPLES: '3',
-          SIM_INTERVAL_MS: '25',
-          SIM_SEED: '42',
-        },
-        timeout: 20000,
-      });
-      assert.match(stdout, /Simulation completed/);
-      const deadline = Date.now() + 10000;
-      let rows = [];
-      while (Date.now() < deadline) {
-        rows = (
+      for (const scenario of ['normal', 'deviation']) {
+        const id = randomUUID();
+        const code = `SIM-${process}-${scenario}-${suffix}`;
+        await db.query(
+          'INSERT INTO iiot_devices(id,code,name,updated_at) VALUES ($1,$2,$3,now())',
+          [id, code, 'Isolated simulator fixture'],
+        );
+        const expected = [];
+        const next = createScenario({ process, scenario, samples: 60, seed: 42 });
+        for (let i = 0; i < 60; i++) expected.push(...next());
+        const { stdout } = await exec(execPath, ['/app/simulator/dist/cli.js'], {
+          env: {
+            MQTT_URL: 'mqtt://mosquitto:1883',
+            SIM_PRODUCTION_ORDER_ID: orderId,
+            SIM_DEVICE_CODE: code,
+            SIM_PROCESS: process,
+            SIM_SCENARIO: scenario,
+            SIM_SAMPLES: '60',
+            // Avoid overlapping Serializable transactions in this delivery smoke (QoS 0 has no retry).
+            SIM_INTERVAL_MS: '100',
+            SIM_SEED: '42',
+          },
+          timeout: 20000,
+        });
+        assert.match(stdout, /Simulation completed/);
+        const deadline = Date.now() + 10000;
+        let rows = [];
+        while (Date.now() < deadline) {
+          rows = (
+            await db.query(
+              'SELECT id,production_order_id,device_id,metric,value::text,unit,recorded_at,received_at FROM iiot_readings WHERE production_order_id=$1 AND device_id=$2 ORDER BY recorded_at,metric::text',
+              [orderId, id],
+            )
+          ).rows;
+          if (rows.length >= expected.length) break;
+          await new Promise((resolve) => setTimeout(resolve, 100));
+        }
+        assert.equal(rows.length, expected.length, `${process} persisted row count`);
+        // Compare the entire deterministic sequence, grouped by timestamp then metric.
+        const actual = rows.map((r) => [r.metric, Number(r.value), r.unit]);
+        const sorted = [];
+        const width = process === 'bar' ? 2 : 4;
+        for (let i = 0; i < expected.length; i += width)
+          sorted.push(
+            ...expected.slice(i, i + width).sort((a, b) => a.metric.localeCompare(b.metric)),
+          );
+        assert.deepEqual(
+          actual,
+          sorted.map((r) => [r.metric, r.value, r.unit]),
+        );
+        for (const row of rows) {
+          assert.equal(row.production_order_id, orderId);
+          assert.equal(row.device_id, id);
+          assert.ok(row.recorded_at instanceof Date);
+          assert.ok(row.received_at instanceof Date);
+        }
+        const alerts = (
           await db.query(
-            'SELECT production_order_id,device_id,metric,value::text,unit,recorded_at,received_at FROM iiot_readings WHERE production_order_id=$1 AND device_id=$2 ORDER BY recorded_at,metric::text',
+            `SELECT a.*, r.production_order_id AS reading_order_id, r.device_id
+         FROM iiot_alerts a LEFT JOIN iiot_readings r ON r.id=a.reading_id
+         WHERE a.production_order_id=$1 AND (r.device_id=$2 OR a.reading_id IS NULL)`,
             [orderId, id],
           )
         ).rows;
-        if (rows.length >= expected.length) break;
-        await new Promise((resolve) => setTimeout(resolve, 100));
-      }
-      assert.equal(rows.length, expected.length, `${process} persisted row count`);
-      // Compare the entire deterministic sequence, grouped by timestamp then metric.
-      const actual = rows.map((r) => [r.metric, Number(r.value), r.unit]);
-      const sorted = [];
-      const width = process === 'bar' ? 2 : 4;
-      for (let i = 0; i < expected.length; i += width)
-        sorted.push(
-          ...expected.slice(i, i + width).sort((a, b) => a.metric.localeCompare(b.metric)),
+        for (const alert of alerts) {
+          assert.ok(alert.reading_id);
+          assert.ok(rows.some((r) => r.id === alert.reading_id));
+          assert.equal(alert.production_order_id, alert.reading_order_id);
+          assert.equal(alert.device_id, id);
+          assert.equal(alert.acknowledged_at, null);
+        }
+        assert.equal(new Set(alerts.map((a) => a.reading_id)).size, alerts.length);
+        if (scenario === 'normal') assert.equal(alerts.length, 0);
+        else {
+          assert.ok(alerts.length > 0);
+          if (process === 'bar') {
+            for (const severity of ['WARNING', 'CRITICAL'])
+              assert.ok(alerts.some((a) => a.type === 'HIGH_HUMIDITY' && a.severity === severity));
+          } else {
+            for (const type of ['HIGH_TEMPERATURE', 'PH_OUT_OF_RANGE', 'HIGH_MIXER_RPM'])
+              assert.ok(
+                alerts.some((a) => a.type === type),
+                type,
+              );
+            for (const severity of ['WARNING', 'CRITICAL'])
+              assert.ok(alerts.some((a) => a.severity === severity));
+          }
+        }
+        console.log(
+          `Docker: simulator ${process}-${scenario} → Mosquitto → NestJS → PostgreSQL: expected=${expected.length}, actual=${rows.length}, alerts=${alerts.length}, types=${[...new Set(alerts.map((a) => a.type))]}, severities=${[...new Set(alerts.map((a) => a.severity))]}`,
         );
-      assert.deepEqual(
-        actual,
-        sorted.map((r) => [r.metric, r.value, r.unit]),
-      );
-      for (const row of rows) {
-        assert.equal(row.production_order_id, orderId);
-        assert.equal(row.device_id, id);
-        assert.ok(row.recorded_at instanceof Date);
-        assert.ok(row.received_at instanceof Date);
       }
-      console.log(
-        `Docker: simulator ${process}-normal → Mosquitto → NestJS → PostgreSQL: expected=${expected.length}, actual=${rows.length}`,
-      );
     }
-    assert.equal((await db.query('SELECT count(*) FROM iiot_alerts')).rows[0].count, alertsBefore);
-    console.log('Docker: all four simulator profiles pass parseTelemetry; no alerts created.');
+    console.log(
+      'Docker: all four simulator profiles pass parseTelemetry; synthetic alert rules and reading associations verified.',
+    );
   } finally {
     await db.end();
   }
