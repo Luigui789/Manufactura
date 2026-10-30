@@ -88,7 +88,10 @@ Otros comandos: `pnpm db:down` para detenerlo y `pnpm db:logs` para seguir sus r
 ### IIoT / MQTT (Fase 1)
 
 Eclipse Mosquitto es el broker MQTT para la futura simulación de fabricación de jabón.
-Esta fase solo incorpora infraestructura: el backend todavía no se conecta a MQTT.
+La Fase 1 incorpora infraestructura; la [Fase 3](iiot-mqtt-ingestion.md) conecta
+el backend para guardar telemetría validada. En el flujo Node/pnpm del host agrega
+`MQTT_URL=mqtt://localhost:1883` a tu `.env` existente (ajusta el puerto si cambiaste
+`MQTT_PORT`). En Docker se usa el DNS interno `mqtt://mosquitto:1883`.
 
 ```bash
 pnpm mqtt:up                 # levanta solamente Mosquitto

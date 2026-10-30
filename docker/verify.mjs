@@ -270,6 +270,76 @@ const op = await request('/production/orders', 'POST', {
 });
 const started = await request(`/production/orders/${op.id}/start`, 'POST', {});
 assert.equal(started.status, 'IN_PROGRESS');
+
+// Fase 3: actual publisher → Mosquitto → NestJS → PostgreSQL while the OP is active.
+const mqttDb = new Client({ connectionString: process.env.DATABASE_URL });
+await mqttDb.connect();
+const { connectAsync } = backendRequire('mqtt');
+let publisher;
+try {
+  publisher = await connectAsync(process.env.MQTT_URL, {
+    reconnectPeriod: 0,
+    connectTimeout: 5000,
+  });
+  const deviceId = randomUUID();
+  const deviceCode = 'DOCKER-IIOT-' + suffix;
+  await mqttDb.query('INSERT INTO iiot_devices(id,code,name,updated_at) VALUES ($1,$2,$3,now())', [
+    deviceId,
+    deviceCode,
+    'Isolated Docker telemetry fixture',
+  ]);
+  const topic = `ecosoap/production/${op.id}/${deviceCode}/telemetry`;
+  const recordedAt = '2026-10-30T10:00:00Z';
+  const alertsBefore = (await mqttDb.query('SELECT count(*) FROM iiot_alerts')).rows[0].count;
+  await publisher.publishAsync(topic, '{invalid JSON', { qos: 0 });
+  await publisher.publishAsync(
+    topic,
+    JSON.stringify({
+      recordedAt,
+      metrics: [
+        { metric: 'TEMPERATURE', value: 27.25, unit: '°C' },
+        { metric: 'HUMIDITY', value: 61.5, unit: '%' },
+      ],
+    }),
+    { qos: 0 },
+  );
+  const deadline = Date.now() + 10000;
+  let readings = [];
+  while (Date.now() < deadline) {
+    readings = (
+      await mqttDb.query(
+        'SELECT production_order_id,device_id,metric,value::text,unit,recorded_at,received_at FROM iiot_readings WHERE production_order_id=$1 AND device_id=$2 ORDER BY metric',
+        [op.id, deviceId],
+      )
+    ).rows;
+    if (readings.length === 2) break;
+    await new Promise((resolve) => setTimeout(resolve, 100));
+  }
+  assert.equal(readings.length, 2, 'MQTT telemetry did not reach PostgreSQL within 10 seconds');
+  assert.deepEqual(
+    readings.map((row) => [row.metric, row.value, row.unit]),
+    [
+      ['TEMPERATURE', '27.2500', '°C'],
+      ['HUMIDITY', '61.5000', '%'],
+    ],
+  );
+  for (const row of readings) {
+    assert.equal(row.production_order_id, op.id);
+    assert.equal(row.device_id, deviceId);
+    assert.equal(row.recorded_at.toISOString(), new Date(recordedAt).toISOString());
+    assert.ok(row.received_at instanceof Date);
+  }
+  assert.equal(
+    (await mqttDb.query('SELECT count(*) FROM iiot_alerts')).rows[0].count,
+    alertsBefore,
+  );
+  console.log(
+    'Docker: MQTT publisher → Mosquitto → NestJS → PostgreSQL verified (2 readings, no alerts, invalid JSON isolated).',
+  );
+} finally {
+  if (publisher) await publisher.endAsync(true);
+  await mqttDb.end();
+}
 assert.equal(
   (await request(`/inventory/stock?productId=${productionRaw.id}`))[0].quantity,
   '20.0000',
