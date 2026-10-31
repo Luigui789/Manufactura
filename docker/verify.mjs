@@ -3,7 +3,7 @@ import { get } from 'node:http';
 import { randomUUID } from 'node:crypto';
 import { createRequire } from 'node:module';
 import { verifySimulator } from './verify-simulator.mjs';
-import { verifyMonitoring } from './verify-monitoring.mjs';
+import { qualityEvidence, verifyMonitoring } from './verify-monitoring.mjs';
 
 // Solo contra el stack efimero de verificacion; usa el ADMIN creado por la CI.
 assert.ok(process.env.POSTGRES_DB?.endsWith('_test'), 'Se requiere una base _test');
@@ -363,10 +363,32 @@ assert.equal(produced[0].origin.type, 'PRODUCTION_ORDER');
 assert.equal(produced[0].origin.productionOrder.id, op.id);
 const productionMovements = await request(`/inventory/movements?productId=${outputProduct.id}`);
 assert.equal(productionMovements[0].businessReference.number, op.number);
-await request(`/production/lots/${completed.lot.id}/inspection`, 'POST', {
+const qualityBefore = await qualityEvidence(Client, op.id, completed.lot.id);
+assert.equal(qualityBefore.lot.status, 'QUARANTINED');
+assert.deepEqual(qualityBefore.inspection, []);
+assert.ok(qualityBefore.readings.length > 0);
+for (const severity of ['WARNING', 'CRITICAL'])
+  assert.ok(qualityBefore.alerts.some((alert) => alert.severity === severity));
+assert.ok(qualityBefore.alerts.every((alert) => alert.acknowledged_at === null));
+assert.equal(await request(`/production/lots/${completed.lot.id}/inspection`), null);
+const manualInspection = await request(`/production/lots/${completed.lot.id}/inspection`, 'POST', {
   result: 'APPROVED',
   observations: 'Docker quality approved',
 });
+assert.equal(manualInspection.result, 'APPROVED');
+const qualityAfter = await qualityEvidence(Client, op.id, completed.lot.id);
+assert.equal(qualityAfter.lot.status, 'RELEASED');
+assert.equal(qualityAfter.inspection.length, 1);
+assert.equal(qualityAfter.inspection[0].result, 'APPROVED');
+assert.deepEqual(qualityAfter.readings, qualityBefore.readings);
+assert.deepEqual(qualityAfter.alerts, qualityBefore.alerts);
+assert.deepEqual(qualityAfter.movements, qualityBefore.movements);
+assert.ok(qualityAfter.alerts.some((alert) => alert.severity === 'CRITICAL'));
+assert.ok(qualityAfter.alerts.every((alert) => alert.acknowledged_at === null));
+await verifyMonitoring(Client, api, Cookie, op.id, 'COMPLETED');
+console.log(
+  'Docker: CRITICAL ≠ automatic rejection; explicit APPROVED → RELEASED; all readings, alerts and acknowledgements unchanged.',
+);
 const released = await fetch(api + '/inventory/lots/' + completed.lot.id, { headers: { Cookie } });
 assert.equal((await released.json()).status, 'RELEASED');
 const trace = await request(`/production/lots/${completed.lot.id}/traceability`);

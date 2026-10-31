@@ -16,6 +16,7 @@ import {
   SuccessNotice,
 } from '@/components/erp';
 import { useSession } from '@/features/auth/hooks/use-auth';
+import { QualityIiotContext } from '@/features/iiot/components/QualityIiotContext';
 import { PRODUCT_UNIT_LABELS } from '@/features/inventory/product-labels';
 import type { Product } from '@/features/inventory/types';
 import { useInspection, useInspectLot, useTraceability, type Traceability } from '../api/quality';
@@ -237,7 +238,15 @@ function TraceabilityTree({ trace }: { trace: Traceability }) {
   return <div className="space-y-3">{renderNode(trace.rootLotId, new Set())}</div>;
 }
 
-export function LotProductionDetail({ lotId, status }: { lotId: string; status: string }) {
+export function LotProductionDetail({
+  lotId,
+  status,
+  productionOrderId,
+}: {
+  lotId: string;
+  status: string;
+  productionOrderId?: string;
+}) {
   const id = useId();
   const session = useSession();
   const inspection = useInspection(lotId);
@@ -268,6 +277,7 @@ export function LotProductionDetail({ lotId, status }: { lotId: string; status: 
           <span className="text-sm text-muted-foreground">Estado del lote</span>
           <StatusBadge status={status} />
         </div>
+        {productionOrderId && <QualityIiotContext productionOrderId={productionOrderId} />}
         {inspection.isPending && <LoadingState label="Cargando inspección…" />}
         <ErrorNotice error={inspection.error} />
         {inspection.isError && (

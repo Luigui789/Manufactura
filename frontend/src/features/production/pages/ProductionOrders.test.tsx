@@ -53,7 +53,11 @@ function response(value: unknown, status = 200) {
 function setup(
   role: RoleCode,
   path = '/production/orders',
-  { empty = false, failList = false } = {},
+  {
+    empty = false,
+    failList = false,
+    status = 'DRAFT',
+  }: { empty?: boolean; failList?: boolean; status?: ProductionOrder['status'] } = {},
 ) {
   const order = {
     id: 'order',
@@ -67,7 +71,7 @@ function setup(
     quantityPlanned: '10.0000',
     quantityProduced: '0.0000',
     lot: null,
-    status: 'DRAFT',
+    status,
     plannedStartAt: '2026-10-10T14:30:45.123Z',
     plannedEndAt: null,
     startedAt: null,
@@ -177,6 +181,25 @@ afterEach(() => {
 });
 
 describe('C-1: órdenes y disponibilidad', () => {
+  it.each(['IN_PROGRESS', 'COMPLETED'] as const)(
+    'ofrece monitoreo para %s sin perder la consulta de disponibilidad',
+    async (status) => {
+      setup('PRODUCCION', '/production/orders/order', { status });
+      const link = await screen.findByRole('link', { name: 'Monitoreo IIoT' });
+      expect(link.getAttribute('href')).toBe('/production/orders/order/iiot');
+      expect(screen.getByRole('button', { name: 'Actualizar disponibilidad' })).toBeTruthy();
+      if (status === 'IN_PROGRESS')
+        expect(await screen.findByRole('form', { name: 'Completar producción' })).toBeTruthy();
+    },
+  );
+  it.each(['DRAFT', 'CANCELLED'] as const)(
+    'no ofrece el acceso secundario para %s',
+    async (status) => {
+      setup('PRODUCCION', '/production/orders/order', { status });
+      await screen.findByRole('heading', { name: 'Orden de producción OP-2026-000001' });
+      expect(screen.queryByRole('link', { name: 'Monitoreo IIoT' })).toBeNull();
+    },
+  );
   it('refresca detalle y requisitos cuando otra persona cambia la orden', async () => {
     const { order } = setup('PRODUCCION', '/production/orders/order');
     await screen.findByText('3000.0000');

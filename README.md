@@ -234,6 +234,10 @@ aprobación de otro miembro antes del merge. `main` se reserva para bloques esta
 
 ## Simulador IIoT
 
+El [dashboard de telemetría IIoT (Fase 7)](docs/iiot-dashboard.md) se abre desde una
+orden de producción en curso o completada: `/production/orders/:id/iiot`.
+Muestra métricas, histórico y alertas mediante REST, con polling solo durante producción.
+
 La [API de monitoreo IIoT (Fase 6)](docs/iiot-monitoring-api.md) expone overview,
 lecturas y alertas paginadas para cualquier usuario autenticado, incluyendo OP
 completadas. Es de solo lectura, sin frontend, streaming ni acknowledgement.
@@ -246,3 +250,7 @@ La [Fase 5](docs/iiot-alert-rules.md) añade evaluación determinista de las lec
 persistidas y alertas transaccionales con umbrales sintéticos de demostración.
 Las descripciones de Fases 2–4 corresponden a su alcance original. La aceptación
 Docker ahora verifica también ambos perfiles deviation y sus alertas.
+
+La [integración IIoT en Calidad (Fase 8)](docs/iiot-quality-integration.md) presenta evidencia
+antes de inspeccionar el lote: CRITICAL no implica rechazo automático. La decisión sigue
+siendo explícita del inspector, con pruebas PostgreSQL y aceptación Docker.
