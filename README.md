@@ -264,6 +264,9 @@ Producción: BOM → [Rutas estándar](docs/production-routes.md) → Órdenes �
 
 [Disposición de calidad C2](docs/quality-disposition.md): liberación excepcional, reproceso pendiente y descarte por ledger.
 
+[Dataset de demostración C5](docs/demo-dataset.md): `pnpm demo:seed` y `pnpm demo:verify` crean y
+comprueban de forma reproducible el caso EcoSoap con jabón en barra y jabón líquido embotellado.
+
 [Sostenibilidad C3](docs/sustainability-carbon-footprint.md): estimación académica de huella parcial
 de carbono por OP (kg CO₂e total y por unidad) desde el ledger de consumo, con factores documentados,
 snapshots, finalización inmutable y circularidad del aceite usado presentada por separado. No
