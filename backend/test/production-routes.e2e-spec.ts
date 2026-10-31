@@ -170,10 +170,13 @@ describe('Production routes PostgreSQL', () => {
 
     expect(logs.map((l) => l.action)).toEqual(['CREATE', 'UPDATE', 'UPDATE', 'DISABLE', 'ENABLE']);
 
-    expect(logs[2].previousValues).toMatchObject({
-      operations: expect.arrayContaining([
-        expect.objectContaining({ standardMinutes: '21600.00' }),
-      ]),
+    expect(
+      (logs[2].previousValues as { operations: { standardMinutes: string }[] }).operations,
+    ).toContainEqual({
+      sequence: 30,
+      name: 'Curado',
+      description: null,
+      standardMinutes: '21600.00',
     });
 
     expect(logs[2].newValues).toMatchObject({
@@ -217,17 +220,23 @@ describe('Production routes PostgreSQL', () => {
 
     await http().post(base).set('Cookie', cookies.get('PRODUCCION')!).send(input).expect(201);
 
-    await http()
+    const duplicateProduct = await http()
       .post(base)
       .set('Cookie', cookies.get('PRODUCCION')!)
       .send({ ...input, code: 'OTHER-' + randomUUID().slice(0, 8) })
       .expect(409);
+    expect((duplicateProduct.body as { message: string }).message).toBe(
+      'Ya existe una ruta para ese producto',
+    );
 
-    await http()
+    const duplicateCode = await http()
       .post(base)
       .set('Cookie', cookies.get('PRODUCCION')!)
       .send({ ...input, productId: (await product()).id })
       .expect(409);
+    expect((duplicateCode.body as { message: string }).message).toBe(
+      'Ya existe una ruta con ese código',
+    );
   });
 
   it('rejects product reassignment, missing route, malformed bodies and negative/duplicate sequences', async () => {

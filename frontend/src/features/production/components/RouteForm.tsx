@@ -1,4 +1,4 @@
-import { Controller, useFieldArray, useForm } from 'react-hook-form';
+import { Controller, useFieldArray, useForm, useWatch } from 'react-hook-form';
 
 import { zodResolver } from '@hookform/resolvers/zod';
 
@@ -50,6 +50,7 @@ export function RouteForm({
   });
 
   const fields = useFieldArray({ control: form.control, name: 'operations' });
+  const operationValues = useWatch({ control: form.control, name: 'operations' });
 
   return (
     <form
@@ -103,8 +104,8 @@ export function RouteForm({
           {[...fields.fields.map((field, index) => ({ field, index }))]
             .sort(
               (a, b) =>
-                (form.watch(`operations.${a.index}.sequence`) || 0) -
-                (form.watch(`operations.${b.index}.sequence`) || 0),
+                (operationValues[a.index]?.sequence || 0) -
+                (operationValues[b.index]?.sequence || 0),
             )
             .map(({ field, index }) => (
               <div key={field.id} className="space-y-3 rounded-lg border p-4">
@@ -249,6 +250,7 @@ export function RouteOperationsForm({
   });
 
   const fields = useFieldArray({ control: form.control, name: 'operations' });
+  const operationValues = useWatch({ control: form.control, name: 'operations' });
 
   return (
     <form noValidate className="space-y-4" onSubmit={form.handleSubmit(onSubmit)}>
@@ -257,8 +259,7 @@ export function RouteOperationsForm({
           .map((field, index) => ({ field, index }))
           .sort(
             (a, b) =>
-              (form.watch(`operations.${a.index}.sequence`) || 0) -
-              (form.watch(`operations.${b.index}.sequence`) || 0),
+              (operationValues[a.index]?.sequence || 0) - (operationValues[b.index]?.sequence || 0),
           )
           .map(({ field, index }) => (
             <div className="grid gap-3 rounded-lg border p-4 sm:grid-cols-2" key={field.id}>
