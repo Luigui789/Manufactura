@@ -6,6 +6,7 @@ import { verifySimulator } from './verify-simulator.mjs';
 import { qualityEvidence, verifyMonitoring } from './verify-monitoring.mjs';
 import { verifySimulation } from './verify-simulation.mjs';
 import { verifySustainability } from './verify-sustainability.mjs';
+import { verifyMultilevel } from './verify-multilevel.mjs';
 
 // Solo contra el stack efimero de verificacion; usa el ADMIN creado por la CI.
 assert.ok(process.env.POSTGRES_DB?.endsWith('_test'), 'Se requiere una base _test');
@@ -545,6 +546,7 @@ console.log(
 );
 
 await verifySustainability(api, Cookie, origin, request, suffix, warehouse);
+await verifyMultilevel(request, suffix, warehouse, Client);
 
 const logout = await fetch(`${api}/auth/logout`, {
   method: 'POST',
