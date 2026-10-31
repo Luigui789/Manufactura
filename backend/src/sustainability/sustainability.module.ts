@@ -2,6 +2,8 @@ import { Module } from '@nestjs/common';
 import { AuditModule } from '../audit/audit.module.js';
 import { EmissionFactorsController } from './emission-factors/emission-factors.controller.js';
 import { EmissionFactorsService } from './emission-factors/emission-factors.service.js';
+import { FootprintsController } from './footprints/footprints.controller.js';
+import { FootprintsService } from './footprints/footprints.service.js';
 
 /**
  * C3 — Sostenibilidad. Lee Producción e Inventario (ledger) sin modificarlos:
@@ -9,7 +11,7 @@ import { EmissionFactorsService } from './emission-factors/emission-factors.serv
  */
 @Module({
   imports: [AuditModule],
-  controllers: [EmissionFactorsController],
-  providers: [EmissionFactorsService],
+  controllers: [EmissionFactorsController, FootprintsController],
+  providers: [EmissionFactorsService, FootprintsService],
 })
 export class SustainabilityModule {}
