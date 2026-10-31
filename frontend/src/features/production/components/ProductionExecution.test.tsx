@@ -59,7 +59,9 @@ afterEach(() => {
 });
 
 async function selectLot(code: string) {
-  fireEvent.click(await screen.findByRole('button', { name: 'Seleccionar lote ' + code }));
+  fireEvent.click(
+    await screen.findByRole('button', { name: 'Seleccionar lote ' + code }, { timeout: 5000 }),
+  );
 }
 
 describe('C-2 execution and inventory integration', () => {

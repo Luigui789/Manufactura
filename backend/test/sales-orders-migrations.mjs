@@ -59,6 +59,7 @@ async function capture() {
 }
 function runPrisma(args, databaseUrl) {
   const result = spawnSync('pnpm', ['exec', 'prisma', ...args], {
+    shell: process.platform === 'win32',
     cwd: backend,
     env: { ...process.env, DATABASE_URL: databaseUrl },
     encoding: 'utf8',

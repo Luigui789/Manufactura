@@ -21,6 +21,7 @@ export type Traceability = {
     status: string;
     product: { id: string; code: string; name: string; unit: string };
     origin: InventoryLotOrigin;
+    quality?: { inspection: Inspection | null; disposition: QualityDisposition | null };
     consumptions: Array<{
       id: string;
       quantity: string;
@@ -83,6 +84,55 @@ export function useInspectLot(id: string) {
     onError: async () => {
       await Promise.all(
         [['production-quality', id], ['lots', 'detail', id], ['production-orders']].map(
+          (queryKey) => client.invalidateQueries({ queryKey }),
+        ),
+      );
+    },
+  });
+}
+
+export type QualityDispositionType = 'RELEASE' | 'REWORK' | 'SCRAP';
+export type QualityDisposition = {
+  id: string;
+  lotId: string;
+  inspectionId: string;
+  type: QualityDispositionType;
+  reason: string;
+  decidedAt: string;
+  decidedByUserId: string;
+  decidedBy: { id: string; fullName: string };
+};
+export function useQualityDisposition(lotId: string) {
+  return useQuery({
+    queryKey: ['quality-disposition', lotId],
+    queryFn: ({ signal }) =>
+      data<QualityDisposition | null>(`/production/lots/${lotId}/disposition`, { signal }),
+  });
+}
+export function useCreateQualityDisposition(lotId: string) {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: (value: { type: QualityDispositionType; reason: string }) =>
+      data<QualityDisposition>(`/production/lots/${lotId}/disposition`, {
+        method: 'POST',
+        body: JSON.stringify(value),
+      }),
+    onSuccess: async () => {
+      await Promise.all(
+        [
+          'production-quality',
+          'quality-disposition',
+          'production-traceability',
+          'production-orders',
+          'inventory',
+          'lots',
+          'production-dashboard',
+        ].map((key) => client.invalidateQueries({ queryKey: [key] })),
+      );
+    },
+    onError: async () => {
+      await Promise.all(
+        [['quality-disposition', lotId], ['lots', 'detail', lotId], ['production-orders']].map(
           (queryKey) => client.invalidateQueries({ queryKey }),
         ),
       );
