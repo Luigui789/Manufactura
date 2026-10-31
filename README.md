@@ -263,3 +263,8 @@ siendo explícita del inspector, con pruebas PostgreSQL y aceptación Docker.
 Producción: BOM → [Rutas estándar](docs/production-routes.md) → Órdenes → Calidad → Dashboard.
 
 [Disposición de calidad C2](docs/quality-disposition.md): liberación excepcional, reproceso pendiente y descarte por ledger.
+
+[Sostenibilidad C3](docs/sustainability-carbon-footprint.md): estimación académica de huella parcial
+de carbono por OP (kg CO₂e total y por unidad) desde el ledger de consumo, con factores documentados,
+snapshots, finalización inmutable y circularidad del aceite usado presentada por separado. No
+constituye certificación, verificación independiente ni ACV completo.
