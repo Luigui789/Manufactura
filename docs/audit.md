@@ -412,3 +412,17 @@ InventoryService ni se audita COMPLETE como UPDATE genérico.
 ## Auditoría de despacho de venta — RF-VEN-003
 
 `DISPATCH` sobre `SALE_DISPATCH` registra en la misma transacción el número DES, la orden asociada, sus líneas (producto, almacén, lote y cantidad), estado resultante, actor y fecha del evento. Si falla la escritura de auditoría, también se revierten documento, items, salida del ledger, balance y secuencia. Los documentos de despacho son append-only por restricciones de base de datos; una devolución o reversa pertenece a un flujo futuro.
+
+## Sostenibilidad C3
+
+Entidades nuevas: `EMISSION_FACTOR`, `CARBON_ACTIVITY`, `PRODUCTION_FOOTPRINT` y
+`CIRCULAR_MATERIAL_PROFILE`. Factores y perfiles circulares registran `CREATE`, `UPDATE`, `ENABLE`
+y `DISABLE` con snapshot permitido (coeficiente como texto, fuente, producto e identidad). Las
+actividades manuales registran `CREATE`, `UPDATE` y `DELETE`; crear la huella registra `CREATE` y
+cada sincronización `UPDATE` con el resumen de la reconciliación con el ledger.
+
+`FINALIZE_CARBON_FOOTPRINT` sobre `PRODUCTION_FOOTPRINT` incluye `productionOrderId`, `lotId`,
+`scope`, `totalKgCo2e`, `quantityProduced`, `outputUnit`, `kgCo2ePerOutputUnit`, `boundaryNotes`,
+`activityCount`, `totalsByCategory`, `missingFactors = []`, `finalizedAt` y `finalizedByUserId`,
+con decimales como texto. Toda escritura comparte la transacción del caso de uso; dos
+finalizaciones concurrentes producen una sola auditoría.

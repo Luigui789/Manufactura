@@ -96,9 +96,18 @@ export function OrderDetailPage() {
                   </Button>
                 </>
               ) : current.status === 'IN_PROGRESS' || current.status === 'COMPLETED' ? (
-                <Button asChild variant="outline">
-                  <Link to={'/production/orders/' + current.id + '/iiot'}>Monitoreo IIoT</Link>
-                </Button>
+                <>
+                  <Button asChild variant="outline">
+                    <Link to={'/production/orders/' + current.id + '/iiot'}>Monitoreo IIoT</Link>
+                  </Button>
+                  {current.status === 'COMPLETED' && (
+                    <Button asChild variant="outline">
+                      <Link to={'/sustainability/production-orders/' + current.id}>
+                        Ver huella ambiental
+                      </Link>
+                    </Button>
+                  )}
+                </>
               ) : undefined
             }
           />

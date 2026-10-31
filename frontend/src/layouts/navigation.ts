@@ -13,6 +13,7 @@ import {
   Users,
   UserCog,
   ChartNoAxesCombined,
+  Leaf,
   type LucideIcon,
 } from 'lucide-react';
 export const navigation: {
@@ -64,6 +65,13 @@ export const navigation: {
     roles: ROLE_CODES,
     group: 'Operaciones',
     icon: Factory,
+  },
+  {
+    to: '/sustainability',
+    label: 'Sostenibilidad',
+    roles: ROLE_CODES,
+    group: 'Análisis',
+    icon: Leaf,
   },
   {
     to: '/inventory/stock',

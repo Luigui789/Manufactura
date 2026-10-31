@@ -89,6 +89,7 @@ enum AuditAction {
   QUALITY_APPROVE
   QUALITY_REJECT
   DISPATCH
+  FINALIZE_CARBON_FOOTPRINT
 }
 
 enum AuditEntityType {
@@ -110,6 +111,10 @@ enum AuditEntityType {
   SALES_ORDER
   SALE_DISPATCH
   QUALITY_INSPECTION
+  EMISSION_FACTOR
+  CARBON_ACTIVITY
+  PRODUCTION_FOOTPRINT
+  CIRCULAR_MATERIAL_PROFILE
 }
 
 enum QualityResult {
@@ -173,20 +178,20 @@ model Role {
 
 model User {
   qualityDispositions QualityDisposition[]
-  id                  String               @id @default(uuid(7)) @db.Uuid
+  id                  String                @id @default(uuid(7)) @db.Uuid
   // La migración auth_rbac añade CHECK (email = lower(btrim(email))).
-  email               String               @unique
-  passwordHash        String               @map("password_hash")
-  fullName            String               @map("full_name")
-  roleId              String               @map("role_id") @db.Uuid
-  isActive            Boolean              @default(true) @map("is_active")
+  email               String                @unique
+  passwordHash        String                @map("password_hash")
+  fullName            String                @map("full_name")
+  roleId              String                @map("role_id") @db.Uuid
+  isActive            Boolean               @default(true) @map("is_active")
   // Valor seguro por omisión: una cuenta que nadie marque explícitamente queda restringida.
-  mustChangePassword  Boolean              @default(true) @map("must_change_password")
+  mustChangePassword  Boolean               @default(true) @map("must_change_password")
   // Versión de sesión que viaja en el JWT como `ver`; CHECK (token_version >= 0).
-  tokenVersion        Int                  @default(0) @map("token_version")
-  createdAt           DateTime             @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt           DateTime             @updatedAt @map("updated_at") @db.Timestamptz(6)
-  role                Role                 @relation(fields: [roleId], references: [id], onDelete: Restrict)
+  tokenVersion        Int                   @default(0) @map("token_version")
+  createdAt           DateTime              @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt           DateTime              @updatedAt @map("updated_at") @db.Timestamptz(6)
+  role                Role                  @relation(fields: [roleId], references: [id], onDelete: Restrict)
   movements           InventoryMovement[]
   auditLogs           AuditLog[]
   bomVersions         BomVersion[]
@@ -196,23 +201,26 @@ model User {
   saleOrders          SaleOrder[]
   saleDispatches      SaleDispatch[]
   qualityInspections  QualityInspection[]
+  emissionFactors     EmissionFactor[]
+  footprintsFinalized ProductionFootprint[]
+  carbonActivities    CarbonActivity[]
 
   @@map("users")
 }
 
 model Product {
   productionRoute           ProductionRoute?
-  id                        String                @id @default(uuid(7)) @db.Uuid
-  code                      String                @unique
+  id                        String                   @id @default(uuid(7)) @db.Uuid
+  code                      String                   @unique
   name                      String
-  category                  String                @db.VarChar(100)
+  category                  String                   @db.VarChar(100)
   type                      ProductType
   unit                      UnitOfMeasure
-  isLotTracked              Boolean               @default(false) @map("is_lot_tracked")
-  requiresQualityInspection Boolean               @default(false) @map("requires_quality_inspection")
-  isActive                  Boolean               @default(true) @map("is_active")
-  createdAt                 DateTime              @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt                 DateTime              @updatedAt @map("updated_at") @db.Timestamptz(6)
+  isLotTracked              Boolean                  @default(false) @map("is_lot_tracked")
+  requiresQualityInspection Boolean                  @default(false) @map("requires_quality_inspection")
+  isActive                  Boolean                  @default(true) @map("is_active")
+  createdAt                 DateTime                 @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt                 DateTime                 @updatedAt @map("updated_at") @db.Timestamptz(6)
   lots                      Lot[]
   balances                  StockBalance[]
   movements                 InventoryMovement[]
@@ -223,6 +231,8 @@ model Product {
   purchaseReceiptItems      PurchaseReceiptItem[]
   saleOrderItems            SaleOrderItem[]
   saleDispatchItems         SaleDispatchItem[]
+  emissionFactors           EmissionFactor[]
+  circularMaterialProfile   CircularMaterialProfile?
 
   @@index([type])
   @@index([isActive])
@@ -316,6 +326,7 @@ model ProductionOrder {
 
   iiotReadings IiotReading[]
   iiotAlerts   IiotAlert[]
+  footprint    ProductionFootprint?
 
   @@unique([id, productId])
   @@unique([id, warehouseId])
@@ -395,9 +406,12 @@ model Lot {
   productionOrder       ProductionOrder?     @relation(fields: [productionOrderId, productId], references: [id, productId], onDelete: Restrict)
   qualityInspection     QualityInspection?
   saleDispatchItems     SaleDispatchItem[]
+  footprint             ProductionFootprint?
 
   // Referencia compuesta de InventoryMovement: el lote debe ser del producto.
   @@unique([id, productId])
+  // Referencia compuesta de ProductionFootprint: el lote debe ser de la OP.
+  @@unique([id, productionOrderId])
   @@unique([purchaseReceiptItemId, productId])
   @@unique([productionOrderId, productId])
   @@index([productId])
@@ -439,6 +453,7 @@ model InventoryMovement {
   productionOrder       ProductionOrder?      @relation(fields: [productionOrderId, warehouseId], references: [id, warehouseId], onDelete: Restrict)
   saleDispatchItemId    String?               @unique @map("sale_dispatch_item_id") @db.Uuid
   saleDispatchItem      SaleDispatchItem?     @relation(fields: [saleDispatchItemId], references: [id], onDelete: Restrict)
+  carbonActivity        CarbonActivity?
 
   @@unique([purchaseReceiptItemId, productId, warehouseId, quantity], map: "inventory_movements_receipt_line_key")
   @@index([productId, occurredAt])
@@ -742,4 +757,139 @@ model QualityDisposition {
   @@index([type, decidedAt])
   @@index([decidedByUserId, decidedAt])
   @@map("quality_dispositions")
+}
+
+// C3 — Sostenibilidad: estimación académica de huella parcial de carbono.
+// La migración añade CHECK de valores no negativos, fuentes no vacías,
+// coherencia de finalización/origen e índice parcial de un factor activo por producto.
+enum CarbonActivityUnit {
+  UNIT
+  GRAM
+  KILOGRAM
+  MILLILITER
+  LITER
+  KWH
+  KILOMETER
+  TON_KILOMETER
+}
+
+enum CarbonActivityCategory {
+  RAW_MATERIAL
+  ENERGY
+  INBOUND_TRANSPORT
+  PACKAGING
+  WASTE
+}
+
+enum CarbonActivitySource {
+  PRODUCTION_CONSUMPTION
+  MANUAL
+}
+
+enum CarbonFootprintStatus {
+  DRAFT
+  FINALIZED
+}
+
+enum CarbonFootprintScope {
+  PARTIAL_CRADLE_TO_GATE
+}
+
+model EmissionFactor {
+  id              String                 @id @default(uuid(7)) @db.Uuid
+  code            String                 @unique @db.VarChar(50)
+  name            String                 @db.VarChar(150)
+  category        CarbonActivityCategory
+  activityUnit    CarbonActivityUnit     @map("activity_unit")
+  kgCo2ePerUnit   Decimal                @map("kg_co2e_per_unit") @db.Decimal(20, 8)
+  productId       String?                @map("product_id") @db.Uuid
+  sourceName      String                 @map("source_name") @db.VarChar(200)
+  sourceReference String                 @map("source_reference") @db.VarChar(1000)
+  sourceYear      Int?                   @map("source_year")
+  notes           String?                @db.VarChar(1000)
+  isActive        Boolean                @default(true) @map("is_active")
+  createdByUserId String                 @map("created_by_user_id") @db.Uuid
+  createdAt       DateTime               @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime               @updatedAt @map("updated_at") @db.Timestamptz(6)
+  product         Product?               @relation(fields: [productId], references: [id], onDelete: Restrict)
+  createdBy       User                   @relation(fields: [createdByUserId], references: [id], onDelete: Restrict)
+  activities      CarbonActivity[]
+
+  // Un solo factor activo por producto: índice parcial de la migración C3.
+  @@index([category, isActive])
+  @@index([productId, isActive])
+  @@map("emission_factors")
+}
+
+model ProductionFootprint {
+  id                       String                @id @default(uuid(7)) @db.Uuid
+  productionOrderId        String                @unique @map("production_order_id") @db.Uuid
+  lotId                    String                @unique @map("lot_id") @db.Uuid
+  status                   CarbonFootprintStatus @default(DRAFT)
+  scope                    CarbonFootprintScope
+  totalKgCo2e              Decimal               @default(0) @map("total_kg_co2e") @db.Decimal(20, 8)
+  quantityProducedSnapshot Decimal               @map("quantity_produced_snapshot") @db.Decimal(18, 4)
+  outputUnitSnapshot       UnitOfMeasure         @map("output_unit_snapshot")
+  kgCo2ePerOutputUnit      Decimal?              @map("kg_co2e_per_output_unit") @db.Decimal(20, 8)
+  boundaryNotes            String?               @map("boundary_notes") @db.VarChar(2000)
+  calculatedAt             DateTime?             @map("calculated_at") @db.Timestamptz(6)
+  finalizedAt              DateTime?             @map("finalized_at") @db.Timestamptz(6)
+  finalizedByUserId        String?               @map("finalized_by_user_id") @db.Uuid
+  createdAt                DateTime              @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt                DateTime              @updatedAt @map("updated_at") @db.Timestamptz(6)
+  productionOrder          ProductionOrder       @relation(fields: [productionOrderId], references: [id], onDelete: Restrict)
+  lot                      Lot                   @relation(fields: [lotId, productionOrderId], references: [id, productionOrderId], onDelete: Restrict, map: "production_footprints_lot_order_fkey")
+  finalizedBy              User?                 @relation(fields: [finalizedByUserId], references: [id], onDelete: Restrict)
+  activities               CarbonActivity[]
+
+  @@unique([lotId, productionOrderId])
+  @@index([status])
+  @@map("production_footprints")
+}
+
+model CarbonActivity {
+  id                            String                 @id @default(uuid(7)) @db.Uuid
+  footprintId                   String                 @map("footprint_id") @db.Uuid
+  category                      CarbonActivityCategory
+  source                        CarbonActivitySource
+  description                   String                 @db.VarChar(250)
+  activityQuantity              Decimal                @map("activity_quantity") @db.Decimal(20, 8)
+  activityUnit                  CarbonActivityUnit     @map("activity_unit")
+  originalQuantity              Decimal?               @map("original_quantity") @db.Decimal(20, 8)
+  originalUnit                  CarbonActivityUnit?    @map("original_unit")
+  emissionFactorId              String                 @map("emission_factor_id") @db.Uuid
+  factorCodeSnapshot            String                 @map("factor_code_snapshot") @db.VarChar(50)
+  factorNameSnapshot            String                 @map("factor_name_snapshot") @db.VarChar(150)
+  factorValueSnapshot           Decimal                @map("factor_value_snapshot") @db.Decimal(20, 8)
+  factorSourceNameSnapshot      String                 @map("factor_source_name_snapshot") @db.VarChar(200)
+  factorSourceReferenceSnapshot String                 @map("factor_source_reference_snapshot") @db.VarChar(1000)
+  factorSourceYearSnapshot      Int?                   @map("factor_source_year_snapshot")
+  emissionsKgCo2e               Decimal                @map("emissions_kg_co2e") @db.Decimal(20, 8)
+  inventoryMovementId           String?                @unique @map("inventory_movement_id") @db.Uuid
+  createdByUserId               String?                @map("created_by_user_id") @db.Uuid
+  createdAt                     DateTime               @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt                     DateTime               @updatedAt @map("updated_at") @db.Timestamptz(6)
+  footprint                     ProductionFootprint    @relation(fields: [footprintId], references: [id], onDelete: Restrict)
+  emissionFactor                EmissionFactor         @relation(fields: [emissionFactorId], references: [id], onDelete: Restrict)
+  inventoryMovement             InventoryMovement?     @relation(fields: [inventoryMovementId], references: [id], onDelete: Restrict)
+  createdBy                     User?                  @relation(fields: [createdByUserId], references: [id], onDelete: Restrict)
+
+  @@index([footprintId, category])
+  @@index([emissionFactorId])
+  @@map("carbon_activities")
+}
+
+// Circularidad: indicador separado que nunca se descuenta de la huella.
+model CircularMaterialProfile {
+  id            String             @id @default(uuid(7)) @db.Uuid
+  productId     String             @unique @map("product_id") @db.Uuid
+  metricCode    String             @unique @map("metric_code") @db.VarChar(80)
+  displayName   String             @map("display_name") @db.VarChar(150)
+  reportingUnit CarbonActivityUnit @map("reporting_unit")
+  isActive      Boolean            @default(true) @map("is_active")
+  createdAt     DateTime           @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt     DateTime           @updatedAt @map("updated_at") @db.Timestamptz(6)
+  product       Product            @relation(fields: [productId], references: [id], onDelete: Restrict)
+
+  @@map("circular_material_profiles")
 }

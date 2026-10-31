@@ -876,3 +876,21 @@ Las operaciones de crear, editar, confirmar y cancelar registran `AuditLog` en l
 `GET /api/production/dashboard` es una lectura autenticada disponible para todos los roles. Acepta filtros opcionales `from` y `to` como fechas calendario ISO `YYYY-MM-DD`; las fechas son inclusivas en `America/Managua`. `from > to`, una fecha inválida o un rango superior a 366 días devuelve 400. Sin filtros se consulta hoy y los 29 días anteriores en hora de Managua. `productId` es opcional: debe ser UUID (400 si no lo es) y debe existir (404 si no existe).
 
 Los conteos por estado y las cantidades planificadas usan la fecha de pertenencia `COALESCE(plannedStartAt, createdAt)`, de modo que un cambio de estado no mueve la orden a otro período. La cantidad producida y sus buckets se atribuyen a `completedAt` y solo incluyen órdenes `COMPLETED`. Si no se selecciona producto, los conteos siguen agregados, pero `quantity` es `null` y `productionByPeriod` es `[]`: no se suman cantidades con unidades incompatibles. Con producto seleccionado, `selectedProduct` indica su código, nombre y unidad; `quantity.planned` y `quantity.produced` son strings `Decimal(18,4)`, y `completionRate` es un string redondeado a 2 decimales o `null` cuando el total planificado es cero. Los buckets de `productionByPeriod` usan granularidad día (hasta 31 días), semana (hasta 180) o mes; los períodos vacíos se devuelven como `0.0000`. Como los buckets son calendarios, el primer rótulo puede anteceder a `from`, pero las sumas solo incluyen eventos dentro del rango solicitado. La respuesta incluye hasta cinco órdenes recientes ordenadas por actividad (`completedAt`, `startedAt`, `plannedStartAt`, `createdAt`) con datos breves para abrir el detalle. Los agregados se calculan en PostgreSQL, sin cargar todas las órdenes en la interfaz.
+
+## Sostenibilidad C3: huella parcial de carbono
+
+Contrato completo, fórmula y reglas en [`sustainability-carbon-footprint.md`](sustainability-carbon-footprint.md).
+
+- Lecturas (`GET /api/sustainability/*`): `@Authenticated()`. Ningún GET crea datos;
+  `GET /api/sustainability/production-orders/:id/footprint` devuelve `{ data: null }` si la OP no
+  tiene huella y 404 si la OP no existe.
+- Factores (`/emission-factors`) y materiales circulares (`/circular-materials`): mutaciones solo
+  `ADMIN`. Listados con `PaginationQueryDto`; factores filtran por `search`, `category`, `isActive`
+  y `productId`. Coeficientes y cantidades viajan como texto decimal (`Decimal(20, 8)`).
+- Huella (`/production-orders/:id/footprint`, `/sync`, `/activities`, `/activities/:activityId`,
+  `/finalize`): `ADMIN` y `PRODUCCION`. Crear: 201, 409 si ya existe, 422 si la OP no está
+  `COMPLETED` o no tiene lote/cantidad. Sync y finalize: 200. Huella `FINALIZED`: toda mutación 409.
+  Factores faltantes al finalizar: 422 con `code: MISSING_EMISSION_FACTORS` y `missingFactors`.
+  Editar o eliminar una actividad automática: 422. La unidad de una actividad manual la define el
+  factor; enviar `activityUnit` es 400.
+- `POST /api/production/orders/:id/complete` no cambió: no exige factores ni crea huellas.
