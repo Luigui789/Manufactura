@@ -59,6 +59,13 @@ export const navigation: {
     icon: FlaskConical,
   },
   {
+    to: '/production/routes',
+    label: 'Producción · Rutas',
+    roles: ROLE_CODES,
+    group: 'Operaciones',
+    icon: Factory,
+  },
+  {
     to: '/inventory/stock',
     label: 'Existencias',
     roles: ROLE_CODES,

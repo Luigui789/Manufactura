@@ -43,6 +43,20 @@ const PurchaseOrderDetailPage = lazy(() =>
   })),
 );
 import SuppliersPage from '@/features/purchases/pages/SuppliersPage';
+const RoutesPage = lazy(() =>
+  import('@/features/production/pages/RoutesPage').then((m) => ({ default: m.RoutesPage })),
+);
+
+const NewRoutePage = lazy(() =>
+  import('@/features/production/pages/NewRoutePage').then((m) => ({ default: m.NewRoutePage })),
+);
+
+const RouteDetailPage = lazy(() =>
+  import('@/features/production/pages/RouteDetailPage').then((m) => ({
+    default: m.RouteDetailPage,
+  })),
+);
+
 const BomsPage = lazy(() =>
   import('@/features/production/pages/BomsPage').then((module) => ({ default: module.BomsPage })),
 );
@@ -283,6 +297,35 @@ export function AppRoutes() {
                 </Suspense>
               }
             />
+            <Route
+              path="/production/routes"
+              element={
+                <Suspense fallback={<LoadingState label="Cargando rutas…" />}>
+                  <RoutesPage />
+                </Suspense>
+              }
+            />
+
+            <Route element={<RequireRole roles={['ADMIN', 'PRODUCCION']} />}>
+              <Route
+                path="/production/routes/new"
+                element={
+                  <Suspense fallback={<LoadingState label="Cargando rutas…" />}>
+                    <NewRoutePage />
+                  </Suspense>
+                }
+              />
+            </Route>
+
+            <Route
+              path="/production/routes/:id"
+              element={
+                <Suspense fallback={<LoadingState label="Cargando rutas…" />}>
+                  <RouteDetailPage />
+                </Suspense>
+              }
+            />
+
             <Route path="*" element={<NotFoundPage />} />
           </Route>
         </Route>
