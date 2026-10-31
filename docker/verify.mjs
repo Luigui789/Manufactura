@@ -428,6 +428,115 @@ console.log(
   'Docker: C-2 START without reservation, atomic planned consumption/actual output, OP queries, quality and supplier traceability verified.',
 );
 
+// C2: independent rejected production retains IIoT evidence and removes all remaining lot stock.
+await request('/inventory/adjustments', 'POST', {
+  productId: productionRaw.id,
+  warehouseId: warehouse.id,
+  lotId: componentLots[0].id,
+  type: 'ADJUSTMENT_IN',
+  quantity: '20',
+  reason: 'PHYSICAL_COUNT',
+});
+const scrapOrder = await request('/production/orders', 'POST', {
+  productId: outputProduct.id,
+  bomVersionId: version.id,
+  warehouseId: warehouse.id,
+  quantityPlanned: '10',
+});
+await request(`/production/orders/${scrapOrder.id}/start`, 'POST', {});
+const evidenceDb = new Client({ connectionString: process.env.DATABASE_URL });
+await evidenceDb.connect();
+try {
+  const evidenceDeviceId = randomUUID();
+  await evidenceDb.query(
+    "INSERT INTO iiot_devices(id,code,name,updated_at) VALUES ($1::uuid,$1::text,'Docker C2 evidence',now())",
+    [evidenceDeviceId],
+  );
+  await evidenceDb.query(
+    "INSERT INTO iiot_readings(id,production_order_id,device_id,metric,value,unit,recorded_at) VALUES ($1,$2,$3,'TEMPERATURE',50,'°C',now())",
+    [randomUUID(), scrapOrder.id, evidenceDeviceId],
+  );
+  await evidenceDb.query(
+    "INSERT INTO iiot_alerts(id,production_order_id,type,severity,message) VALUES ($1,$2,'docker-c2','CRITICAL','Context for human disposition')",
+    [randomUUID(), scrapOrder.id],
+  );
+} finally {
+  await evidenceDb.end();
+}
+const scrapCompleted = await request(`/production/orders/${scrapOrder.id}/complete`, 'POST', {
+  quantityProduced: '9',
+  allocations: [
+    { productId: productionRaw.id, lots: [{ lotId: componentLots[0].id, quantity: '20' }] },
+  ],
+});
+const scrapBefore = await qualityEvidence(Client, scrapOrder.id, scrapCompleted.lot.id);
+const rejectedInspection = await request(
+  `/production/lots/${scrapCompleted.lot.id}/inspection`,
+  'POST',
+  {
+    result: 'REJECTED',
+    observations: 'Docker C2 human inspection',
+    nonConformities: 'Docker C2 original defect',
+  },
+);
+await request(`/production/lots/${scrapCompleted.lot.id}/disposition`, 'POST', {
+  type: 'SCRAP',
+  reason: 'Docker C2 explicit disposal',
+});
+const scrapAfter = await qualityEvidence(Client, scrapOrder.id, scrapCompleted.lot.id);
+assert.equal(scrapAfter.lot.status, 'SCRAPPED');
+assert.equal(scrapBefore.readings.length, 1);
+assert.equal(scrapBefore.alerts[0].severity, 'CRITICAL');
+assert.deepEqual(scrapAfter.movements, scrapBefore.movements);
+assert.equal(scrapAfter.inspection[0].result, 'REJECTED');
+assert.equal(scrapAfter.inspection[0].id, rejectedInspection.id);
+assert.deepEqual(scrapAfter.readings, scrapBefore.readings);
+assert.deepEqual(scrapAfter.alerts, scrapBefore.alerts);
+const scrapDb = new Client({ connectionString: process.env.DATABASE_URL });
+await scrapDb.connect();
+try {
+  const disposition = (
+    await scrapDb.query('SELECT type,reason FROM quality_dispositions WHERE lot_id=$1', [
+      scrapCompleted.lot.id,
+    ])
+  ).rows;
+  assert.equal(disposition.length, 1);
+  assert.equal(disposition[0].type, 'SCRAP');
+  const movements = (
+    await scrapDb.query(
+      "SELECT quantity::text FROM inventory_movements WHERE lot_id=$1 AND type='QUALITY_SCRAP'",
+      [scrapCompleted.lot.id],
+    )
+  ).rows;
+  assert.deepEqual(
+    movements.map((row) => row.quantity),
+    ['-9.0000'],
+  );
+  assert.equal(
+    (
+      await scrapDb.query(
+        'SELECT sum(quantity)::text AS balance FROM inventory_movements WHERE lot_id=$1',
+        [scrapCompleted.lot.id],
+      )
+    ).rows[0].balance,
+    '0.0000',
+  );
+  assert.equal(
+    (
+      await scrapDb.query(
+        'SELECT quantity::text FROM stock_balances WHERE product_id=$1 AND warehouse_id=$2',
+        [outputProduct.id, warehouse.id],
+      )
+    ).rows[0].quantity,
+    '9.0000',
+  );
+} finally {
+  await scrapDb.end();
+}
+console.log(
+  'Docker C2: completed OP → QUARANTINED → human REJECTED → SCRAP → SCRAPPED; QUALITY_SCRAP -9.0000, zero lot balance, original inspection and IIoT unchanged.',
+);
+
 const logout = await fetch(`${api}/auth/logout`, {
   method: 'POST',
   headers: { Cookie, Origin: origin },
