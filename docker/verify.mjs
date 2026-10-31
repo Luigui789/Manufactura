@@ -4,6 +4,7 @@ import { randomUUID } from 'node:crypto';
 import { createRequire } from 'node:module';
 import { verifySimulator } from './verify-simulator.mjs';
 import { qualityEvidence, verifyMonitoring } from './verify-monitoring.mjs';
+import { verifySimulation } from './verify-simulation.mjs';
 
 // Solo contra el stack efimero de verificacion; usa el ADMIN creado por la CI.
 assert.ok(process.env.POSTGRES_DB?.endsWith('_test'), 'Se requiere una base _test');
@@ -272,6 +273,7 @@ const op = await request('/production/orders', 'POST', {
 });
 const started = await request(`/production/orders/${op.id}/start`, 'POST', {});
 assert.equal(started.status, 'IN_PROGRESS');
+await verifySimulation(api, Cookie, origin, op.id, request);
 await verifySimulator(Client, op.id, suffix);
 await verifyMonitoring(Client, api, Cookie, op.id, 'IN_PROGRESS');
 
