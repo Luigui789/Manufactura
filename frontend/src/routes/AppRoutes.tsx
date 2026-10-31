@@ -98,6 +98,27 @@ const IiotDashboardPage = lazy(() =>
   })),
 );
 
+const SustainabilityPage = lazy(() =>
+  import('@/features/sustainability/pages/SustainabilityPage').then((m) => ({
+    default: m.SustainabilityPage,
+  })),
+);
+const EmissionFactorsPage = lazy(() =>
+  import('@/features/sustainability/pages/EmissionFactorsPage').then((m) => ({
+    default: m.EmissionFactorsPage,
+  })),
+);
+const CircularMaterialsPage = lazy(() =>
+  import('@/features/sustainability/pages/CircularMaterialsPage').then((m) => ({
+    default: m.CircularMaterialsPage,
+  })),
+);
+const FootprintDetailPage = lazy(() =>
+  import('@/features/sustainability/pages/FootprintDetailPage').then((m) => ({
+    default: m.FootprintDetailPage,
+  })),
+);
+
 const WarehousesPage = lazy(() =>
   import('@/features/inventory/pages/WarehousesPage').then((module) => ({
     default: module.WarehousesPage,
@@ -322,6 +343,39 @@ export function AppRoutes() {
               element={
                 <Suspense fallback={<LoadingState label="Cargando rutas…" />}>
                   <RouteDetailPage />
+                </Suspense>
+              }
+            />
+
+            <Route
+              path="/sustainability"
+              element={
+                <Suspense fallback={<LoadingState label="Cargando sostenibilidad…" />}>
+                  <SustainabilityPage />
+                </Suspense>
+              }
+            />
+            <Route
+              path="/sustainability/emission-factors"
+              element={
+                <Suspense fallback={<LoadingState label="Cargando factores…" />}>
+                  <EmissionFactorsPage />
+                </Suspense>
+              }
+            />
+            <Route
+              path="/sustainability/circular-materials"
+              element={
+                <Suspense fallback={<LoadingState label="Cargando materiales circulares…" />}>
+                  <CircularMaterialsPage />
+                </Suspense>
+              }
+            />
+            <Route
+              path="/sustainability/production-orders/:id"
+              element={
+                <Suspense fallback={<LoadingState label="Cargando huella…" />}>
+                  <FootprintDetailPage />
                 </Suspense>
               }
             />

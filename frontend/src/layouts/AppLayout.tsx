@@ -17,35 +17,37 @@ function Navigation({ role, onNavigate }: { role: RoleCode; onNavigate?: () => v
   const allowed = navigation.filter((item) => item.roles.includes(role));
   return (
     <nav aria-label="Menú principal" className="space-y-6">
-      {['General', 'Operaciones', 'Inventario', 'Maestros', 'Administración'].map((group) => {
-        const items = allowed.filter((item) => item.group === group);
-        return (
-          items.length > 0 && (
-            <div key={group}>
-              <p className="mb-2 px-3 text-[11px] font-semibold uppercase tracking-widest text-muted-foreground">
-                {group}
-              </p>
-              <ul className="space-y-1">
-                {items.map(({ to, label, icon: Icon }) => (
-                  <li key={to}>
-                    <NavLink
-                      to={to}
-                      end={to === '/'}
-                      onClick={onNavigate}
-                      className={({ isActive }) =>
-                        `flex min-h-10 items-center gap-3 rounded-md px-3 py-2 text-sm font-medium ${isActive ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-muted hover:text-foreground'}`
-                      }
-                    >
-                      <Icon aria-hidden className="size-4 shrink-0" />
-                      {label}
-                    </NavLink>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )
-        );
-      })}
+      {['General', 'Operaciones', 'Análisis', 'Inventario', 'Maestros', 'Administración'].map(
+        (group) => {
+          const items = allowed.filter((item) => item.group === group);
+          return (
+            items.length > 0 && (
+              <div key={group}>
+                <p className="mb-2 px-3 text-[11px] font-semibold uppercase tracking-widest text-muted-foreground">
+                  {group}
+                </p>
+                <ul className="space-y-1">
+                  {items.map(({ to, label, icon: Icon }) => (
+                    <li key={to}>
+                      <NavLink
+                        to={to}
+                        end={to === '/'}
+                        onClick={onNavigate}
+                        className={({ isActive }) =>
+                          `flex min-h-10 items-center gap-3 rounded-md px-3 py-2 text-sm font-medium ${isActive ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-muted hover:text-foreground'}`
+                        }
+                      >
+                        <Icon aria-hidden className="size-4 shrink-0" />
+                        {label}
+                      </NavLink>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )
+          );
+        },
+      )}
     </nav>
   );
 }
