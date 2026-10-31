@@ -479,6 +479,11 @@ const rejectedInspection = await request(
     nonConformities: 'Docker C2 original defect',
   },
 );
+const rejectedBeforeDisposition = await qualityEvidence(
+  Client,
+  scrapOrder.id,
+  scrapCompleted.lot.id,
+);
 await request(`/production/lots/${scrapCompleted.lot.id}/disposition`, 'POST', {
   type: 'SCRAP',
   reason: 'Docker C2 explicit disposal',
@@ -489,6 +494,7 @@ assert.equal(scrapBefore.readings.length, 1);
 assert.equal(scrapBefore.alerts[0].severity, 'CRITICAL');
 assert.deepEqual(scrapAfter.movements, scrapBefore.movements);
 assert.equal(scrapAfter.inspection[0].result, 'REJECTED');
+assert.deepEqual(scrapAfter.inspection, rejectedBeforeDisposition.inspection);
 assert.equal(scrapAfter.inspection[0].id, rejectedInspection.id);
 assert.deepEqual(scrapAfter.readings, scrapBefore.readings);
 assert.deepEqual(scrapAfter.alerts, scrapBefore.alerts);

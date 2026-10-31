@@ -40,7 +40,7 @@ Prefijo `/api/production/lots`:
 | GET    | /:id/disposition | Authenticated     | `{ data: disposition o null, message }` |
 | POST   | /:id/disposition | ADMIN, PRODUCCION | 201, `{ data, message }`                |
 
-Body: `{ "type": "RELEASE|REWORK|SCRAP", "reason": "Justificación" }`.
+Body: `{ "type": "SCRAP", "reason": "Justificación" }`.
 GET de lote inexistente: 404. POST inexistente: 404. Origen no producido o inspección
 inexistente/aprobada: 422. Disposición previa o estado incompatible: 409. DTO inválido
 (incluidos campos desconocidos): 400. No se admiten usuario/fecha desde el cliente.
