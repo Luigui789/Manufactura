@@ -67,9 +67,16 @@ export function RouteDetailPage() {
           { label: route.code },
         ]}
         actions={
-          <Button asChild variant="outline">
-            <Link to="/production/routes">Volver a rutas</Link>
-          </Button>
+          <>
+            <Button asChild variant="outline">
+              <Link to={'/production/structure/' + route.productId}>
+                Ver estructura de manufactura
+              </Link>
+            </Button>
+            <Button asChild variant="outline">
+              <Link to="/production/routes">Volver a rutas</Link>
+            </Button>
+          </>
         }
       />
 

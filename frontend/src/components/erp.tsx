@@ -74,6 +74,8 @@ const states: Record<string, [string, 'neutral' | 'success' | 'warning' | 'dange
   INACTIVE: ['Inactivo', 'neutral'],
   HISTORICAL: ['Histórica', 'neutral'],
   FINALIZED: ['Finalizado', 'success'],
+  READY: ['Listo', 'success'],
+  INCOMPLETE: ['Incompleto', 'warning'],
 };
 export function StatusBadge({ status }: { status: string | boolean }) {
   const [label, tone] = states[

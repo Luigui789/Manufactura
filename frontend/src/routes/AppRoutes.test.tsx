@@ -644,5 +644,33 @@ it('opens production route detail for a read-only user', async () => {
   const client = mount('/production/routes/route', other);
   expect(await screen.findByRole('heading', { name: 'Ruta estándar' })).toBeTruthy();
   expect(screen.queryByRole('button', { name: 'Editar operaciones' })).toBeNull();
+  expect(
+    screen.getByRole('link', { name: 'Ver estructura de manufactura' }).getAttribute('href'),
+  ).toBe('/production/structure/product');
   client.clear();
+});
+
+describe('Manufacturing structure navigation', () => {
+  it('requires a session', async () => {
+    const fetch = vi.fn();
+    vi.stubGlobal('fetch', fetch);
+    const client = mount('/production/structure', null);
+    expect(await screen.findByRole('button', { name: 'Iniciar sesión' })).toBeTruthy();
+    expect(fetch).not.toHaveBeenCalled();
+    client.clear();
+  });
+
+  it('opens the structure landing for any role and exposes navigation', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => response({ data: [], meta: { page: 1, limit: 20, total: 0 } })),
+    );
+    const client = mount('/production/structure', other);
+    expect(await screen.findByRole('heading', { name: 'Estructura de manufactura' })).toBeTruthy();
+    expect(screen.getAllByRole('link', { name: 'Producción · Estructura' }).length).toBeGreaterThan(
+      0,
+    );
+    expect(screen.getAllByRole('link', { name: 'Producción · Rutas' }).length).toBeGreaterThan(0);
+    client.clear();
+  });
 });

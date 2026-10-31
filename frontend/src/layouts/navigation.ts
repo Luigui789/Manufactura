@@ -14,6 +14,7 @@ import {
   UserCog,
   ChartNoAxesCombined,
   Leaf,
+  ListTree,
   type LucideIcon,
 } from 'lucide-react';
 export const navigation: {
@@ -65,6 +66,13 @@ export const navigation: {
     roles: ROLE_CODES,
     group: 'Operaciones',
     icon: Factory,
+  },
+  {
+    to: '/production/structure',
+    label: 'Producción · Estructura',
+    roles: ROLE_CODES,
+    group: 'Operaciones',
+    icon: ListTree,
   },
   {
     to: '/sustainability',
