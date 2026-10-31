@@ -18,6 +18,7 @@ import { useCancelOrder, useOrder, useOrderRequirements, useUpdateOrder } from '
 import { OrderForm } from '../components/OrderForm';
 import { OrderExecution } from '../components/OrderExecution';
 import { LotProductionDetail } from '../components/LotProductionDetail';
+import { IiotSimulationControl } from '@/features/iiot/components/IiotSimulationControl';
 import { quantityUnits } from '../execution-schema';
 import { formatPlanningDate, planningInputValue } from '../planning-dates';
 
@@ -102,6 +103,9 @@ export function OrderDetailPage() {
             }
           />
           {success && <SuccessNotice>{success}</SuccessNotice>}
+          {canManage && current.status === 'IN_PROGRESS' && (
+            <IiotSimulationControl key={current.id} productionOrderId={current.id} />
+          )}
           <FormSection title="Resumen de la orden">
             <DetailGrid>
               <div>

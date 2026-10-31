@@ -186,3 +186,8 @@ según la [guía Docker](docker.md). Las pruebas e2e usan la base aislada del
 
 La [Fase 8](iiot-quality-integration.md) consume overview y alerts desde Calidad.
 Las APIs conservan su contrato de solo lectura y el histórico tras COMPLETED e inspección.
+
+La acción opcional [Iniciar prueba IIoT](iiot-simulator.md#desde-el-erp-iniciar-prueba-iiot)
+usa endpoints separados `GET/POST .../:id/simulation` para controlar únicamente el
+simulador de demo en una OP en curso. No modifica los contratos de overview, readings,
+alerts o inspección; el POST requiere ADMIN/PRODUCCION y no está disponible en producción.
