@@ -1027,3 +1027,27 @@ La rama `feature/production-dashboard` se actualizó con `origin/develop` en `7a
 La respuesta separa conteos por estado, cantidades planificadas y producción completada: estados/plan se agrupan por `COALESCE(plannedStartAt, createdAt)` y producción solo por `completedAt` para órdenes completadas. La interfaz permite escoger producto terminado activo mediante el picker paginado compartido. Sin producto, oculta cantidades y serie para no sumar unidades incompatibles; con producto, muestra la unidad asociada.
 
 Validación local de esta revisión: backend build, frontend TypeScript/Vite build, Prettier del repositorio y pruebas focales de `ProductionDashboardPage` (4/4) aprobados. Se amplió el E2E para validar el filtro de producto, unidades incompatibles, fechas de planificación/completado, pertenencia estable por fecha planificada, UUID inválido/inexistente y respuesta de producto sin órdenes. **Esos E2E aún no se ejecutaron**: Docker Desktop rechazó la conexión a su engine en este entorno. La suite completa, lint final, CI del PR y Docker verification también quedan pendientes de ejecución sobre el HEAD publicado. No afirmar D1 verificado ni listo para merge hasta completar esas comprobaciones y confirmar que los checks de GitHub están verdes.
+
+### C3 — Sostenibilidad: huella parcial de carbono (2026-10-31)
+
+Rama `feature/carbon-footprint` desde `develop` en `1260ba9` (sin cambios nuevos en
+`origin/develop` al validar). Agrega `SustainabilityModule`, las migraciones
+`20261031020000_sustainability_enums` y `20261031021000_sustainability`, la pantalla
+`/sustainability` y la documentación [`sustainability-carbon-footprint.md`](sustainability-carbon-footprint.md).
+Es una **estimación académica de huella parcial**; no constituye certificación, verificación
+independiente ni ACV completo. No se agregó ningún factor ambiental real: las pruebas usan factores
+`TEST*` con fuente `TEST_FIXTURE`.
+
+Validación local ejecutada contra PostgreSQL 18.6 (contenedor `postgres:18-alpine`, como la CI):
+`pnpm install --frozen-lockfile`, `prisma generate`, `prisma validate`, `migrate deploy`,
+`migrate diff` (No difference detected), `pnpm lint`, `pnpm format:check`, `pnpm build`, seed,
+backend unitarias, simulador (51), frontend (619 en 34 archivos), build y lint de frontend,
+`test:migrations` (todas las pruebas, incluida la nueva de C3) y E2E backend (556 en 39 archivos),
+todo aprobado. Tras ese gate se corrigieron dos detalles de C3 y se repitieron lint, builds, formato
+y las suites de sostenibilidad (unitarias, E2E y frontend), también aprobadas.
+
+**Pendiente:** el stack `docker compose up --build` no pudo construirse en el entorno de desarrollo
+(los contenedores no resolvían `deb.debian.org` durante `apt-get`). `docker compose config` sí
+pasó, y la lógica de `docker/verify-sustainability.mjs` se ejecutó contra el backend real en local.
+La aceptación Docker completa queda a cargo del job `Docker development` de la CI; no marcar C3 como
+verificada en Docker ni integrada hasta ver la CI verde y completar la revisión del PR.
