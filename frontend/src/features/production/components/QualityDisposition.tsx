@@ -14,7 +14,7 @@ import {
   type Inspection,
   type QualityDispositionType,
 } from '../api/quality';
-export const DISPOSITION_LABELS: Record<QualityDispositionType, string> = {
+const DISPOSITION_LABELS: Record<QualityDispositionType, string> = {
   RELEASE: 'Liberar excepcionalmente',
   REWORK: 'Enviar a reproceso',
   SCRAP: 'Descartar lote',
@@ -113,21 +113,23 @@ export function QualityDispositionPanel({
               className="space-y-4"
               noValidate
               onChange={() => setReview(null)}
-              onSubmit={form.handleSubmit((values) => {
-                if (mutation.isPending || submitting.current) return;
-                const snapshot = JSON.stringify(values);
-                if (review !== snapshot) {
-                  setReview(snapshot);
-                  return;
-                }
-                submitting.current = true;
-                mutation.mutate(values, {
-                  onError: () => setReview(null),
-                  onSettled: () => {
-                    submitting.current = false;
-                  },
-                });
-              })}
+              onSubmit={(event) => {
+                void form.handleSubmit((values) => {
+                  if (mutation.isPending || submitting.current) return;
+                  const snapshot = JSON.stringify(values);
+                  if (review !== snapshot) {
+                    setReview(snapshot);
+                    return;
+                  }
+                  submitting.current = true;
+                  mutation.mutate(values, {
+                    onError: () => setReview(null),
+                    onSettled: () => {
+                      submitting.current = false;
+                    },
+                  });
+                })(event);
+              }}
             >
               <fieldset disabled={mutation.isPending} className="space-y-4">
                 <div className="space-y-2">
