@@ -16,6 +16,8 @@ import { EmptyState, LoadingState, PageHeader, StatusBadge } from '@/components/
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
+import { InventoryEntityPicker } from '@/features/inventory/components/InventoryEntityPicker';
+import { unitLabel } from '@/lib/presentation';
 import { useProductionDashboard } from '../api/dashboard';
 
 const nf = new Intl.NumberFormat('es-NI', { maximumFractionDigits: 2 });
@@ -37,8 +39,9 @@ function formatQuantity(value: string) {
 export function ProductionDashboardPage() {
   const [from, setFrom] = useState('');
   const [to, setTo] = useState('');
+  const [productId, setProductId] = useState('');
   const [applied, setApplied] = useState<{ from?: string; to?: string }>({});
-  const dashboard = useProductionDashboard(applied);
+  const dashboard = useProductionDashboard({ ...applied, ...(productId ? { productId } : {}) });
   const data = dashboard.data;
   const statusData = data
     ? metricLabels.map(([key, label]) => ({ name: label, orders: data.orders[key] }))
@@ -48,7 +51,7 @@ export function ProductionDashboardPage() {
     <section className="space-y-6">
       <PageHeader
         title="Dashboard de producción"
-        description="Resumen de órdenes, cantidades y actividad reciente. Los indicadores se agrupan por fecha de actividad en hora de Managua."
+        description="Resumen de órdenes, cantidades por producto y actividad reciente. Las fechas se interpretan en hora de Managua."
         breadcrumbs={[{ label: 'Producción', to: '/production/orders' }, { label: 'Dashboard' }]}
       />
       <form
@@ -84,6 +87,15 @@ export function ProductionDashboardPage() {
         </Button>
       </form>
 
+      <InventoryEntityPicker
+        kind="product"
+        value={productId}
+        allowClear
+        activeOnly
+        productType="FINISHED_GOOD"
+        onChange={(id) => setProductId(id)}
+      />
+
       {dashboard.isPending && <LoadingState label="Cargando dashboard de producción…" />}
       <ErrorNotice error={dashboard.error} />
       {dashboard.isError && (
@@ -109,26 +121,39 @@ export function ProductionDashboardPage() {
             <Card>
               <CardHeader>
                 <CardDescription>Cantidad planificada</CardDescription>
-                <CardTitle>{formatQuantity(data.quantity.planned)}</CardTitle>
+                <CardTitle>
+                  {data.quantity
+                    ? `${formatQuantity(data.quantity.planned)} ${unitLabel(data.quantity.unit)}`
+                    : '—'}
+                </CardTitle>
               </CardHeader>
             </Card>
             <Card>
               <CardHeader>
                 <CardDescription>Cantidad producida</CardDescription>
-                <CardTitle>{formatQuantity(data.quantity.produced)}</CardTitle>
+                <CardTitle>
+                  {data.quantity
+                    ? `${formatQuantity(data.quantity.produced)} ${unitLabel(data.quantity.unit)}`
+                    : '—'}
+                </CardTitle>
               </CardHeader>
             </Card>
             <Card>
               <CardHeader>
-                <CardDescription>Avance total</CardDescription>
+                <CardDescription>Avance</CardDescription>
                 <CardTitle>
-                  {data.quantity.completionRate === null
+                  {!data.quantity || data.quantity.completionRate === null
                     ? '—'
                     : `${nf.format(Number(data.quantity.completionRate))}%`}
                 </CardTitle>
               </CardHeader>
             </Card>
           </div>
+          {!data.selectedProduct && (
+            <p className="text-sm text-muted-foreground">
+              Seleccioná un producto para comparar cantidades; no se suman unidades incompatibles.
+            </p>
+          )}
 
           {data.orders.total === 0 ? (
             <EmptyState
@@ -136,7 +161,7 @@ export function ProductionDashboardPage() {
               description="No hay órdenes de producción para las fechas seleccionadas."
             />
           ) : (
-            <div className="grid gap-6 xl:grid-cols-2">
+            <div className={`grid gap-6 ${data.quantity ? 'xl:grid-cols-2' : ''}`}>
               <Card>
                 <CardHeader>
                   <CardTitle>Órdenes por estado</CardTitle>
@@ -164,54 +189,56 @@ export function ProductionDashboardPage() {
                   </div>
                 </CardContent>
               </Card>
-              <Card>
-                <CardHeader>
-                  <CardTitle>Planificado y producido</CardTitle>
-                  <CardDescription>
-                    Por período ·{' '}
-                    {data.period.granularity === 'day'
-                      ? 'día'
-                      : data.period.granularity === 'week'
-                        ? 'semana'
-                        : 'mes'}
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div
-                    role="img"
-                    aria-label="Gráfico de cantidades planificadas y producidas"
-                    className="h-72"
-                  >
-                    <ResponsiveContainer width="100%" height="100%">
-                      <LineChart
-                        data={data.productionByPeriod.map((point) => ({
-                          ...point,
-                          planned: Number(point.planned),
-                          produced: Number(point.produced),
-                        }))}
-                        margin={{ top: 8, right: 16, left: 0, bottom: 8 }}
-                      >
-                        <CartesianGrid strokeDasharray="3 3" />
-                        <XAxis dataKey="period" />
-                        <YAxis />
-                        <Tooltip />
-                        <Line
-                          type="monotone"
-                          dataKey="planned"
-                          name="Planificado"
-                          stroke="var(--color-chart-1)"
-                        />
-                        <Line
-                          type="monotone"
-                          dataKey="produced"
-                          name="Producido"
-                          stroke="var(--color-chart-2)"
-                        />
-                      </LineChart>
-                    </ResponsiveContainer>
-                  </div>
-                </CardContent>
-              </Card>
+              {data.quantity && (
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Planificado y producido</CardTitle>
+                    <CardDescription>
+                      Por período ·{' '}
+                      {data.period.granularity === 'day'
+                        ? 'día'
+                        : data.period.granularity === 'week'
+                          ? 'semana'
+                          : 'mes'}
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <div
+                      role="img"
+                      aria-label="Gráfico de cantidades planificadas y producidas"
+                      className="h-72"
+                    >
+                      <ResponsiveContainer width="100%" height="100%">
+                        <LineChart
+                          data={data.productionByPeriod.map((point) => ({
+                            ...point,
+                            planned: Number(point.planned),
+                            produced: Number(point.produced),
+                          }))}
+                          margin={{ top: 8, right: 16, left: 0, bottom: 8 }}
+                        >
+                          <CartesianGrid strokeDasharray="3 3" />
+                          <XAxis dataKey="period" />
+                          <YAxis />
+                          <Tooltip />
+                          <Line
+                            type="monotone"
+                            dataKey="planned"
+                            name="Planificado"
+                            stroke="var(--color-chart-1)"
+                          />
+                          <Line
+                            type="monotone"
+                            dataKey="produced"
+                            name="Producido"
+                            stroke="var(--color-chart-2)"
+                          />
+                        </LineChart>
+                      </ResponsiveContainer>
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
             </div>
           )}
 

@@ -1,17 +1,14 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { Prisma } from '../../generated/prisma/client.js';
 import { PrismaService } from '../../prisma/prisma.service.js';
 import type { DashboardQueryDto } from './dashboard-query.dto.js';
 
 const TIME_ZONE = 'America/Managua';
 const ACTIVITY_AT = Prisma.sql`COALESCE(po.completed_at, po.started_at, po.planned_start_at, po.created_at)`;
+const PLAN_AT = Prisma.sql`COALESCE(po.planned_start_at, po.created_at)`;
 
-type StatusRow = {
-  status: string;
-  count: bigint;
-  planned: string | null;
-  produced: string | null;
-};
+type StatusRow = { status: string; count: bigint };
+type QuantityRow = { quantity: string | null };
 type SeriesRow = { bucket: string; planned: string; produced: string };
 type RecentRow = {
   id: string;
@@ -44,6 +41,13 @@ function daysBetween(from: string, to: string): number {
   return (Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`)) / 86_400_000 + 1;
 }
 
+function dateBounds(column: Prisma.Sql, from: string, to: string) {
+  return Prisma.sql`
+    ${column} >= (${from}::date::timestamp AT TIME ZONE ${TIME_ZONE})
+    AND ${column} < ((${to}::date + 1)::timestamp AT TIME ZONE ${TIME_ZONE})
+  `;
+}
+
 @Injectable()
 export class DashboardService {
   constructor(private readonly prisma: PrismaService) {}
@@ -60,40 +64,87 @@ export class DashboardService {
     }
     const granularity = dayCount <= 31 ? 'day' : dayCount <= 180 ? 'week' : 'month';
 
-    const bounds = Prisma.sql`
-      ${ACTIVITY_AT} >= (${from}::date::timestamp AT TIME ZONE ${TIME_ZONE})
-      AND ${ACTIVITY_AT} < ((${to}::date + 1)::timestamp AT TIME ZONE ${TIME_ZONE})
-    `;
-    const [statuses, series, recent] = await Promise.all([
-      this.prisma.$queryRaw<StatusRow[]>(Prisma.sql`
-        SELECT po.status::text AS status, COUNT(*) AS count,
-          SUM(po.quantity_planned)::text AS planned,
-          SUM(po.quantity_produced)::text AS produced
-        FROM production_orders po
-        WHERE ${bounds}
-        GROUP BY po.status
-      `),
-      this.prisma.$queryRaw<SeriesRow[]>(Prisma.sql`
-        WITH buckets AS (
-          SELECT generate_series(
-            date_trunc(${granularity}, ${from}::date::timestamp),
-            date_trunc(${granularity}, ${to}::date::timestamp),
-            ('1 ' || ${granularity})::interval
-          ) AS bucket
-        ), totals AS (
-          SELECT date_trunc(${granularity}, ${ACTIVITY_AT} AT TIME ZONE ${TIME_ZONE}) AS bucket,
-            SUM(po.quantity_planned)::text AS planned,
-            SUM(po.quantity_produced)::text AS produced
-          FROM production_orders po
-          WHERE ${bounds}
-          GROUP BY 1
-        )
-        SELECT to_char(buckets.bucket, 'YYYY-MM-DD') AS bucket,
-          COALESCE(totals.planned, '0.0000') AS planned,
-          COALESCE(totals.produced, '0.0000') AS produced
-        FROM buckets LEFT JOIN totals USING (bucket)
-        ORDER BY buckets.bucket
-      `),
+    const selectedProduct = query.productId
+      ? await this.prisma.product.findUnique({
+          where: { id: query.productId },
+          select: { id: true, code: true, name: true, unit: true },
+        })
+      : null;
+    if (query.productId && !selectedProduct) {
+      throw new NotFoundException('Producto no encontrado');
+    }
+
+    const productFilter = query.productId
+      ? Prisma.sql`AND po.product_id = ${query.productId}::uuid`
+      : Prisma.empty;
+    // Historical membership is stable: advancing an order's status does not move it to a new period.
+    const membershipBounds = dateBounds(PLAN_AT, from, to);
+    const activityBounds = dateBounds(ACTIVITY_AT, from, to);
+    const completionBounds = dateBounds(Prisma.sql`po.completed_at`, from, to);
+
+    const statuses = await this.prisma.$queryRaw<StatusRow[]>(Prisma.sql`
+      SELECT po.status::text AS status, COUNT(*) AS count
+      FROM production_orders po
+      WHERE ${membershipBounds} ${productFilter}
+      GROUP BY po.status
+    `);
+    const byStatus = new Map(statuses.map((row) => [row.status, row]));
+    const count = (status: string) => Number(byStatus.get(status)?.count ?? 0n);
+    const orders = {
+      draft: count('DRAFT'),
+      inProgress: count('IN_PROGRESS'),
+      completed: count('COMPLETED'),
+      cancelled: count('CANCELLED'),
+      total: statuses.reduce((sum, row) => sum + Number(row.count), 0),
+    };
+
+    const [plannedRows, producedRows, series, recent] = await Promise.all([
+      query.productId
+        ? this.prisma.$queryRaw<QuantityRow[]>(Prisma.sql`
+            SELECT COALESCE(SUM(po.quantity_planned), 0)::text AS quantity
+            FROM production_orders po
+            WHERE ${membershipBounds} ${productFilter}
+          `)
+        : Promise.resolve([{ quantity: null }]),
+      query.productId
+        ? this.prisma.$queryRaw<QuantityRow[]>(Prisma.sql`
+            SELECT COALESCE(SUM(po.quantity_produced), 0)::text AS quantity
+            FROM production_orders po
+            WHERE po.status = 'COMPLETED'::"ProductionOrderStatus"
+              AND ${completionBounds} ${productFilter}
+          `)
+        : Promise.resolve([{ quantity: null }]),
+      query.productId
+        ? this.prisma.$queryRaw<SeriesRow[]>(Prisma.sql`
+            WITH buckets AS (
+              SELECT generate_series(
+                date_trunc(${granularity}, ${from}::date::timestamp),
+                date_trunc(${granularity}, ${to}::date::timestamp),
+                ('1 ' || ${granularity})::interval
+              ) AS bucket
+            ), planned AS (
+              SELECT date_trunc(${granularity}, ${PLAN_AT} AT TIME ZONE ${TIME_ZONE}) AS bucket,
+                SUM(po.quantity_planned)::text AS quantity
+              FROM production_orders po
+              WHERE ${membershipBounds} ${productFilter}
+              GROUP BY 1
+            ), produced AS (
+              SELECT date_trunc(${granularity}, po.completed_at AT TIME ZONE ${TIME_ZONE}) AS bucket,
+                SUM(po.quantity_produced)::text AS quantity
+              FROM production_orders po
+              WHERE po.status = 'COMPLETED'::"ProductionOrderStatus"
+                AND ${completionBounds} ${productFilter}
+              GROUP BY 1
+            )
+            SELECT to_char(buckets.bucket, 'YYYY-MM-DD') AS bucket,
+              COALESCE(planned.quantity, '0.0000') AS planned,
+              COALESCE(produced.quantity, '0.0000') AS produced
+            FROM buckets
+            LEFT JOIN planned USING (bucket)
+            LEFT JOIN produced USING (bucket)
+            ORDER BY buckets.bucket
+          `)
+        : Promise.resolve([]),
       this.prisma.$queryRaw<RecentRow[]>(Prisma.sql`
         SELECT po.id, po.number, po.status::text AS status,
           po.quantity_planned::text AS "quantityPlanned",
@@ -106,40 +157,41 @@ export class DashboardService {
           p.code AS "productCode", p.name AS "productName", p.unit::text AS unit
         FROM production_orders po
         JOIN products p ON p.id = po.product_id
-        WHERE ${bounds}
+        WHERE ${activityBounds} ${productFilter}
         ORDER BY ${ACTIVITY_AT} DESC, po.created_at DESC, po.id DESC
         LIMIT 5
       `),
     ]);
 
-    const byStatus = new Map(statuses.map((row) => [row.status, row]));
-    const count = (status: string) => Number(byStatus.get(status)?.count ?? 0n);
-    const planned = statuses.reduce(
-      (sum, row) => sum.plus(row.planned ?? '0'),
-      new Prisma.Decimal(0),
-    );
-    const produced = statuses.reduce(
-      (sum, row) => sum.plus(row.produced ?? '0'),
-      new Prisma.Decimal(0),
-    );
-    const completionPercentage = planned.isZero()
-      ? null
-      : produced.div(planned).mul(100).toDecimalPlaces(2, Prisma.Decimal.ROUND_HALF_UP).toFixed(2);
+    let quantity: {
+      planned: string;
+      produced: string;
+      completionRate: string | null;
+      unit: string;
+    } | null = null;
+    if (selectedProduct) {
+      const planned = new Prisma.Decimal(plannedRows[0]?.quantity ?? '0');
+      const produced = new Prisma.Decimal(producedRows[0]?.quantity ?? '0');
+      const completionRate = planned.isZero()
+        ? null
+        : produced
+            .div(planned)
+            .mul(100)
+            .toDecimalPlaces(2, Prisma.Decimal.ROUND_HALF_UP)
+            .toFixed(2);
+      quantity = {
+        planned: planned.toFixed(4),
+        produced: produced.toFixed(4),
+        completionRate,
+        unit: selectedProduct.unit,
+      };
+    }
 
     return {
       period: { from, to, timeZone: TIME_ZONE, granularity },
-      orders: {
-        draft: count('DRAFT'),
-        inProgress: count('IN_PROGRESS'),
-        completed: count('COMPLETED'),
-        cancelled: count('CANCELLED'),
-        total: statuses.reduce((sum, row) => sum + Number(row.count), 0),
-      },
-      quantity: {
-        planned: planned.toFixed(4),
-        produced: produced.toFixed(4),
-        completionRate: completionPercentage,
-      },
+      selectedProduct,
+      orders,
+      quantity,
       productionByPeriod: series.map((row) => ({
         period: row.bucket,
         planned: row.planned,

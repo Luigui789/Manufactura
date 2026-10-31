@@ -5,6 +5,7 @@ import {
   RoleCode,
   UnitOfMeasure,
 } from '../src/generated/prisma/client.js';
+import { randomUUID } from 'node:crypto';
 import {
   createTestApp,
   createUser,
@@ -66,25 +67,31 @@ async function createOrder(options: {
   planned: string;
   produced: string;
   activityDate: string;
+  productId?: string;
+  bomVersionId?: string;
+  plannedDate?: string;
+  completedDate?: string;
 }) {
   const instant = new Date(`${options.activityDate}T12:00:00-06:00`);
+  const plannedAt = new Date(`${options.plannedDate ?? options.activityDate}T12:00:00-06:00`);
+  const completedAt = new Date(`${options.completedDate ?? options.activityDate}T12:00:00-06:00`);
   return kit.prisma.productionOrder.create({
     data: {
       number: options.number,
-      productId: product.id,
-      bomVersionId: versionId,
+      productId: options.productId ?? product.id,
+      bomVersionId: options.bomVersionId ?? versionId,
       warehouseId: warehouse.id,
       createdByUserId: actor.id,
       status: options.status,
       quantityPlanned: options.planned,
       quantityProduced: options.produced,
-      plannedStartAt: options.status === ProductionOrderStatus.DRAFT ? instant : null,
+      plannedStartAt: plannedAt,
       startedAt:
         options.status === ProductionOrderStatus.IN_PROGRESS ||
         options.status === ProductionOrderStatus.COMPLETED
           ? instant
           : null,
-      completedAt: options.status === ProductionOrderStatus.COMPLETED ? instant : null,
+      completedAt: options.status === ProductionOrderStatus.COMPLETED ? completedAt : null,
       createdAt: instant,
       updatedAt: instant,
     },
@@ -148,13 +155,19 @@ describe('GET /api/production/dashboard', () => {
     ]);
     const response = await kit
       .http()
-      .get(endpoint + '?from=2026-10-01&to=2026-10-04')
+      .get(endpoint + `?from=2026-10-01&to=2026-10-04&productId=${product.id}`)
       .set('Cookie', cookie)
       .expect(200);
     const dashboard = data<{
       period: { from: string; to: string; timeZone: string; granularity: string };
+      selectedProduct: { id: string; code: string; name: string; unit: string } | null;
       orders: Record<string, number>;
-      quantity: { planned: string; produced: string; completionRate: string | null };
+      quantity: {
+        planned: string;
+        produced: string;
+        completionRate: string | null;
+        unit: string;
+      } | null;
       productionByPeriod: { period: string; planned: string; produced: string }[];
       recentOrders: { number: string; plannedStartAt: string | null; product: { code: string } }[];
     }>(response);
@@ -176,7 +189,9 @@ describe('GET /api/production/dashboard', () => {
       planned: '12.5000',
       produced: '6.2500',
       completionRate: '50.00',
+      unit: UnitOfMeasure.UNIT,
     });
+    expect(dashboard.selectedProduct).toMatchObject({ id: product.id, unit: UnitOfMeasure.UNIT });
     expect(dashboard.productionByPeriod).toHaveLength(4);
     expect(dashboard.productionByPeriod.map((point) => point.planned)).toEqual([
       '1.2500',
@@ -194,7 +209,7 @@ describe('GET /api/production/dashboard', () => {
     expect(dashboard.recentOrders[0].number).toContain('-X');
     expect(dashboard.recentOrders.some((order) => order.number.includes('OUTSIDE'))).toBe(false);
     expect(dashboard.recentOrders[0].product.code).toBe(product.code);
-    expect(dashboard.recentOrders[0].plannedStartAt).toBeNull();
+    expect(dashboard.recentOrders[0].plannedStartAt).not.toBeNull();
   });
 
   it('filters activity by Managua calendar dates and returns an empty-safe zero percentage', async () => {
@@ -205,22 +220,20 @@ describe('GET /api/production/dashboard', () => {
       .expect(200);
     const dashboard = data<{
       orders: { total: number };
-      quantity: { planned: string; produced: string; completionRate: string | null };
+      selectedProduct: unknown;
+      quantity: {
+        planned: string;
+        produced: string;
+        completionRate: string | null;
+        unit: string;
+      } | null;
       productionByPeriod: { period: string; planned: string; produced: string }[];
       recentOrders: unknown[];
     }>(response);
     expect(dashboard.orders.total).toBe(0);
-    expect(dashboard.quantity).toEqual({
-      planned: '0.0000',
-      produced: '0.0000',
-      completionRate: null,
-    });
-    expect(dashboard.productionByPeriod).toHaveLength(2);
-    expect(
-      dashboard.productionByPeriod.every(
-        (point) => point.planned === '0.0000' && point.produced === '0.0000',
-      ),
-    ).toBe(true);
+    expect(dashboard.selectedProduct).toBeNull();
+    expect(dashboard.quantity).toBeNull();
+    expect(dashboard.productionByPeriod).toEqual([]);
     expect(dashboard.recentOrders).toEqual([]);
   });
 
@@ -268,5 +281,200 @@ describe('GET /api/production/dashboard', () => {
     );
     expect(monthly.period.granularity).toBe('month');
     expect(monthly.productionByPeriod.length).toBeLessThanOrEqual(8);
+  });
+
+  it('does not sum quantities across units and separates planned and completed dates', async () => {
+    const unitRaw = await createInventoryProduct(kit.prisma);
+    const unitProduct = await kit.prisma.product.update({
+      where: { id: unitRaw.id },
+      data: { type: ProductType.FINISHED_GOOD, unit: UnitOfMeasure.UNIT },
+    });
+    const unitBom = await kit.prisma.billOfMaterial.create({
+      data: { productId: unitProduct.id, name: `Dashboard ${unitProduct.code}` },
+    });
+    const unitVersion = await kit.prisma.bomVersion.create({
+      data: {
+        bomId: unitBom.id,
+        version: 1,
+        outputQuantity: '1',
+        isActive: true,
+        createdByUserId: actor.id,
+      },
+    });
+    const literRaw = await createInventoryProduct(kit.prisma);
+    const literProduct = await kit.prisma.product.update({
+      where: { id: literRaw.id },
+      data: { type: ProductType.FINISHED_GOOD, unit: UnitOfMeasure.LITER },
+    });
+    const bom = await kit.prisma.billOfMaterial.create({
+      data: { productId: literProduct.id, name: `Dashboard ${literProduct.code}` },
+    });
+    const version = await kit.prisma.bomVersion.create({
+      data: {
+        bomId: bom.id,
+        version: 1,
+        outputQuantity: '1',
+        isActive: true,
+        createdByUserId: actor.id,
+      },
+    });
+    const baseline = data<{ orders: { total: number } }>(
+      await kit
+        .http()
+        .get(endpoint + '?from=2026-10-01&to=2026-10-20')
+        .set('Cookie', cookie)
+        .expect(200),
+    );
+    await createOrder({
+      number: `DASH-${unitProduct.code}-UNIT`,
+      status: ProductionOrderStatus.IN_PROGRESS,
+      planned: '10',
+      produced: '0',
+      activityDate: '2026-10-10',
+      plannedDate: '2026-10-01',
+      productId: unitProduct.id,
+      bomVersionId: unitVersion.id,
+    });
+    await createOrder({
+      number: `DASH-${literProduct.code}-LITER`,
+      status: ProductionOrderStatus.COMPLETED,
+      planned: '8',
+      produced: '6',
+      activityDate: '2026-10-10',
+      plannedDate: '2026-10-01',
+      completedDate: '2026-10-20',
+      productId: literProduct.id,
+      bomVersionId: version.id,
+    });
+
+    const all = data<{
+      orders: { total: number };
+      selectedProduct: unknown;
+      quantity: unknown;
+      productionByPeriod: unknown[];
+    }>(
+      await kit
+        .http()
+        .get(endpoint + '?from=2026-10-01&to=2026-10-20')
+        .set('Cookie', cookie)
+        .expect(200),
+    );
+    expect(all.orders.total).toBe(baseline.orders.total + 2);
+    expect(all.selectedProduct).toBeNull();
+    expect(all.quantity).toBeNull();
+    expect(all.productionByPeriod).toEqual([]);
+
+    const units = data<{
+      quantity: { planned: string; produced: string; unit: string };
+      productionByPeriod: { period: string; planned: string; produced: string }[];
+    }>(
+      await kit
+        .http()
+        .get(endpoint + `?from=2026-10-01&to=2026-10-20&productId=${unitProduct.id}`)
+        .set('Cookie', cookie)
+        .expect(200),
+    );
+    expect(units.quantity).toMatchObject({ planned: '10.0000', produced: '0.0000', unit: 'UNIT' });
+    expect(units.productionByPeriod.find((point) => point.period === '2026-10-01')).toMatchObject({
+      planned: '10.0000',
+      produced: '0.0000',
+    });
+
+    const liters = data<{
+      quantity: { planned: string; produced: string; unit: string };
+      productionByPeriod: { period: string; planned: string; produced: string }[];
+    }>(
+      await kit
+        .http()
+        .get(endpoint + `?from=2026-10-01&to=2026-10-20&productId=${literProduct.id}`)
+        .set('Cookie', cookie)
+        .expect(200),
+    );
+    expect(liters.quantity).toMatchObject({ planned: '8.0000', produced: '6.0000', unit: 'LITER' });
+    expect(liters.productionByPeriod.find((point) => point.period === '2026-10-01')).toMatchObject({
+      planned: '8.0000',
+      produced: '0.0000',
+    });
+    expect(liters.productionByPeriod.find((point) => point.period === '2026-10-20')).toMatchObject({
+      planned: '0.0000',
+      produced: '6.0000',
+    });
+
+    const membershipRaw = await createInventoryProduct(kit.prisma);
+    const membershipProduct = await kit.prisma.product.update({
+      where: { id: membershipRaw.id },
+      data: { type: ProductType.FINISHED_GOOD, unit: UnitOfMeasure.UNIT },
+    });
+    const membershipBom = await kit.prisma.billOfMaterial.create({
+      data: { productId: membershipProduct.id, name: `Dashboard ${membershipProduct.code}` },
+    });
+    const membershipVersion = await kit.prisma.bomVersion.create({
+      data: {
+        bomId: membershipBom.id,
+        version: 1,
+        outputQuantity: '1',
+        isActive: true,
+        createdByUserId: actor.id,
+      },
+    });
+    await createOrder({
+      number: `DASH-${membershipProduct.code}-MEMBERSHIP`,
+      status: ProductionOrderStatus.IN_PROGRESS,
+      planned: '3',
+      produced: '0',
+      activityDate: '2026-10-10',
+      plannedDate: '2026-10-01',
+      productId: membershipProduct.id,
+      bomVersionId: membershipVersion.id,
+    });
+    const membership = data<{ orders: { total: number; inProgress: number } }>(
+      await kit
+        .http()
+        .get(endpoint + `?from=2026-10-01&to=2026-10-01&productId=${membershipProduct.id}`)
+        .set('Cookie', cookie)
+        .expect(200),
+    );
+    expect(membership.orders).toMatchObject({ total: 1, inProgress: 1 });
+  });
+
+  it('validates productId and returns zero metrics for an existing product without orders', async () => {
+    await kit
+      .http()
+      .get(endpoint + '?productId=not-a-uuid')
+      .set('Cookie', cookie)
+      .expect(400);
+    await kit
+      .http()
+      .get(endpoint + `?productId=${randomUUID()}`)
+      .set('Cookie', cookie)
+      .expect(404);
+
+    const rawProduct = await createInventoryProduct(kit.prisma);
+    const emptyProduct = await kit.prisma.product.update({
+      where: { id: rawProduct.id },
+      data: { type: ProductType.FINISHED_GOOD },
+    });
+    const empty = data<{
+      orders: { total: number };
+      quantity: { planned: string; produced: string; completionRate: string | null; unit: string };
+      productionByPeriod: { period: string; planned: string; produced: string }[];
+    }>(
+      await kit
+        .http()
+        .get(endpoint + `?from=2026-10-01&to=2026-10-02&productId=${emptyProduct.id}`)
+        .set('Cookie', cookie)
+        .expect(200),
+    );
+    expect(empty.orders.total).toBe(0);
+    expect(empty.quantity).toEqual({
+      planned: '0.0000',
+      produced: '0.0000',
+      completionRate: null,
+      unit: emptyProduct.unit,
+    });
+    expect(empty.productionByPeriod).toEqual([
+      { period: '2026-10-01', planned: '0.0000', produced: '0.0000' },
+      { period: '2026-10-02', planned: '0.0000', produced: '0.0000' },
+    ]);
   });
 });

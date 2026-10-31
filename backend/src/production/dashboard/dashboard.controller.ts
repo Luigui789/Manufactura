@@ -8,6 +8,7 @@ import { DashboardService } from './dashboard.service.js';
 @ApiTags('Production Dashboard')
 @ApiCookieAuth(SESSION_COOKIE)
 @ApiResponse({ status: 400, description: 'Fechas o rango inválidos' })
+@ApiResponse({ status: 404, description: 'Producto no encontrado' })
 @ApiResponse({ status: 401, description: 'Sin sesión válida' })
 @Controller('production/dashboard')
 export class DashboardController {

@@ -7,8 +7,9 @@ import { ProductionDashboardPage } from './ProductionDashboardPage';
 
 const dashboard = {
   period: { from: '2026-10-01', to: '2026-10-03', timeZone: 'America/Managua', granularity: 'day' },
+  selectedProduct: { id: 'product-1', code: 'PT-001', name: 'Jabón ecológico', unit: 'UNIT' },
   orders: { draft: 1, inProgress: 2, completed: 3, cancelled: 0, total: 6 },
-  quantity: { planned: '120.5000', produced: '90.2500', completionRate: '74.90' },
+  quantity: { planned: '120.5000', produced: '90.2500', completionRate: '74.90', unit: 'UNIT' },
   productionByPeriod: [{ period: '2026-10-01', planned: '120.5000', produced: '90.2500' }],
   recentOrders: [
     {
@@ -58,8 +59,8 @@ describe('ProductionDashboardPage', () => {
     mount();
     expect(screen.getByText('Cargando dashboard de producción…')).toBeTruthy();
     resolve(response({ data: dashboard }));
-    expect(await screen.findByText('120.5')).toBeTruthy();
-    expect(screen.getByText('90.25')).toBeTruthy();
+    expect(await screen.findByText('120.5 Unidad')).toBeTruthy();
+    expect(screen.getByText('90.25 Unidad')).toBeTruthy();
     expect(screen.getByText('74.9%')).toBeTruthy();
     expect(screen.getByRole('img', { name: 'Gráfico de órdenes por estado' })).toBeTruthy();
     expect(
@@ -77,8 +78,9 @@ describe('ProductionDashboardPage', () => {
         response({
           data: {
             ...dashboard,
+            selectedProduct: null,
             orders: { draft: 0, inProgress: 0, completed: 0, cancelled: 0, total: 0 },
-            quantity: { planned: '0.0000', produced: '0.0000', completionRate: null },
+            quantity: null,
             productionByPeriod: [],
             recentOrders: [],
           },
@@ -87,7 +89,7 @@ describe('ProductionDashboardPage', () => {
     );
     mount();
     expect(await screen.findByText('Sin actividad en este período')).toBeTruthy();
-    expect(screen.getByText('—')).toBeTruthy();
+    expect(screen.getAllByText('—')).toHaveLength(3);
     expect(screen.queryByRole('img', { name: /Gráfico/ })).toBeNull();
   });
 
@@ -100,7 +102,7 @@ describe('ProductionDashboardPage', () => {
     mount();
     expect(await screen.findByText(/Error interno del servidor/)).toBeTruthy();
     fireEvent.click(screen.getByRole('button', { name: 'Reintentar' }));
-    expect(await screen.findByText('120.5')).toBeTruthy();
+    expect(await screen.findByText('120.5 Unidad')).toBeTruthy();
 
     fireEvent.change(screen.getByLabelText('Desde'), { target: { value: '2026-10-01' } });
     fireEvent.change(screen.getByLabelText('Hasta'), { target: { value: '2026-10-03' } });
@@ -112,5 +114,76 @@ describe('ProductionDashboardPage', () => {
       ),
     );
     expect(await screen.findByRole('heading', { name: 'Dashboard de producción' })).toBeTruthy();
+  });
+
+  it('busca un producto terminado activo y vuelve a consultar cantidades con su UUID', async () => {
+    const fetch = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.includes('/products?')) {
+        const params = new URL(url).searchParams;
+        const onSecondPage = params.get('page') === '2';
+        return response({
+          data: onSecondPage
+            ? [
+                {
+                  id: 'product-2',
+                  code: 'PT-002',
+                  name: 'Jabón de avena',
+                  type: 'FINISHED_GOOD',
+                  unit: 'LITER',
+                  isActive: true,
+                },
+              ]
+            : [],
+          meta: { page: onSecondPage ? 2 : 1, limit: 20, total: 21 },
+        });
+      }
+      return response({
+        data: {
+          ...dashboard,
+          selectedProduct: {
+            id: 'product-2',
+            code: 'PT-002',
+            name: 'Jabón de avena',
+            unit: 'LITER',
+          },
+          quantity: {
+            planned: '11.0000',
+            produced: '8.0000',
+            completionRate: '72.73',
+            unit: 'LITER',
+          },
+        },
+      });
+    });
+    vi.stubGlobal('fetch', fetch);
+    mount();
+    await screen.findByRole('heading', { name: 'Dashboard de producción' });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Producto: Todos' }));
+    fireEvent.change(await screen.findByLabelText('Buscar producto'), {
+      target: { value: 'avena' },
+    });
+    expect(await screen.findByText('Página 1 de 2 · 21 resultados')).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Siguiente' }));
+    expect(await screen.findByText('Página 2 de 2 · 21 resultados')).toBeTruthy();
+    fireEvent.click(
+      await screen.findByRole('button', { name: 'Seleccionar PT-002 · Jabón de avena' }),
+    );
+
+    await waitFor(() =>
+      expect(fetch).toHaveBeenCalledWith(
+        expect.stringContaining('/production/dashboard?productId=product-2'),
+        expect.anything(),
+      ),
+    );
+    expect(await screen.findByText('11 Litro')).toBeTruthy();
+    expect(fetch).toHaveBeenCalledWith(
+      expect.stringContaining('type=FINISHED_GOOD'),
+      expect.anything(),
+    );
+    expect(fetch).toHaveBeenCalledWith(expect.stringContaining('isActive=true'), expect.anything());
+    expect(fetch).toHaveBeenCalledWith(expect.stringContaining('search=avena'), expect.anything());
+    expect(fetch).toHaveBeenCalledWith(expect.stringContaining('page=2'), expect.anything());
   });
 });

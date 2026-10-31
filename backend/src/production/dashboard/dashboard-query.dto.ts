@@ -1,5 +1,6 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { IsOptional, ValidateBy } from 'class-validator';
+import { IsOptional, IsUUID, ValidateBy } from 'class-validator';
+import { RawValue } from '../../common/catalog.dto.js';
 
 function isCalendarDate(value: unknown): value is string {
   if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
@@ -27,4 +28,10 @@ export class DashboardQueryDto {
   @IsOptional()
   @IsCalendarDate()
   to?: string;
+
+  @ApiPropertyOptional({ format: 'uuid', description: 'Filtra las métricas por producto.' })
+  @RawValue()
+  @IsOptional()
+  @IsUUID(undefined, { message: 'productId debe ser un UUID válido' })
+  productId?: string;
 }
