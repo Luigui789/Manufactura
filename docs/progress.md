@@ -5,7 +5,7 @@ Este documento refleja el estado **real** del proyecto.
 Una casilla marcada significa que la comprobación se ejecutó y se vio el resultado. No se marca
 nada por parecer correcto, por estar escrito ni por estar a punto de terminarse.
 
-Última actualización: 2026-10-27.
+Última actualización: 2026-10-30.
 
 ## Estados del trabajo
 
@@ -1019,3 +1019,9 @@ PR #20 quedó integrado en `develop` con merge `e79e6f7f5cb3a5d6d13a07282c1d2bf4
 La rama `feature/sales-traceability` parte directamente de ese `develop`. La extensión local de `GET /api/production/lots/:id/traceability` agrega despachos por lote con DES, fecha, cantidad, OV, cliente, almacén y responsable. Las salidas se consultan en un lote por todos los nodos visitados dentro de la transacción `REPEATABLE READ`; no se modifica el esquema ni el writer de Inventario. El movimiento de inventario también presenta el cliente en su referencia de negocio. Se agregó una prueba E2E para compra → producción → inspección → despachos parciales a dos clientes, cancelación y despacho fallido, y pruebas de detalle para cantidades derivadas de órdenes parcialmente/completamente despachadas.
 
 PR #21 está abierto para revisión, desde `feature/sales-traceability` hacia `develop`. Fase 3 está `Verified`, no `Integrated`; RF-VEN-003 sigue `Integrated` por el PR #20. Para el HEAD revisado `b6f15e59ca2208e40d55642d572cceae61c5083d`, GitHub Actions CI #55 reportó `Quality and tests` y `Docker development` en `SUCCESS`. La validación reportada incluye 199 pruebas unitarias backend (14 archivos), 423 E2E PostgreSQL (30 archivos), 507 frontend (25 archivos), 52 E2E focales Producción + Sales Dispatch, migration proofs/drift, lint, formato y builds aprobados. La prueba focal incluye una misma OV despachada desde dos lotes con cantidades 1 y 2. El merge queda pendiente de aprobación formal y de que los checks requeridos estén verdes para el HEAD final, incluido cualquier commit documental posterior. Ver [`sales-traceability-validation.md`](sales-traceability-validation.md).
+
+### D1 — Dashboard de Producción (2026-10-30)
+
+La rama `feature/production-dashboard` parte del `develop` actualizado a `33f4524` (posterior al merge de PR #27). El endpoint planeado es una lectura autenticada `GET /api/production/dashboard`, con período inclusivo Managua, métricas agregadas en PostgreSQL, serie temporal acotada y cinco órdenes recientes. No requiere migración, cambios al esquema ni toca IIoT. Se agregan la ruta `/production/dashboard`, navegación y pantalla con indicadores/visualizaciones.
+
+La implementación está en curso. El lockfile ya registra Recharts 3.10.1. ESLint y Prettier pasan en los archivos D1, pero la suite frontend no se pudo completar porque Recharts no está instalado en el `node_modules` local. La instalación congelada se interrumpió al fallar pnpm durante la descarga de dependencias. Las E2E con PostgreSQL no se ejecutaron porque Docker no está accesible en este entorno. CI y los builds finales siguen pendientes; no se declara la fase completa ni el PR listo.

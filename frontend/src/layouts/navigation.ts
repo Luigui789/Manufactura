@@ -12,6 +12,7 @@ import {
   Truck,
   Users,
   UserCog,
+  ChartNoAxesCombined,
   type LucideIcon,
 } from 'lucide-react';
 export const navigation: {
@@ -35,6 +36,13 @@ export const navigation: {
     roles: ROLE_CODES,
     group: 'Operaciones',
     icon: ShoppingCart,
+  },
+  {
+    to: '/production/dashboard',
+    label: 'Producción · Dashboard',
+    roles: ROLE_CODES,
+    group: 'Operaciones',
+    icon: ChartNoAxesCombined,
   },
   {
     to: '/production/orders',
