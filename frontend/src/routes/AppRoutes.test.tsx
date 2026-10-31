@@ -573,3 +573,42 @@ describe('Navegación del ERP', () => {
     ).toBe('page');
   });
 });
+
+describe('Production routes navigation and authentication', () => {
+  it.each(['/production/routes', '/production/routes/new', '/production/routes/route'])(
+    'requires a session: %s',
+    async (path) => {
+      const fetch = vi.fn();
+      vi.stubGlobal('fetch', fetch);
+      const client = mount(path, null);
+
+      expect(await screen.findByRole('button', { name: 'Iniciar sesión' })).toBeTruthy();
+      expect(fetch).not.toHaveBeenCalled();
+      client.clear();
+    },
+  );
+
+  it('opens routes from URL and exposes navigation', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => response({ data: [], meta: { page: 1, limit: 20, total: 0 } })),
+    );
+
+    const client = mount('/production/routes', other);
+    expect(await screen.findByRole('heading', { name: 'Rutas de producción' })).toBeTruthy();
+    expect(screen.getAllByRole('link', { name: 'Producción · Rutas' }).length).toBeGreaterThan(0);
+    expect(screen.queryByRole('link', { name: 'Crear ruta' })).toBeNull();
+    client.clear();
+  });
+
+  it('opens the new route form for production users', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => response({ data: [], meta: { page: 1, limit: 20, total: 0 } })),
+    );
+
+    const client = mount('/production/routes/new', { ...account, role: 'PRODUCCION' });
+    expect(await screen.findByRole('heading', { name: 'Crear ruta de producción' })).toBeTruthy();
+    client.clear();
+  });
+});
