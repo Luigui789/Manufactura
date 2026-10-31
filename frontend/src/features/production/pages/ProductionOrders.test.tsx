@@ -99,6 +99,17 @@ function setup(
   const fetch = vi.fn(async (url: string, options: RequestInit = {}) => {
     const parsed = new URL(url);
     const method = options.method ?? 'GET';
+    if (parsed.pathname === '/api/iiot/production-orders/order/simulation')
+      return response({
+        data: {
+          available: true,
+          orderStatus: order.status,
+          status: 'IDLE',
+          publishedSamples: 0,
+          totalSamples: 60,
+          receivedReadings: 0,
+        },
+      });
     if (parsed.pathname === '/api/products')
       return response({ data: [product], meta: { page: 1, limit: 20, total: 1 } });
     if (parsed.pathname === '/api/production/boms')
@@ -181,6 +192,28 @@ afterEach(() => {
 });
 
 describe('C-1: órdenes y disponibilidad', () => {
+  it.each([
+    ['ADMIN', 'IN_PROGRESS', true],
+    ['PRODUCCION', 'IN_PROGRESS', true],
+    ['VENTAS', 'IN_PROGRESS', false],
+    ['PRODUCCION', 'DRAFT', false],
+    ['PRODUCCION', 'COMPLETED', false],
+  ] as const)(
+    'ofrece la prueba IIoT únicamente a gestores con OP en curso: %s / %s',
+    async (role, status, visible) => {
+      const { fetch } = setup(role, '/production/orders/order', { status });
+      await screen.findByRole('heading', { name: 'Orden de producción OP-2026-000001' });
+      if (visible) {
+        const button = (await screen.findByRole('button', {
+          name: 'Iniciar prueba IIoT',
+        })) as HTMLButtonElement;
+        await waitFor(() => expect(button.disabled).toBe(false));
+      } else {
+        expect(screen.queryByRole('button', { name: 'Iniciar prueba IIoT' })).toBeNull();
+        expect(fetch.mock.calls.some(([url]) => url.endsWith('/simulation'))).toBe(false);
+      }
+    },
+  );
   it.each(['IN_PROGRESS', 'COMPLETED'] as const)(
     'ofrece monitoreo para %s sin perder la consulta de disponibilidad',
     async (status) => {

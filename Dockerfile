@@ -38,7 +38,7 @@ WORKDIR /app/backend
 RUN DATABASE_URL=postgresql://build@localhost:5432/build pnpm prisma:generate \
     && pnpm build
 COPY --chown=node:node docker /app/docker
-# The external Docker smoke starts the simulator as an isolated child process.
+# Demo API and external Docker smoke start the simulator as an isolated child process.
 COPY --from=simulator-dev --chown=node:node /app/simulator/dist /app/simulator/dist
 RUN chmod +x /app/docker/backend-entrypoint.sh
 EXPOSE 3000

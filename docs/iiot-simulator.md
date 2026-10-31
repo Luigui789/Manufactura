@@ -28,6 +28,54 @@ No hay script `dev`: el simulador no arranca con `pnpm dev`.
 
 ## Preparación de la demo
 
+### Desde el ERP: Iniciar prueba IIoT
+
+Con el stack Docker actualizado, entrá como ADMIN o PRODUCCION, abrí una OP e
+iniciá producción con la acción existente. Mientras esté **IN_PROGRESS**, el detalle
+muestra **Prueba IIoT → Iniciar prueba IIoT**. El botón:
+
+1. Prepara un dispositivo activo exclusivo, identificado como `DEMO / SYNTHETIC`.
+2. Lanza el CLI existente como proceso hijo, usando el MQTT del backend.
+3. Publica 60 muestras, seed 42 e intervalo de 1 segundo (aproximadamente un minuto).
+4. Muestra muestras publicadas y lecturas realmente recibidas por PostgreSQL.
+5. Permite abrir **Ver monitoreo IIoT** para revisar métricas, gráficas y alertas.
+
+El proceso predeterminado es líquido con desviaciones; los selectores permiten
+barra/líquido y normal/desviación, sin inferirlos del nombre del producto. El perfil
+normal no genera alertas; el de desviaciones permite observar WARNING y CRITICAL.
+La finalización satisfactoria exige 120 lecturas para barra o 240 para líquido,
+asociadas al dispositivo exclusivo de esa ejecución. Publicar en MQTT no basta:
+si faltan lecturas, el estado muestra un error y permite reintentar explícitamente.
+
+Dejá la OP en curso hasta que termine. El botón **no inicia ni completa la OP**, no
+crea lotes, no modifica inventario y no registra ni decide Calidad. Después podés
+completar producción y realizar la inspección humana existente. OP en borrador o
+completadas se rechazan antes de aprovisionar un dispositivo. Una segunda ejecución
+simultánea sobre la misma OP recibe 409, incluso desde otra pestaña.
+
+La API de demostración usa `GET /iiot/production-orders/:id/simulation` para consultar
+el estado (usuarios autenticados) y `POST` sobre la misma ruta para iniciar (solo
+ADMIN/PRODUCCION). El POST recibe exclusivamente:
+
+```json
+{ "process": "liquid", "scenario": "deviation" }
+```
+
+Devuelve 202; no acepta rutas, ejecutables, comandos, intervalos ni muestras arbitrarias.
+El proceso hijo recibe solo MQTT y parámetros SIM, sin credenciales de PostgreSQL o
+sesión. Usa ejecutable fijo, sin shell, con un límite de 90 segundos y cierre al
+detener el backend. No hay comandos de control publicados a dispositivos físicos.
+Esta acción está deshabilitada con `NODE_ENV=production` o si falta el CLI compilado.
+Fuera de Docker, prepará el CLI con `pnpm --filter simulator build`.
+
+El progreso se conserva **en memoria del backend** y se consulta cada dos segundos
+solo mientras la prueba está en curso; al volver a la OP se recupera su estado. Si
+reiniciás el backend, se detiene el hijo y se reinicia ese estado. Las lecturas y
+alertas ya persistidas permanecen en el histórico. Es un control de demo para una
+instancia del backend, sin cola distribuida, tabla de jobs ni migraciones nuevas.
+
+### Desde terminal
+
 1. Arranca el stack: `docker compose up --build -d --wait` (o `--watch`).
 2. Mediante el flujo habitual del ERP, crea e inicia una OP. Debe existir y estar
    **IN_PROGRESS** antes de publicar. Copia su UUID: el simulador no busca,
@@ -206,7 +254,7 @@ También envía las 60 muestras de cada uno de los cuatro perfiles al parser rea
 `parseTelemetry` compilado del backend. Ese acceso existe solo en el script
 externo de aceptación: el runtime y los tests unitarios del paquete no importan
 backend ni Prisma. La imagen backend-dev incluye una copia compilada del simulador
-para ese proceso de smoke; el backend normal no lo ejecuta.
+para el smoke y para la acción controlada de demostración del ERP descrita arriba.
 
 El job **Quality and tests** ejecuta unitarias del simulador y los checks raíz.
 **Docker development** mantiene su smoke de aplicación y añade esta aceptación
@@ -217,6 +265,13 @@ el smoke contra una base de desarrollo ni reinicies datos para limpiarlo.
 El alcance original de Fase 4 terminaba en IiotReading: no incluía alertas, límites de calidad, dashboards,
 endpoints IIoT ni integración con PLC real. Fase 5 añade las reglas sintéticas
 de alerta de demostración sin modificar los perfiles.
+
+La extensión de control desde el ERP incorpora pruebas del proceso hijo, HTTP/RBAC
+con PostgreSQL y Testing Library para el botón, progreso, reintentos y visibilidad
+según rol/estado. `docker/verify-simulation.mjs`, invocado desde la aceptación existente,
+inicia el CLI por HTTP sin mocks, rechaza duplicados, espera las 240 lecturas de
+líquido y comprueba WARNING/CRITICAL y que la OP no cambió. La misma aceptación
+continúa con completar producción e inspección humana.
 
 La [Fase 5](iiot-alert-rules.md) añade evaluación determinista de las lecturas
 persistidas y alertas transaccionales con umbrales sintéticos de demostración.
