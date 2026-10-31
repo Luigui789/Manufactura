@@ -1,3 +1,5 @@
+import { DispositionService } from './disposition.service.js';
+import { DispositionDto } from './disposition.dto.js';
 import { Body, Controller, Get, HttpCode, Param, ParseUUIDPipe, Post } from '@nestjs/common';
 import { ApiCookieAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import {
@@ -18,9 +20,30 @@ import { TraceabilityService } from './traceability.service.js';
 export class QualityController {
   constructor(
     private readonly quality: QualityService,
+    private readonly dispositions: DispositionService,
     private readonly trace: TraceabilityService,
   ) {}
 
+  @Get(':id/disposition')
+  @Authenticated()
+  @ApiOperation({ summary: 'Consulta la disposición inmutable del lote o null' })
+  async disposition(@Param('id', new ParseUUIDPipe()) id: string) {
+    return { data: await this.dispositions.get(id), message: 'Disposición consultada' };
+  }
+  @Post(':id/disposition')
+  @HttpCode(201)
+  @Roles(RoleCode.ADMIN, RoleCode.PRODUCCION)
+  @ApiOperation({ summary: 'Registra RELEASE, REWORK o SCRAP después de una inspección rechazada' })
+  async createDisposition(
+    @CurrentUser() actor: AuthenticatedUser,
+    @Param('id', new ParseUUIDPipe()) id: string,
+    @Body() dto: DispositionDto,
+  ) {
+    return {
+      data: await this.dispositions.create(actor, id, dto),
+      message: 'Disposición registrada',
+    };
+  }
   @Get(':id/inspection')
   @Authenticated()
   @ApiOperation({ summary: 'Consulta la inspección del lote' })

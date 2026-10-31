@@ -99,6 +99,8 @@ export class TraceabilityService {
         code: true,
         status: true,
         product: { select: productSelect },
+        qualityInspection: { include: { inspectedBy: { select: { id: true, fullName: true } } } },
+        qualityDisposition: { include: { decidedBy: { select: { id: true, fullName: true } } } },
         ...businessOriginSelect,
       },
     });
@@ -125,6 +127,10 @@ export class TraceabilityService {
       status: lot.status,
       product: lot.product,
       origin,
+      quality: {
+        inspection: lot.qualityInspection ?? null,
+        disposition: lot.qualityDisposition ?? null,
+      },
       consumptions: consumed.map((item) => ({ ...item, quantity: item.quantity.abs().toFixed(4) })),
     };
   }
