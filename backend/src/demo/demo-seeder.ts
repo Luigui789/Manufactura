@@ -1,34 +1,11 @@
 import type { PrismaClient } from '../generated/prisma/client.js';
-import {
-  DEMO_DATASET_LOCK_KEY,
-  DEMO_PASSWORD_ENV,
-  DEMO_USERS,
-  DEMO_WAREHOUSE_CODE,
-} from './demo-data.js';
+import { DEMO_DATASET_LOCK_KEY, DEMO_USERS, DEMO_WAREHOUSE_CODE } from './demo-data.js';
 import { drift, type SeedStats } from './demo-context.js';
 import { ensureDemoBoms, ensureDemoInitialStock, ensureDemoRoutes } from './demo-production.js';
 import { ensureDemoParties, ensureDemoProducts } from './demo-products.js';
 import { ensureDemoCircularity, ensureDemoFactors } from './demo-sustainability.js';
 import { ensureDemoUsers } from './demo-users.js';
-import { PASSWORD_MAX_LENGTH, PASSWORD_MIN_LENGTH } from '../auth/password-policy.js';
-
-export class DemoInputError extends Error {}
-
-/** Valida DEMO_USER_PASSWORD con la política de contraseñas, sin incluir nunca su valor. */
-export function readDemoPassword(env: Record<string, string | undefined>): string {
-  const raw = env[DEMO_PASSWORD_ENV];
-  if (!raw?.trim())
-    throw new DemoInputError(
-      `${DEMO_PASSWORD_ENV} es obligatoria para crear las cuentas demo. ` +
-        'Defínela solo en tu sesión local (ver docs/demo-dataset.md).',
-    );
-  const password = raw.normalize('NFC');
-  if (password.length < PASSWORD_MIN_LENGTH || password.length > PASSWORD_MAX_LENGTH)
-    throw new DemoInputError(
-      `${DEMO_PASSWORD_ENV} debe tener entre ${PASSWORD_MIN_LENGTH} y ${PASSWORD_MAX_LENGTH} caracteres.`,
-    );
-  return password;
-}
+export { DemoInputError, readDemoPassword } from './demo-input.js';
 
 /**
  * Aplica el dataset oficial en UNA transacción serializada por advisory lock: dos seeds

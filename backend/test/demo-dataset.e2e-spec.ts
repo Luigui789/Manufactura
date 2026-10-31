@@ -15,6 +15,10 @@ import {
   P,
 } from '../src/demo/demo-data.js';
 import { seedDemoDataset } from '../src/demo/demo-seeder.js';
+import { spawnSync } from 'node:child_process';
+import { readFile, readdir } from 'node:fs/promises';
+import { createRequire } from 'node:module';
+import { randomUUID } from 'node:crypto';
 import { createTestApp, login, randomPassword, type TestApp } from './support/auth-test-kit.js';
 
 let kit: TestApp;
@@ -22,6 +26,16 @@ let hash: string;
 const password = randomPassword();
 const productCodes = DEMO_PRODUCTS.map((p) => p.code);
 const data = <T>(r: { body: unknown }) => (r.body as { data: T }).data;
+const repoRoot = new URL('../../', import.meta.url).pathname;
+const PgClient = (
+  createRequire(createRequire(import.meta.url).resolve('@prisma/adapter-pg'))('pg') as {
+    Client: new (options: { connectionString: string }) => {
+      connect(): Promise<void>;
+      query(sql: string): Promise<{ rows: Record<string, string>[] }>;
+      end(): Promise<void>;
+    };
+  }
+).Client;
 
 /** Conteos del dataset (incluye ambos terminados y el packaging líquido). */
 async function snapshot() {
@@ -91,10 +105,6 @@ describe('C5 EcoSoap demo dataset', () => {
   }, 60000);
 
   it('is idempotent: a second run changes nothing and creates no transactions', async () => {
-    const demoProducts = await kit.prisma.product.findMany({
-      where: { code: { in: productCodes } },
-    });
-    const ids = demoProducts.map((p) => p.id);
     const transactions = async () => ({
       orders: await kit.prisma.productionOrder.count(),
       lots: await kit.prisma.lot.count(),
@@ -115,16 +125,6 @@ describe('C5 EcoSoap demo dataset', () => {
     expect(await snapshot()).toEqual(before);
     expect(await transactions()).toEqual(tx);
     expect(await kit.prisma.auditLog.count()).toBe(audits);
-    // El seed solo escribe stock por la marca inicial; nada más toca los productos demo.
-    expect(
-      await kit.prisma.inventoryMovement.count({
-        where: {
-          productId: { in: ids },
-          type: 'ADJUSTMENT_IN',
-          requestId: { not: DEMO_INITIAL_STOCK_MARKER },
-        },
-      }),
-    ).toBe(0);
     for (const code of [P.ACU, P.ACU_FIL, P.BAR, P.LIQUID])
       expect(
         await kit.prisma.stockBalance.count({ where: { product: { code }, quantity: { not: 0 } } }),
@@ -142,6 +142,8 @@ describe('C5 EcoSoap demo dataset', () => {
     expect(text).toContain('Bar manufacturing structure....... READY');
     expect(text).toContain('Liquid manufacturing structure.... READY');
     expect(text).toContain('Dataset ready for demonstration.');
+    for (const label of ['Initial stock ledger', 'Current inventory readiness', 'Demo users'])
+      expect(checks.find((c) => c.label === label)?.status).toBe('PASS');
     expect(await snapshot()).toEqual(before);
     expect(await kit.prisma.auditLog.count()).toBe(audits);
     expect(await kit.prisma.inventoryMovement.count()).toBe(movements);
@@ -173,6 +175,194 @@ describe('C5 EcoSoap demo dataset', () => {
     }
     expect((await seedDemoDataset(kit.prisma, hash)).created).toEqual({});
   });
+
+  it.each([
+    ['mustChangePassword', { mustChangePassword: true }],
+    ['fullName', { fullName: 'Administración renombrada' }],
+  ] as const)(
+    'rejects a demo user with a different %s as drift and rolls back',
+    async (field, change) => {
+      const email = 'admin.demo@ecosoap.test';
+      const original = await kit.prisma.user.findUniqueOrThrow({ where: { email } });
+      await kit.prisma.user.update({ where: { email }, data: change });
+      try {
+        const before = await snapshot();
+        const audits = await kit.prisma.auditLog.count();
+        const error = await seedDemoDataset(kit.prisma, hash).catch((e: unknown) => e);
+        expect(error).toBeInstanceOf(DemoDatasetDriftError);
+        expect((error as Error).message).toContain(`User ${email}`);
+        expect((error as Error).message).toContain(field);
+        expect(await snapshot()).toEqual(before);
+        expect(await kit.prisma.auditLog.count()).toBe(audits);
+        // La contraseña existente nunca se compara ni se sobrescribe.
+        const row = await kit.prisma.user.findUniqueOrThrow({ where: { email } });
+        expect(row.passwordHash).toBe(original.passwordHash);
+        const users = (await verifyDemoDataset(kit.prisma)).find((c) => c.label === 'Demo users');
+        expect(users?.status).toBe('FAIL');
+      } finally {
+        await kit.prisma.user.update({
+          where: { email },
+          data: { mustChangePassword: original.mustChangePassword, fullName: original.fullName },
+        });
+      }
+      expect((await seedDemoDataset(kit.prisma, hash)).created).toEqual({});
+    },
+  );
+
+  /** Operaciones reales por la API (InventoryService), nunca escribiendo StockBalance. */
+  async function adminApi() {
+    const cookie = await login(kit, { email: 'admin.demo@ecosoap.test', password });
+    return (method: 'get' | 'post', url: string) => kit.http()[method](url).set('Cookie', cookie);
+  }
+  const readiness = async () => {
+    const checks = await verifyDemoDataset(kit.prisma);
+    return {
+      ready: formatChecks(checks).ready,
+      ledger: checks.find((c) => c.label === 'Initial stock ledger'),
+      current: checks.find((c) => c.label === 'Current inventory readiness'),
+    };
+  };
+  const balance = async (code: string) =>
+    (
+      await kit.prisma.stockBalance.findFirst({
+        where: { product: { code }, warehouse: { code: 'ALM-PRINCIPAL' } },
+      })
+    )?.quantity.toFixed(4) ?? '0.0000';
+
+  it('fails readiness after consuming baseline stock; the seed does not replenish it', async () => {
+    const api = await adminApi();
+    const naoh = await kit.prisma.product.findUniqueOrThrow({ where: { code: P.NAOH } });
+    const warehouse = await kit.prisma.warehouse.findUniqueOrThrow({
+      where: { code: 'ALM-PRINCIPAL' },
+    });
+    const adjust = (type: 'ADJUSTMENT_IN' | 'ADJUSTMENT_OUT') =>
+      api('post', '/api/inventory/adjustments')
+        .send({
+          productId: naoh.id,
+          warehouseId: warehouse.id,
+          type,
+          quantity: '100',
+          reason: 'CORRECTION',
+        })
+        .expect(201);
+    expect((await readiness()).ready).toBe(true);
+    await adjust('ADJUSTMENT_OUT');
+    try {
+      expect(await balance(P.NAOH)).toBe('19900.0000');
+      const used = await readiness();
+      expect(used.ready).toBe(false);
+      expect(used.ledger?.status).toBe('PASS');
+      expect(used.current?.status).toBe('FAIL');
+      expect(used.current?.detail).toContain('MP-NAOH 19900.0000 GRAM (esperado 20000.0000)');
+      // Idempotente ≠ reset: el seed no repone lo consumido.
+      expect((await seedDemoDataset(kit.prisma, hash)).created).toEqual({});
+      expect(await balance(P.NAOH)).toBe('19900.0000');
+      // verify es de solo lectura incluso cuando falla.
+      const movements = await kit.prisma.inventoryMovement.count();
+      const balances = await kit.prisma.stockBalance.findMany({ orderBy: { id: 'asc' } });
+      const audits = await kit.prisma.auditLog.count();
+      await verifyDemoDataset(kit.prisma);
+      expect(await kit.prisma.inventoryMovement.count()).toBe(movements);
+      expect(await kit.prisma.stockBalance.findMany({ orderBy: { id: 'asc' } })).toEqual(balances);
+      expect(await kit.prisma.auditLog.count()).toBe(audits);
+    } finally {
+      await adjust('ADJUSTMENT_IN');
+    }
+    expect(await balance(P.NAOH)).toBe('20000.0000');
+    expect((await readiness()).ready).toBe(true);
+  });
+
+  it('fails readiness when a zero-start product (MP-ACU) has stock from a real receipt', async () => {
+    const api = await adminApi();
+    const acu = await kit.prisma.product.findUniqueOrThrow({ where: { code: P.ACU } });
+    const supplier = await kit.prisma.supplier.findUniqueOrThrow({
+      where: { code: 'SUP-ACU-001' },
+    });
+    const warehouse = await kit.prisma.warehouse.findUniqueOrThrow({
+      where: { code: 'ALM-PRINCIPAL' },
+    });
+    const order = data<{ id: string; items: { id: string }[] }>(
+      await api('post', '/api/purchase-orders')
+        .send({
+          supplierId: supplier.id,
+          items: [{ productId: acu.id, quantity: '100', unitPrice: '0' }],
+        })
+        .expect(201),
+    );
+    await api('post', `/api/purchase-orders/${order.id}/confirm`).send({}).expect(200);
+    await api('post', `/api/purchase-orders/${order.id}/receive`)
+      .send({
+        items: [
+          { purchaseOrderItemId: order.items[0].id, warehouseId: warehouse.id, quantity: '100' },
+        ],
+      })
+      .expect(201);
+    const lot = await kit.prisma.lot.findFirstOrThrow({
+      where: { purchaseReceiptItem: { orderItem: { purchaseOrderId: order.id } } },
+    });
+    try {
+      expect(await balance(P.ACU)).toBe('100.0000');
+      const used = await readiness();
+      expect(used.ready).toBe(false);
+      expect(used.ledger?.status).toBe('PASS');
+      expect(used.current?.status).toBe('FAIL');
+      expect(used.current?.detail).toContain('MP-ACU 100.0000 MILLILITER (esperado 0.0000)');
+    } finally {
+      await api('post', '/api/inventory/adjustments')
+        .send({
+          productId: acu.id,
+          warehouseId: warehouse.id,
+          lotId: lot.id,
+          type: 'ADJUSTMENT_OUT',
+          quantity: '100',
+          reason: 'CORRECTION',
+        })
+        .expect(201);
+    }
+    expect(await balance(P.ACU)).toBe('0.0000');
+    expect((await readiness()).ready).toBe(true);
+  });
+
+  it('pnpm demo:seed without DEMO_USER_PASSWORD fails before Foundation writes anything', async () => {
+    // Base vacía aislada con todas las migraciones: el comando oficial debe fallar en el
+    // preflight, antes de db:seed, sin crear roles, almacén, usuarios ni movimientos.
+    const base = new URL(process.env.DATABASE_URL!);
+    const name = `${base.pathname.slice(1)}_preflight_${randomUUID().slice(0, 8)}`;
+    const admin = new PgClient({ connectionString: base.toString() });
+    await admin.connect();
+    await admin.query(`CREATE DATABASE "${name}"`);
+    const target = new URL(base.toString());
+    target.pathname = '/' + name;
+    target.search = '';
+    const db = new PgClient({ connectionString: target.toString() });
+    try {
+      await db.connect();
+      const migrations = new URL('../prisma/migrations/', import.meta.url);
+      for (const dir of (await readdir(migrations)).filter((n) => /^\d/.test(n)).sort())
+        await db.query(await readFile(new URL(dir + '/migration.sql', migrations), 'utf8'));
+      const env = { ...process.env, DATABASE_URL: target.toString() };
+      delete env.DEMO_USER_PASSWORD;
+      const result = spawnSync('pnpm', ['demo:seed'], { cwd: repoRoot, env, encoding: 'utf8' });
+      expect(result.status).not.toBe(0);
+      expect(result.stderr + result.stdout).toContain('DEMO_USER_PASSWORD es obligatoria');
+      expect(result.stdout).not.toContain('Seed Foundation aplicado');
+      for (const table of [
+        'roles',
+        'warehouses',
+        'users',
+        'products',
+        'inventory_movements',
+        'audit_logs',
+      ])
+        expect((await db.query(`SELECT count(*)::text AS n FROM ${table}`)).rows[0].n, table).toBe(
+          '0',
+        );
+    } finally {
+      await db.end().catch(() => undefined);
+      await admin.query(`DROP DATABASE IF EXISTS "${name}" WITH (FORCE)`);
+      await admin.end();
+    }
+  }, 180000);
 
   it('demo users log in with DEMO_USER_PASSWORD and keep their roles', async () => {
     for (const user of DEMO_USERS) {

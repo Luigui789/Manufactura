@@ -1,6 +1,6 @@
 import { AuditEntityType } from '../generated/prisma/client.js';
 import { DEMO_USERS } from './demo-data.js';
-import { recordCreate, drift, type SeedStats, type Tx } from './demo-context.js';
+import { assertSame, drift, recordCreate, type SeedStats, type Tx } from './demo-context.js';
 
 /**
  * Crea las cinco cuentas demo con el hash recibido (PasswordHasherService). Una cuenta ya
@@ -18,9 +18,18 @@ export async function ensureDemoUsers(tx: Tx, stats: SeedStats, passwordHash: st
       include: { role: true },
     });
     if (existing) {
-      if (existing.role.code !== spec.role)
-        drift('User ' + spec.email, `rol ${existing.role.code}, se esperaba ${spec.role}`);
-      if (!existing.isActive) drift('User ' + spec.email, 'la cuenta está inactiva');
+      // Dataset oficial: correo, rol, nombre, estado y mustChangePassword deben coincidir.
+      // La contraseña de una cuenta existente se conserva: no se compara ni se sobrescribe.
+      assertSame(
+        'User ' + spec.email,
+        {
+          role: existing.role.code,
+          fullName: existing.fullName,
+          isActive: existing.isActive,
+          mustChangePassword: existing.mustChangePassword,
+        },
+        { role: spec.role, fullName: spec.fullName, isActive: true, mustChangePassword: false },
+      );
       users.set(spec.email, existing.id);
       continue;
     }

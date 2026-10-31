@@ -13,7 +13,7 @@
     "lint": "pnpm -r run lint",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "demo:seed": "pnpm --filter backend db:seed && pnpm --filter backend db:seed:demo",
+    "demo:seed": "pnpm --filter backend demo:check && pnpm --filter backend db:seed && pnpm --filter backend db:seed:demo",
     "demo:verify": "pnpm --filter backend demo:verify",
     "db:up": "docker compose up -d postgres",
     "db:down": "docker compose stop postgres",

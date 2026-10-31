@@ -22,6 +22,7 @@
     "prisma:studio": "prisma studio",
     "db:seed": "pnpm build && node dist/prisma/seed.js",
     "admin:create": "pnpm build && node dist/cli/create-admin.js",
+    "demo:check": "pnpm build && node dist/demo/check-demo-input.js",
     "db:seed:demo": "pnpm build && node dist/demo/seed-demo.js",
     "demo:verify": "pnpm build && node dist/demo/verify-demo.js",
     "test:migrations": "node test/purchases-migrations.mjs && node test/production-migrations.mjs && node test/sales-orders-migrations.mjs && node test/iiot-migrations.mjs && node test/production-routes-migrations.mjs && node test/quality-disposition-migrations.mjs && node test/sustainability-migrations.mjs"

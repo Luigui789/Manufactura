@@ -117,6 +117,7 @@ export async function verifyDemoDataset(prisma: PrismaClient): Promise<DemoCheck
         expect(user, `${spec.email} no existe`);
         expect(user.role.code === spec.role && user.isActive, `${spec.email} rol/estado`);
         expect(user.fullName === spec.fullName, `${spec.email} nombre`);
+        expect(!user.mustChangePassword, `${spec.email} mustChangePassword debe ser false`);
       }
     });
     await run('Warehouse', async () => {
@@ -144,7 +145,7 @@ export async function verifyDemoDataset(prisma: PrismaClient): Promise<DemoCheck
       for (const step of [/embotellado/i, /tapado/i, /etiquetado/i])
         expect(step.test(names), `falta ${step.source} en la ruta líquida`);
     });
-    await run('Initial stock', async () => {
+    await run('Initial stock ledger', async () => {
       const marked = await tx.inventoryMovement.findMany({
         where: { requestId: DEMO_INITIAL_STOCK_MARKER, warehouse: { code: DEMO_WAREHOUSE_CODE } },
         include: { product: true },
@@ -161,6 +162,29 @@ export async function verifyDemoDataset(prisma: PrismaClient): Promise<DemoCheck
       }
       for (const code of DEMO_ZERO_START)
         expect(!marked.some((m) => m.product.code === code), `${code} debe iniciar en cero`);
+    });
+    // Procedencia (ledger) ≠ preparación actual: después de una demo real el ledger sigue
+    // correcto pero el saldo cambió, y la base ya no está en su estado inicial.
+    await run('Current inventory readiness', async () => {
+      const expected = [
+        ...DEMO_INITIAL_STOCK.map((s) => [s.productCode, dec(s.quantity)] as const),
+        ...DEMO_ZERO_START.map((code) => [code, dec('0')] as const),
+      ];
+      const balances = await tx.stockBalance.findMany({
+        where: {
+          warehouse: { code: DEMO_WAREHOUSE_CODE },
+          product: { code: { in: expected.map(([code]) => code) } },
+        },
+        include: { product: true },
+      });
+      const wrong = expected.flatMap(([code, quantity]) => {
+        const balance = balances.find((b) => b.product.code === code);
+        // Sin fila de saldo el ERP considera stock cero.
+        const actual = balance ? dec(balance.quantity) : dec('0');
+        const unit = DEMO_PRODUCTS.find((p) => p.code === code)!.unit;
+        return actual === quantity ? [] : [`${code} ${actual} ${unit} (esperado ${quantity})`];
+      });
+      expect(wrong.length === 0, wrong.join('; '));
     });
     await run('Circularity', async () => {
       const spec = DEMO_CIRCULAR_PROFILE;

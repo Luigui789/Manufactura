@@ -16,6 +16,7 @@ import {
   P,
 } from './demo-data.js';
 import { DemoInputError, readDemoPassword } from './demo-seeder.js';
+import { demoPreflight } from './demo-input.js';
 
 const product = (code: string) => DEMO_PRODUCTS.find((p) => p.code === code)!;
 const bom = (code: string) => DEMO_BOMS.find((b) => b.productCode === code)!;
@@ -48,6 +49,16 @@ describe('DEMO_USER_PASSWORD', () => {
     expect(readDemoPassword({ DEMO_USER_PASSWORD: 'una frase local de demo' })).toBe(
       'una frase local de demo',
     );
+  });
+});
+
+describe('demo preflight', () => {
+  it('fails for a missing or short password and passes a valid one, without echoing it', () => {
+    expect(demoPreflight({})).toMatchObject({ ok: false });
+    const short = demoPreflight({ DEMO_USER_PASSWORD: 'corta-123' });
+    expect(short.ok).toBe(false);
+    expect(JSON.stringify(short)).not.toContain('corta-123');
+    expect(demoPreflight({ DEMO_USER_PASSWORD: 'una frase local de demo' })).toEqual({ ok: true });
   });
 });
 
