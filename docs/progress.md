@@ -1077,3 +1077,23 @@ ambas activaciones concurrentes entran (`[200, 200]`) y queda un ciclo activo; c
 Docker: `docker compose config`, `docker compose up --build -d --wait` y `docker/verify.mjs`
 completo (incluido el nuevo bloque C4 de `docker/verify-multilevel.mjs`) aprobados sobre una base
 `_test` separada. **Pendiente:** CI del PR y revisión; no marcar C4 como integrada hasta el merge.
+
+### C5 — Dataset oficial de demostración EcoSoap (2026-10-31)
+
+Rama `feature/ecosoap-demo-dataset` desde `develop` en `ad4a828`. Agrega `backend/src/demo/`,
+`pnpm demo:seed` y `pnpm demo:verify`, con jabón en barra `PT-JABON-500` y jabón líquido embotellado
+`PT-JABON-LIQ` sobre el intermedio compartido `INT-ACU-FIL`. El seed Foundation no cambió y no hay
+cambios de esquema ni migraciones. La formulación, la presentación y los tiempos del jabón líquido
+son supuestos académicos declarados en [`demo-dataset.md`](demo-dataset.md). Los factores `DEMO-*`
+son valores ilustrativos sin fuente externa.
+
+Validación local ejecutada contra PostgreSQL 18.6 (contenedor `postgres:18-alpine`): instalación
+congelada, `prisma generate`/`validate`/`migrate deploy`, drift (No difference detected), lint,
+formato, build, seed, backend unitarias (394), simulador (51), frontend (632), build y lint de
+frontend, `test:migrations` y E2E backend (582 en 42 archivos), todo aprobado. Sobre una base nueva:
+`pnpm demo:seed` creó el dataset; `pnpm demo:verify` dio 21/21 (PASS o READY). La segunda
+ejecución de ambos no modificó nada y volvió a dar 21/21.
+
+**Pendiente:** el stack Docker no se pudo construir en el entorno de desarrollo (sin DNS para
+`apt-get` dentro de los contenedores). La CI ejecuta el dataset dos veces en el job
+`Docker development`; no marcar C5 como verificada en Docker hasta ver esa CI verde.
