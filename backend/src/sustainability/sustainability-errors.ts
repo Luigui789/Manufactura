@@ -1,4 +1,4 @@
-import { ConflictException, UnprocessableEntityException } from '@nestjs/common';
+import { ConflictException, HttpException, UnprocessableEntityException } from '@nestjs/common';
 import { Prisma } from '../generated/prisma/client.js';
 import { CarbonValueError } from './carbon-math.js';
 import { IncompatibleUnitsError } from './carbon-units.js';
@@ -8,6 +8,8 @@ export function translateSustainabilityError(
   error: unknown,
   conflicts: Record<string, string> = {},
 ): never {
+  // Las respuestas HTTP ya decididas por el servicio pasan intactas.
+  if (error instanceof HttpException) throw error;
   if (error instanceof CarbonValueError || error instanceof IncompatibleUnitsError)
     throw new UnprocessableEntityException({
       code: 'INVALID_CARBON_VALUE',
@@ -20,7 +22,7 @@ export function translateSustainabilityError(
   }
   // Defensa física: triggers de inmutabilidad (55000) y CHECK de base (23514).
   const message = error instanceof Error ? error.message : '';
-  if (/immutable|55000/.test(message))
+  if (/immutable|cannot be deleted/.test(message))
     throw new ConflictException('La huella finalizada es inmutable');
   throw error;
 }

@@ -145,7 +145,7 @@ export function ManualActivityForm({
           {...form.register('quantity')}
         />
       </fieldset>
-      {selected ? (
+      {selected && !keepsSnapshot ? (
         <dl
           aria-label="Factor seleccionado"
           className="grid gap-2 rounded-md bg-muted/30 p-3 text-sm sm:grid-cols-3"
