@@ -527,11 +527,7 @@ describe('Navegación del ERP', () => {
     );
     mount(path, other);
     expect(
-      await screen.findByRole(
-        'heading',
-        { name: heading, level: 1 },
-        { timeout: 10000 },
-      ),
+      await screen.findByRole('heading', { name: heading, level: 1 }, { timeout: 10000 }),
     ).toBeTruthy();
     const nav = within(screen.getByRole('navigation', { name: 'Menú principal' }));
     expect(nav.getByRole('link', { name: active }).getAttribute('aria-current')).toBe('page');
