@@ -1094,6 +1094,16 @@ frontend, `test:migrations` y E2E backend (582 en 42 archivos), todo aprobado. S
 `pnpm demo:seed` creó el dataset; `pnpm demo:verify` dio 21/21 (PASS o READY). La segunda
 ejecución de ambos no modificó nada y volvió a dar 21/21.
 
+Corrección previa al merge: `pnpm demo:seed` ejecuta primero el preflight `demo:check`. Sin
+`DEMO_USER_PASSWORD`, sobre una base vacía, terminó con error y dejó 0 roles, almacenes, usuarios,
+productos, movimientos y auditorías: Foundation no llegó a ejecutarse. `demo:verify` separa
+`Initial stock ledger` de `Current inventory readiness` (saldo actual de `StockBalance`) y ahora
+tiene 22 checks. Las cuentas demo existentes validan nombre y `mustChangePassword = false`.
+Comprobado sobre una base nueva: seed y verify listos dos veces. Tras un ajuste real de
+−100 g de `MP-NAOH`, readiness dio FAIL con el ledger en PASS, el seed no repuso stock y el verify
+no cambió movimientos, auditoría, usuarios ni saldos. Tras restaurar, readiness dio PASS; una
+recepción real de 10000 mL de `MP-ACU` volvió a dar FAIL identificando `MP-ACU`.
+
 **Pendiente:** el stack Docker no se pudo construir en el entorno de desarrollo (sin DNS para
 `apt-get` dentro de los contenedores). La CI ejecuta el dataset dos veces en el job
 `Docker development`; no marcar C5 como verificada en Docker hasta ver esa CI verde.

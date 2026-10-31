@@ -17,16 +17,20 @@ pnpm demo:seed
 pnpm demo:verify
 ```
 
-| Comando                              | Qué hace                                                                      |
-| ------------------------------------ | ----------------------------------------------------------------------------- |
-| `pnpm demo:seed`                     | Ejecuta el seed Foundation (`db:seed`) y luego el dataset (`db:seed:demo`).   |
-| `pnpm demo:verify`                   | Verifica el dataset en una transacción `READ ONLY`. No crea ni modifica nada. |
-| `pnpm --filter backend db:seed`      | Solo Foundation: 5 roles y `ALM-PRINCIPAL`. Sigue siendo pequeño.             |
-| `pnpm --filter backend db:seed:demo` | Solo el dataset; exige Foundation previo.                                     |
+| Comando                              | Qué hace                                                                                      |
+| ------------------------------------ | --------------------------------------------------------------------------------------------- |
+| `pnpm demo:seed`                     | Preflight (`demo:check`), luego Foundation (`db:seed`) y el dataset (`db:seed:demo`).         |
+| `pnpm demo:verify`                   | Verifica que la base esté lista para iniciar la demostración, en una transacción `READ ONLY`. |
+| `pnpm --filter backend demo:check`   | Solo valida `DEMO_USER_PASSWORD`; no abre conexión a PostgreSQL.                              |
+| `pnpm --filter backend db:seed`      | Solo Foundation: 5 roles y `ALM-PRINCIPAL`. Sigue siendo pequeño.                             |
+| `pnpm --filter backend db:seed:demo` | Solo el dataset; exige Foundation previo.                                                     |
 
 `DEMO_USER_PASSWORD` es obligatoria (15–128 caracteres, misma política que las demás cuentas).
-Sin ella, `demo:seed` termina **antes de abrir la conexión** a la base. Nunca se imprimen la
-contraseña ni su hash. `.env.example` declara la variable vacía; conviene definirla solo en la
+El orden de `pnpm demo:seed` es **preflight → Foundation → dataset**: sin una contraseña válida el
+preflight termina con error y **ni siquiera se ejecuta el seed Foundation**, así que una base vacía
+queda vacía (sin roles, almacén, usuarios, productos, movimientos ni auditoría). Ejecutar
+`db:seed:demo` directamente vuelve a validarla antes de abrir la conexión (defensa en profundidad).
+Nunca se imprimen la contraseña ni su hash. `.env.example` declara la variable vacía; conviene definirla solo en la
 sesión, como `ADMIN_PASSWORD`.
 
 ### Garantías
@@ -68,8 +72,12 @@ pnpm demo:verify
 
 El hash se calcula con `PasswordHasherService` (Argon2id, ADR 009), el mismo mecanismo que el
 resto de usuarios. Las cuentas quedan con `mustChangePassword = false` porque son
-**exclusivamente locales de demostración**; no deben existir en un entorno real. Reejecutar el
-seed no cambia la contraseña de una cuenta ya creada.
+**exclusivamente locales de demostración**; no deben existir en un entorno real.
+
+Una cuenta demo ya existente debe coincidir en correo, rol, nombre, `isActive = true` y
+`mustChangePassword = false`; si no, el seed falla con `DEMO_DATASET_DRIFT` y hace rollback. Su
+contraseña se conserva: el seed no la compara con `DEMO_USER_PASSWORD` ni la sobrescribe. En una
+base de defensa limpia, las cuentas se crean con el `DEMO_USER_PASSWORD` de esa ejecución.
 
 ## 3. Catálogo
 
@@ -131,11 +139,11 @@ La fórmula y la ruta provienen de la documentación existente del proyecto
   | `ENV-ETIQ-LIQ`    | 1 UNIT              | Empaque físico de la presentación |
 
   No es una fórmula industrial certificada ni proviene de la Entrega 1. Reutiliza los insumos
-  documentados del caso con proporciones propias, sin copiar la fórmula de la barra. En la
-  práctica industrial el jabón líquido suele saponificarse con hidróxido de potasio. Como el caso
-  no documenta ese insumo, C5 **no** lo agrega por conocimiento externo ni sustituye `MP-NAOH`. Si
-  el equipo valida otra formulación, basta cambiar `DEMO_BOMS` en `demo-data.ts` (la detección de
-  drift obligará a reconstruir una base que ya tenga la v1 anterior).
+  documentados del caso con proporciones propias, sin copiar la fórmula de la barra. La
+  formulación líquida del dataset es un supuesto académico de demostración y no representa una
+  formulación industrial certificada. Si el equipo valida una formulación diferente, debe
+  actualizarse `DEMO_BOMS` en `demo-data.ts` (la detección de drift obligará a reconstruir una base
+  que ya tenga la v1 anterior).
 
 - **Ruta** `RT-JABON-LIQ` «Ruta Jabón Líquido EcoSoap». Son **tiempos estándar estimados para
   simulación académica**, no medidos:
@@ -281,15 +289,33 @@ Los requerimientos de la OP líquida listan solo sus componentes directos: no ex
 
 ## 11. Verificación
 
-`pnpm demo:verify` comprueba roles, usuarios, almacén, proveedores y clientes, productos base,
-ambos terminados, packaging líquido, las tres fórmulas (v1 activa, sin v2), las tres rutas
-(incluido embotellado, tapado y etiquetado), ambas estructuras `READY` con `maxDepth = 2`, el stock
-inicial por ledger, la circularidad, los factores y la compatibilidad IIoT:
+`pnpm demo:verify` comprueba dos cosas distintas: la **configuración del dataset** y el **estado
+inicial actual del inventario**. Revisa roles, usuarios (rol, nombre, activos y
+`mustChangePassword = false`), almacén, proveedores y clientes, productos base, ambos terminados,
+packaging líquido, las tres fórmulas (v1 activa, sin v2), las tres rutas (incluido embotellado,
+tapado y etiquetado), ambas estructuras `READY` con `maxDepth = 2`, la circularidad, los factores y
+la compatibilidad IIoT. Para el stock usa dos checks separados:
+
+- **Initial stock ledger** (procedencia): existen exactamente los 6 movimientos `ADJUSTMENT_IN` /
+  `INITIAL_LOAD` con la marca `ecosoap-demo-initial-stock-v1` y sus cantidades.
+- **Current inventory readiness** (preparación actual): el saldo vigente de `StockBalance` en
+  `ALM-PRINCIPAL` es exactamente 20000.0000 g de `MP-NAOH`, 50000.0000 mL de `MP-AGUA`, 2000.0000
+  mL de `MP-ESENCIA` y 50.0000 unidades de cada envase. `MP-ACU`, `INT-ACU-FIL`, `PT-JABON-500` y
+  `PT-JABON-LIQ` deben estar en 0.0000; un saldo inexistente cuenta como cero.
+
+Por eso, **después de ejecutar una demo real**, `demo:verify` falla intencionalmente (por ejemplo
+`Current inventory readiness ... FAIL (MP-NAOH 19300.0000 GRAM ...)` y `Dataset NOT ready`). Eso
+significa que la base ya no está en estado inicial, no que el software esté roto. `demo:seed` no
+repone stock consumido (idempotente no es reset): para volver al estado inicial se reconstruye la
+base manualmente (§1). `demo:verify` nunca escribe, ni siquiera cuando falla.
 
 ```text
 EcoSoap Demo Dataset
 Roles............................. PASS
 Demo users........................ PASS
+...
+Initial stock ledger.............. PASS
+Current inventory readiness....... PASS
 ...
 Bar manufacturing structure....... READY
 Liquid manufacturing structure.... READY
@@ -299,10 +325,14 @@ Dataset ready for demonstration.
 
 Pruebas:
 
-- `backend/src/demo/demo-data.spec.ts`: definición del dataset y contraseña.
+- `backend/src/demo/demo-data.spec.ts`: definición del dataset, contraseña y preflight.
 - `backend/test/demo-dataset.e2e-spec.ts`: dos seeds concurrentes, idempotencia, verificación de
-  solo lectura, drift con rollback, inicio de sesión demo y requerimientos de la OP líquida.
-- CI `Docker development`: `db:seed:demo` y `demo:verify` dos veces sobre el stack real.
+  solo lectura, drift de productos y de usuarios (`mustChangePassword`, `fullName`) con rollback,
+  stock baseline consumido y `MP-ACU` recibido (readiness FAIL con ledger PASS), `pnpm demo:seed`
+  sin contraseña sobre una base vacía aislada (no escribe nada), inicio de sesión demo y
+  requerimientos de la OP líquida.
+- CI `Docker development`: `demo:check` sin contraseña debe fallar; luego `db:seed:demo` y
+  `demo:verify` dos veces sobre el stack real.
 
 C5 no modifica el esquema ni agrega migraciones, y no cambia la semántica de C1–C4, IIoT,
 Compras, Inventario, Ventas ni dashboards.

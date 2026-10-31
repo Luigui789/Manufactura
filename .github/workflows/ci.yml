@@ -124,6 +124,13 @@ jobs:
         run: |
           docker compose run --rm --no-deps backend pnpm db:seed
           docker compose run --rm --no-deps -e ADMIN_EMAIL -e ADMIN_FULL_NAME -e ADMIN_PASSWORD backend pnpm admin:create
+      - name: Reject demo seed without DEMO_USER_PASSWORD
+        run: |
+          # El secreto no se pasa al contenedor: el preflight debe fallar antes de escribir.
+          if docker compose run --rm --no-deps backend pnpm demo:check; then
+            echo "demo:check aceptó una DEMO_USER_PASSWORD ausente" >&2
+            exit 1
+          fi
       - name: Seed and verify EcoSoap demo dataset twice
         run: |
           for run in 1 2; do
