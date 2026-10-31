@@ -261,3 +261,5 @@ antes de inspeccionar el lote: CRITICAL no implica rechazo automático. La decis
 siendo explícita del inspector, con pruebas PostgreSQL y aceptación Docker.
 
 Producción: BOM → [Rutas estándar](docs/production-routes.md) → Órdenes → Calidad → Dashboard.
+
+[Disposición de calidad C2](docs/quality-disposition.md): liberación excepcional, reproceso pendiente y descarte por ledger.
