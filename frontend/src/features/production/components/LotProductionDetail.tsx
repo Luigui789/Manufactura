@@ -1,3 +1,4 @@
+import { QualityDispositionPanel } from './QualityDisposition';
 import { useId, useRef, useState, type ReactNode } from 'react';
 import { Link } from 'react-router';
 import { useForm, useWatch } from 'react-hook-form';
@@ -97,6 +98,20 @@ function TraceabilityTree({ trace }: { trace: Traceability }) {
           )}
         </summary>
         <div className="space-y-4 border-t px-4 py-4">
+          {lot.quality && (
+            <div className="space-y-2 text-sm">
+              <p>Inspección: {lot.quality.inspection?.result ?? 'Sin inspección'}</p>
+              {lot.quality.inspection?.nonConformities && (
+                <p>No conformidades: {lot.quality.inspection.nonConformities}</p>
+              )}
+              {lot.quality.disposition && (
+                <p>
+                  Disposición: {lot.quality.disposition.type} · {lot.quality.disposition.reason} ·{' '}
+                  {lot.quality.disposition.decidedBy.fullName}
+                </p>
+              )}
+            </div>
+          )}
           <div className="flex flex-wrap items-center justify-between gap-2">
             <p className="text-sm font-medium">Origen del lote</p>
             <Link
@@ -462,6 +477,9 @@ export function LotProductionDetail({
           </form>
         )}
       </FormSection>
+      {inspection.data?.result === 'REJECTED' && (
+        <QualityDispositionPanel lotId={lotId} status={status} inspection={inspection.data} />
+      )}
       <FormSection
         title="Trazabilidad"
         description="Seguí el origen del lote y desplegá los materiales usados hasta llegar a sus órdenes anteriores o proveedores."

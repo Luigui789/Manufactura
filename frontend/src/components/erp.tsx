@@ -67,6 +67,8 @@ const states: Record<string, [string, 'neutral' | 'success' | 'warning' | 'dange
   RELEASED: ['Liberado', 'success'],
   QUARANTINED: ['En cuarentena', 'warning'],
   REJECTED: ['Rechazado', 'danger'],
+  REWORK: ['Reproceso', 'warning'],
+  SCRAPPED: ['Descartado', 'danger'],
   APPROVED: ['Aprobado', 'success'],
   ACTIVE: ['Activo', 'success'],
   INACTIVE: ['Inactivo', 'neutral'],

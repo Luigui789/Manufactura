@@ -191,7 +191,12 @@ export function MovementsPage() {
                   <TableCell className="numeric">
                     {m.quantity.startsWith('-')
                       ? m.quantity
-                      : (['ADJUSTMENT_OUT', 'PRODUCTION_CONSUMPTION'].includes(m.type)
+                      : ([
+                          'ADJUSTMENT_OUT',
+                          'PRODUCTION_CONSUMPTION',
+                          'SALE_DISPATCH',
+                          'QUALITY_SCRAP',
+                        ].includes(m.type)
                           ? '-'
                           : '+') + m.quantity}{' '}
                     {unitLabel(m.product.unit)}
