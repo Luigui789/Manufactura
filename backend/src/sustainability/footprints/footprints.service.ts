@@ -156,6 +156,21 @@ async function consumption(db: Db, orderId: string): Promise<ConsumptionMovement
   });
 }
 
+/**
+ * Plan de actividades automáticas a partir del ledger actual (PRODUCTION_CONSUMPTION de
+ * la OP) y de los factores activos actuales por producto. Fuente única para GET de un
+ * DRAFT, sync y finalize. Solo lee: no crea, modifica ni elimina actividades.
+ */
+async function loadAutomaticActivityPlan(db: Db, orderId: string) {
+  const movements = await consumption(db, orderId);
+  const productIds = [...new Set(movements.map((m) => m.productId))];
+  const factors = await db.emissionFactor.findMany({
+    where: { productId: { in: productIds }, isActive: true },
+  });
+  const byProduct = new Map(factors.map((f) => [f.productId!, f]));
+  return { movements, plan: planAutomaticActivities(movements, byProduct) };
+}
+
 function sameActivity(existing: Activity, planned: PlannedAutoActivity) {
   return (
     existing.emissionFactorId === planned.emissionFactorId &&
@@ -553,13 +568,7 @@ export class FootprintsService {
    * PRODUCTION_CONSUMPTION de la OP. Las MANUAL se conservan intactas.
    */
   private async syncAutomatic(tx: Tx, footprintId: string, orderId: string) {
-    const movements = await consumption(tx, orderId);
-    const productIds = [...new Set(movements.map((m) => m.productId))];
-    const factors = await tx.emissionFactor.findMany({
-      where: { productId: { in: productIds }, isActive: true },
-    });
-    const byProduct = new Map(factors.map((f) => [f.productId!, f]));
-    const plan = planAutomaticActivities(movements, byProduct);
+    const { movements, plan } = await loadAutomaticActivityPlan(tx, orderId);
     const existing = await tx.carbonActivity.findMany({
       where: { footprintId, source: CarbonActivitySource.PRODUCTION_CONSUMPTION },
       include: activityInclude,
@@ -613,14 +622,13 @@ export class FootprintsService {
       where: { productionOrderId: orderId },
       include: footprintInclude,
     });
-    const movements = await consumption(db, orderId);
-    const covered = new Set(footprint.activities.map((a) => a.inventoryMovementId));
-    // Faltante = consumo real sin actividad automática (no hay factor activo aplicado).
-    const missingFactors: MissingFactor[] = planAutomaticActivities(
-      movements.filter((m) => !covered.has(m.id)),
-      new Map(),
-    ).missingFactors;
     const finalized = footprint.status === CarbonFootprintStatus.FINALIZED;
+    // DRAFT: faltantes según el ledger y el catálogo activo actuales, igual que sync y
+    // finalize; un snapshot histórico no prueba que hoy exista un factor activo.
+    // FINALIZED: depende solo de sus snapshots congelados, nunca del catálogo actual.
+    const missingFactors: MissingFactor[] = finalized
+      ? []
+      : (await loadAutomaticActivityPlan(db, orderId)).plan.missingFactors;
     return {
       id: footprint.id,
       status: footprint.status,

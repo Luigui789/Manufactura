@@ -462,6 +462,126 @@ describe('C3 production footprint from the inventory ledger', () => {
   });
 });
 
+describe('C3 draft missing factors follow the active catalog', () => {
+  it('reports an inactive factor in DRAFT even with a historical activity, and never in FINALIZED', async () => {
+    // 1–4: MP-A con factor activo, OP real completada y su PRODUCTION_CONSUMPTION.
+    const f = await completedOrder(kit, cookies.get('ADMIN')!, actorId, {
+      components: [{ unit: 'KILOGRAM', perUnit: '0.5', name: 'Materia prima A' }],
+    });
+    const mpA = f.components[0].product;
+    const movements = await kit.prisma.inventoryMovement.findMany({
+      where: { productionOrderId: f.order.id, type: 'PRODUCTION_CONSUMPTION' },
+    });
+    expect(movements.map((m) => m.quantity.toFixed(4))).toEqual(['-100.0000']);
+    const raw = await factor({
+      category: 'RAW_MATERIAL',
+      activityUnit: 'KILOGRAM',
+      kgCo2ePerUnit: '0.50000000',
+      productId: mpA.id,
+      sourceName: 'TEST_FIXTURE A',
+      sourceReference: 'TEST_FIXTURE ref A',
+    });
+    const expectedMissing = [
+      {
+        productId: mpA.id,
+        code: mpA.code,
+        name: 'Materia prima A',
+        unit: 'KILOGRAM',
+        consumedQuantity: '100.0000',
+      },
+    ];
+    const activities = () =>
+      kit.prisma.carbonActivity.findMany({
+        where: { footprint: { productionOrderId: f.order.id } },
+        orderBy: { id: 'asc' },
+      });
+
+    // 5–7: DRAFT sin faltantes y con la actividad automática del movimiento.
+    await admin().post(fp(f.order.id)).expect(201);
+    const draft = body<Footprint>(await admin().get(fp(f.order.id)).expect(200));
+    expect(draft.missingFactors).toEqual([]);
+    expect(draft.activities).toHaveLength(1);
+    expect(draft.activities[0]).toMatchObject({
+      source: 'PRODUCTION_CONSUMPTION',
+      inventoryMovementId: movements[0].id,
+      factorValueSnapshot: '0.50000000',
+      emissionsKgCo2e: '50.00000000',
+    });
+
+    // 8–9: el snapshot histórico no oculta que hoy no hay factor activo; GET no escribe.
+    await admin().patch(`${FACTORS}/${raw.id}/status`).send({ isActive: false }).expect(200);
+    const rowsBefore = await activities();
+    const inactive = body<Footprint>(await as('PRODUCCION').get(fp(f.order.id)).expect(200));
+    expect(inactive.status).toBe('DRAFT');
+    expect(inactive.missingFactors).toEqual(expectedMissing);
+    expect(inactive.activities.map((a) => a.id)).toEqual(draft.activities.map((a) => a.id));
+    expect(await activities()).toEqual(rowsBefore);
+
+    // 10–11: finalize falla con 422, hace rollback y GET sigue mostrando el faltante.
+    const blocked = await admin()
+      .post(fp(f.order.id) + '/finalize')
+      .send({ boundaryNotes: notes })
+      .expect(422);
+    expect((blocked.body as { code: string }).code).toBe('MISSING_EMISSION_FACTORS');
+    expect(await activities()).toEqual(rowsBefore);
+    const afterRollback = body<Footprint>(await admin().get(fp(f.order.id)).expect(200));
+    expect(afterRollback.status).toBe('DRAFT');
+    expect(afterRollback.missingFactors).toEqual(expectedMissing);
+
+    // 12: sync reconcilia la actividad obsoleta sin crear otra y conserva el faltante.
+    const synced = body<Footprint>(
+      await admin()
+        .post(fp(f.order.id) + '/sync')
+        .expect(200),
+    );
+    expect(synced.activities).toEqual([]);
+    expect(synced.missingFactors).toEqual(expectedMissing);
+    expect(await activities()).toEqual([]);
+
+    // 13–16: reactivar, sync, sin faltantes y finalize 200.
+    await admin().patch(`${FACTORS}/${raw.id}/status`).send({ isActive: true }).expect(200);
+    const restored = body<Footprint>(
+      await admin()
+        .post(fp(f.order.id) + '/sync')
+        .expect(200),
+    );
+    expect(restored.activities).toHaveLength(1);
+    expect(body<Footprint>(await admin().get(fp(f.order.id)).expect(200)).missingFactors).toEqual(
+      [],
+    );
+    const done = body<Footprint>(
+      await admin()
+        .post(fp(f.order.id) + '/finalize')
+        .send({ boundaryNotes: notes })
+        .expect(200),
+    );
+    expect(done).toMatchObject({
+      status: 'FINALIZED',
+      totalKgCo2e: '50.00000000',
+      missingFactors: [],
+    });
+
+    // 17–18: desactivar/editar el factor no invalida la huella finalizada ni sus snapshots.
+    const frozenRows = await activities();
+    await admin()
+      .patch(`${FACTORS}/${raw.id}`)
+      .send({ kgCo2ePerUnit: '0.90000000', sourceName: 'Otra fuente', sourceReference: 'Otra ref' })
+      .expect(200);
+    await admin().patch(`${FACTORS}/${raw.id}/status`).send({ isActive: false }).expect(200);
+    const finalized = body<Footprint>(await as('VENTAS').get(fp(f.order.id)).expect(200));
+    expect(finalized.status).toBe('FINALIZED');
+    expect(finalized.missingFactors).toEqual([]);
+    expect(finalized.totalKgCo2e).toBe('50.00000000');
+    expect(finalized.activities[0]).toMatchObject({
+      factorValueSnapshot: '0.50000000',
+      factorSourceNameSnapshot: 'TEST_FIXTURE A',
+      factorSourceReferenceSnapshot: 'TEST_FIXTURE ref A',
+      emissionsKgCo2e: '50.00000000',
+    });
+    expect(await activities()).toEqual(frozenRows);
+  });
+});
+
 describe('C3 manual activities, snapshots and finalization', () => {
   async function draft(perUnit = '0.05') {
     const f = await completedOrder(kit, cookies.get('ADMIN')!, actorId, {

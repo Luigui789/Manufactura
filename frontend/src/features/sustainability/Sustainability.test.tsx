@@ -452,6 +452,43 @@ describe('Footprint detail UI', () => {
     expect(link.getAttribute('href')).toContain('/sustainability/emission-factors?productId=soda');
   });
 
+  it.each(['ADMIN', 'PRODUCCION', 'VENTAS'] as const)(
+    'DRAFT with automatic activities and a missing factor warns %s without contradiction',
+    async (role) => {
+      // El backend recalcula faltantes contra el catálogo activo actual: puede haber
+      // una actividad automática con snapshot y, a la vez, el producto como faltante.
+      detail(
+        role,
+        footprint({
+          activities: [auto, manual],
+          missingFactors: [
+            {
+              productId: 'soda',
+              code: 'MP-SODA',
+              name: 'Soda cáustica',
+              unit: 'GRAM',
+              consumedQuantity: '700.0000',
+            },
+          ],
+        }),
+      );
+      expect(
+        await screen.findByText(
+          'Faltan factores para calcular la huella completa del alcance seleccionado',
+        ),
+      ).toBeTruthy();
+      expect(screen.getByText(/MP-SODA · Soda cáustica — 700 g/)).toBeTruthy();
+      expect(screen.getByRole('table', { name: 'Materias primas automáticas' })).toBeTruthy();
+      expect(screen.queryByText('Todos los consumos reales tienen un factor aplicado.')).toBeNull();
+      expect(!!screen.queryByRole('link', { name: 'Configurar factor' })).toBe(role === 'ADMIN');
+      if (role !== 'VENTAS')
+        expect(screen.getByRole('button', { name: 'Revisar finalización' })).toHaveProperty(
+          'disabled',
+          true,
+        );
+    },
+  );
+
   it('manual form takes the unit and source from the factor', async () => {
     const fetch = detail('PRODUCCION', footprint());
     const form = await screen.findByRole('form', { name: 'Nueva actividad manual' });
