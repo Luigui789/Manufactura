@@ -5,6 +5,7 @@ import { createRequire } from 'node:module';
 import { verifySimulator } from './verify-simulator.mjs';
 import { qualityEvidence, verifyMonitoring } from './verify-monitoring.mjs';
 import { verifySimulation } from './verify-simulation.mjs';
+import { verifySustainability } from './verify-sustainability.mjs';
 
 // Solo contra el stack efimero de verificacion; usa el ADMIN creado por la CI.
 assert.ok(process.env.POSTGRES_DB?.endsWith('_test'), 'Se requiere una base _test');
@@ -542,6 +543,8 @@ try {
 console.log(
   'Docker C2: completed OP → QUARANTINED → human REJECTED → SCRAP → SCRAPPED; QUALITY_SCRAP -9.0000, zero lot balance, original inspection and IIoT unchanged.',
 );
+
+await verifySustainability(api, Cookie, origin, request, suffix, warehouse);
 
 const logout = await fetch(`${api}/auth/logout`, {
   method: 'POST',
