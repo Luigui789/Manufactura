@@ -147,7 +147,7 @@ function translate(error: unknown): never {
     const target = JSON.stringify(error.meta ?? {});
 
     throw new ConflictException(
-      target.includes('product')
+      /product_id|productId/.test(target)
         ? 'Ya existe una ruta para ese producto'
         : 'Ya existe una ruta con ese código',
     );

@@ -612,3 +612,37 @@ describe('Production routes navigation and authentication', () => {
     client.clear();
   });
 });
+
+it('opens production route detail for a read-only user', async () => {
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async () =>
+      response({
+        data: {
+          id: 'route',
+          code: 'RT-1',
+          name: 'Ruta estándar',
+          productId: 'product',
+          product: { code: 'PT-1', name: 'Jabón' },
+          isActive: true,
+          description: null,
+          operationCount: 1,
+          totalStandardMinutes: '15.00',
+          operations: [
+            {
+              id: 'operation',
+              sequence: 10,
+              name: 'Mezclado',
+              description: null,
+              standardMinutes: '15.00',
+            },
+          ],
+        },
+      }),
+    ),
+  );
+  const client = mount('/production/routes/route', other);
+  expect(await screen.findByRole('heading', { name: 'Ruta estándar' })).toBeTruthy();
+  expect(screen.queryByRole('button', { name: 'Editar operaciones' })).toBeNull();
+  client.clear();
+});

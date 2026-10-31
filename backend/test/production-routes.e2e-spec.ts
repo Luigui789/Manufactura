@@ -350,7 +350,13 @@ describe('Production routes PostgreSQL', () => {
     });
 
     expect(logs).toHaveLength(2);
-    expect(logs[1].previousValues).toEqual(logs[0].newValues);
+    const first = logs.find(
+      (log) =>
+        Array.isArray((log.previousValues as { operations?: unknown[] })?.operations) &&
+        (log.previousValues as { operations: unknown[] }).operations.length === 5,
+    )!;
+    const second = logs.find((log) => log.id !== first.id)!;
+    expect(second.previousValues).toEqual(first.newValues);
   });
 
   it('requires authentication for reads and ADMIN/PRODUCCION for every mutation', async () => {

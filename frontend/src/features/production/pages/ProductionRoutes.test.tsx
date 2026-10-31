@@ -52,6 +52,7 @@ function mount(
   role: RoleCode = 'ADMIN',
   handler?: (url: string, options?: RequestInit) => Promise<Response>,
 ) {
+  vi.stubEnv('VITE_API_URL', 'http://localhost:3000/api');
   const client = createAppQueryClient();
   clients.push(client);
 
@@ -61,7 +62,7 @@ function mount(
     handler ??
       (async (url: string) =>
         response(
-          url.includes('/inventory/products')
+          url.includes('/products')
             ? { data: [product], meta: { page: 1, limit: 20, total: 1 } }
             : page === 'list'
               ? { data: [route], meta: { page: 1, limit: 20, total: 1 } }
@@ -126,7 +127,7 @@ describe('Production routes UI', () => {
 
   it('offers retry on failure', async () => {
     mount('list', 'ADMIN', async () => response({ message: 'Error de prueba' }, 500));
-    expect(await screen.findByText('Error de prueba')).toBeTruthy();
+    expect(await screen.findByText('Error interno del servidor')).toBeTruthy();
     expect(screen.getByText('Reintentar')).toBeTruthy();
   });
 
