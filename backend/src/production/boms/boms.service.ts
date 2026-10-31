@@ -17,6 +17,7 @@ import {
 } from '../../generated/prisma/client.js';
 import { PrismaService } from '../../prisma/prisma.service.js';
 import { BomCalculatorService, bomQuantity } from './bom-calculator.service.js';
+import { BomGraphService } from './bom-graph.service.js';
 import type { CreateBomDto, CreateBomVersionDto, UpdateBomDto } from './dto/boms.dto.js';
 
 const productSelect = {
@@ -51,6 +52,7 @@ export class BomsService {
     private readonly prisma: PrismaService,
     private readonly audit: AuditService,
     private readonly calculator: BomCalculatorService,
+    private readonly graph: BomGraphService,
   ) {}
 
   async list(query: BomQuery) {
@@ -123,6 +125,8 @@ export class BomsService {
 
   async setStatus(actor: AuthenticatedUser, id: string, isActive: boolean) {
     return this.prisma.$transaction(async (tx) => {
+      // Reactivar devuelve aristas al grafo; desactivar solo las quita y no necesita el lock.
+      if (isActive) await this.graph.lock(tx);
       const before = await lockBom(tx, id);
       if (before.isActive === isActive)
         throw new ConflictException('La fórmula ya tiene ese estado');
@@ -136,6 +140,10 @@ export class BomsService {
         const products = await lockProducts(tx, [before.productId, ...componentIds]);
         assertOutput(products, before.productId);
         assertComponents(products, before.productId, componentIds);
+        await this.graph.assertAcyclic(tx, {
+          productId: before.productId,
+          components: graphComponents(products, componentIds),
+        });
       }
       const after = await tx.billOfMaterial.update({ where: { id }, data: { isActive } });
       await this.recordBomChange(
@@ -162,12 +170,19 @@ export class BomsService {
       });
     }
     return this.prisma.$transaction(async (tx) => {
+      // Orden de bloqueo: grafo → fórmula → productos ordenados → versión.
+      await this.graph.lock(tx);
       const bom = await lockBom(tx, bomId);
       assertActiveBom(bom);
       const ids = items.map((item) => item.componentProductId);
       const products = await lockProducts(tx, [bom.productId, ...ids]);
       assertOutput(products, bom.productId);
       assertComponents(products, bom.productId, ids);
+      // Aunque la versión nazca inactiva, se valida como si fuese la vigente del producto.
+      await this.graph.assertAcyclic(tx, {
+        productId: bom.productId,
+        components: graphComponents(products, ids),
+      });
       const { _max } = await tx.bomVersion.aggregate({ where: { bomId }, _max: { version: true } });
       if (_max.version === 2147483647) {
         throw new ConflictException('Se alcanzó el límite de versiones de esta fórmula');
@@ -197,6 +212,7 @@ export class BomsService {
 
   async activateVersion(actor: AuthenticatedUser, bomId: string, versionId: string) {
     return this.prisma.$transaction(async (tx) => {
+      await this.graph.lock(tx);
       const bom = await lockBom(tx, bomId);
       assertActiveBom(bom);
       const version = await readVersion(tx, bomId, versionId);
@@ -205,6 +221,11 @@ export class BomsService {
       const products = await lockProducts(tx, [bom.productId, ...ids]);
       assertOutput(products, bom.productId);
       assertComponents(products, bom.productId, ids);
+      // El catálogo pudo cambiar desde que se creó la versión: se vuelve a validar el grafo.
+      await this.graph.assertAcyclic(tx, {
+        productId: bom.productId,
+        components: graphComponents(products, ids),
+      });
       const previous = await tx.bomVersion.findFirst({ where: { bomId, isActive: true } });
       if (previous) {
         await tx.bomVersion.update({ where: { id: previous.id }, data: { isActive: false } });
@@ -370,6 +391,10 @@ function assertComponents(
       });
     }
   }
+}
+
+function graphComponents(products: Map<string, CatalogProduct>, ids: readonly string[]) {
+  return ids.map((id) => ({ productId: id, type: products.get(id)!.type }));
 }
 
 async function readBom(tx: Tx, id: string) {
