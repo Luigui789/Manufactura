@@ -73,6 +73,11 @@ const OrderDetailPage = lazy(() =>
     default: module.OrderDetailPage,
   })),
 );
+const ProductionDashboardPage = lazy(() =>
+  import('@/features/production/pages/ProductionDashboardPage').then((module) => ({
+    default: module.ProductionDashboardPage,
+  })),
+);
 const IiotDashboardPage = lazy(() =>
   import('@/features/iiot/pages/IiotDashboardPage').then((module) => ({
     default: module.IiotDashboardPage,
@@ -217,6 +222,14 @@ export function AppRoutes() {
               element={
                 <Suspense fallback={<LoadingState label="Cargando orden…" />}>
                   <PurchaseOrderDetailPage />
+                </Suspense>
+              }
+            />
+            <Route
+              path="/production/dashboard"
+              element={
+                <Suspense fallback={<LoadingState label="Cargando dashboard…" />}>
+                  <ProductionDashboardPage />
                 </Suspense>
               }
             />

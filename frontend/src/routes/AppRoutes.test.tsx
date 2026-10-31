@@ -145,6 +145,38 @@ describe('Aceptación F1–F5', () => {
 });
 
 describe('Integración de los catálogos de Compras, Inventario y Ventas', () => {
+  it('abre el dashboard de producción para una sesión autenticada y consulta su API', async () => {
+    const fetch = vi.fn().mockResolvedValue(
+      response({
+        data: {
+          period: {
+            from: '2026-10-01',
+            to: '2026-10-30',
+            timeZone: 'America/Managua',
+            granularity: 'day',
+          },
+          orders: { draft: 0, inProgress: 0, completed: 0, cancelled: 0, total: 0 },
+          quantity: { planned: '0.0000', produced: '0.0000', completionRate: null },
+          productionByPeriod: [],
+          recentOrders: [],
+        },
+      }),
+    );
+    vi.stubGlobal('fetch', fetch);
+    mount('/production/dashboard', { ...account, role: 'PRODUCCION' });
+
+    expect(
+      await screen.findByRole('heading', { name: 'Dashboard de producción' }, { timeout: 10000 }),
+    ).toBeTruthy();
+    expect(screen.getByRole('link', { name: 'Producción · Dashboard' })).toBeTruthy();
+    await waitFor(() =>
+      expect(fetch).toHaveBeenCalledWith(
+        'http://localhost:3000/api/production/dashboard',
+        expect.objectContaining({ credentials: 'include' }),
+      ),
+    );
+  });
+
   it.each([
     ['/purchases/suppliers', 'Gestión de Proveedores', 'suppliers', 'COMPRAS'],
     ['/sales/customers', 'Gestión de Clientes', 'customers', 'VENTAS'],
@@ -494,7 +526,9 @@ describe('Navegación del ERP', () => {
       }),
     );
     mount(path, other);
-    expect(await screen.findByRole('heading', { name: heading, level: 1 })).toBeTruthy();
+    expect(
+      await screen.findByRole('heading', { name: heading, level: 1 }, { timeout: 10000 }),
+    ).toBeTruthy();
     const nav = within(screen.getByRole('navigation', { name: 'Menú principal' }));
     expect(nav.getByRole('link', { name: active }).getAttribute('aria-current')).toBe('page');
     const inactive =

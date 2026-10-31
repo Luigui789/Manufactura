@@ -6,6 +6,7 @@ import { ErrorNotice } from '@/components/ErrorNotice';
 import { useProducts } from '../api/product-hooks';
 import { useWarehouses } from '../api/hooks';
 import { useInventoryLots } from '../api/inventory-hooks';
+import type { Product } from '../types';
 import { unitLabel } from '@/lib/presentation';
 import { lotStatusLabel } from '../inventory-labels';
 
@@ -24,6 +25,7 @@ type Props = {
   value: string;
   onChange: (id: string, entity?: Entity) => void;
   activeOnly?: boolean;
+  productType?: Product['type'];
   lotFilters?: Record<string, string | boolean>;
   error?: string;
   allowClear?: boolean;
@@ -33,6 +35,7 @@ type QueryProps = {
   page: number;
   search: string;
   activeOnly?: boolean;
+  productType?: Product['type'];
   lotFilters?: Record<string, string | boolean>;
   children: (
     rows: Entity[],
@@ -44,8 +47,12 @@ type QueryProps = {
     busy: boolean,
   ) => React.ReactNode;
 };
-function Products({ children, page, search, activeOnly }: QueryProps) {
-  const q = useProducts(page, { search, ...(activeOnly ? { isActive: true } : {}) });
+function Products({ children, page, search, activeOnly, productType }: QueryProps) {
+  const q = useProducts(page, {
+    search,
+    ...(activeOnly ? { isActive: true } : {}),
+    ...(productType ? { type: productType } : {}),
+  });
   return children(
     q.data?.data ?? [],
     q.data?.meta.total ?? 0,
@@ -91,6 +98,7 @@ export function InventoryEntityPicker({
   value,
   onChange,
   activeOnly,
+  productType,
   lotFilters,
   error,
   allowClear,
@@ -171,7 +179,13 @@ export function InventoryEntityPicker({
               setPage(1);
             }}
           />
-          <Source page={page} search={search} activeOnly={activeOnly} lotFilters={lotFilters}>
+          <Source
+            page={page}
+            search={search}
+            activeOnly={activeOnly}
+            productType={productType}
+            lotFilters={lotFilters}
+          >
             {(rows, total, limit, pending, queryError, retry, busy) => (
               <>
                 {pending && <LoadingState label="Cargando opciones…" />}
