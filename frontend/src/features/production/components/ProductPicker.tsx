@@ -22,6 +22,7 @@ export function ProductPicker({
   value,
   onChange,
   output = false,
+  requireLotTracked = true,
   excludeId,
   error,
 }: {
@@ -29,6 +30,7 @@ export function ProductPicker({
   value: string;
   onChange: (id: string) => void;
   output?: boolean;
+  requireLotTracked?: boolean;
   excludeId?: string;
   error?: string;
 }) {
@@ -52,7 +54,8 @@ export function ProductPicker({
     ? Math.max(1, Math.ceil(products.data.meta.total / products.data.meta.limit))
     : 1;
   const results = products.data?.data.filter(
-    (product) => product.id !== excludeId && (!output || product.isLotTracked),
+    (product) =>
+      product.id !== excludeId && (!output || !requireLotTracked || product.isLotTracked),
   );
   const chosen =
     selected?.id === value ? selected : products.data?.data.find((product) => product.id === value);
@@ -72,7 +75,9 @@ export function ProductPicker({
       <legend className="mb-2 text-sm font-medium">{label}</legend>
       <p id={id + '-help'} className="text-sm text-muted-foreground">
         {output
-          ? 'Busca un producto terminado o intermedio. Se muestran productos activos con seguimiento por lotes habilitado.'
+          ? requireLotTracked
+            ? 'Busca un producto terminado o intermedio. Se muestran productos activos con seguimiento por lotes habilitado.'
+            : 'Busca un producto terminado o intermedio activo.'
           : 'Busca una materia prima, un consumible o un producto intermedio activo.'}
       </p>
       {chosen && (

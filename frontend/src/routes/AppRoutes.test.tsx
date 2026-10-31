@@ -573,3 +573,76 @@ describe('Navegación del ERP', () => {
     ).toBe('page');
   });
 });
+
+describe('Production routes navigation and authentication', () => {
+  it.each(['/production/routes', '/production/routes/new', '/production/routes/route'])(
+    'requires a session: %s',
+    async (path) => {
+      const fetch = vi.fn();
+      vi.stubGlobal('fetch', fetch);
+      const client = mount(path, null);
+
+      expect(await screen.findByRole('button', { name: 'Iniciar sesión' })).toBeTruthy();
+      expect(fetch).not.toHaveBeenCalled();
+      client.clear();
+    },
+  );
+
+  it('opens routes from URL and exposes navigation', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => response({ data: [], meta: { page: 1, limit: 20, total: 0 } })),
+    );
+
+    const client = mount('/production/routes', other);
+    expect(await screen.findByRole('heading', { name: 'Rutas de producción' })).toBeTruthy();
+    expect(screen.getAllByRole('link', { name: 'Producción · Rutas' }).length).toBeGreaterThan(0);
+    expect(screen.queryByRole('link', { name: 'Crear ruta' })).toBeNull();
+    client.clear();
+  });
+
+  it('opens the new route form for production users', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => response({ data: [], meta: { page: 1, limit: 20, total: 0 } })),
+    );
+
+    const client = mount('/production/routes/new', { ...account, role: 'PRODUCCION' });
+    expect(await screen.findByRole('heading', { name: 'Crear ruta de producción' })).toBeTruthy();
+    client.clear();
+  });
+});
+
+it('opens production route detail for a read-only user', async () => {
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async () =>
+      response({
+        data: {
+          id: 'route',
+          code: 'RT-1',
+          name: 'Ruta estándar',
+          productId: 'product',
+          product: { code: 'PT-1', name: 'Jabón' },
+          isActive: true,
+          description: null,
+          operationCount: 1,
+          totalStandardMinutes: '15.00',
+          operations: [
+            {
+              id: 'operation',
+              sequence: 10,
+              name: 'Mezclado',
+              description: null,
+              standardMinutes: '15.00',
+            },
+          ],
+        },
+      }),
+    ),
+  );
+  const client = mount('/production/routes/route', other);
+  expect(await screen.findByRole('heading', { name: 'Ruta estándar' })).toBeTruthy();
+  expect(screen.queryByRole('button', { name: 'Editar operaciones' })).toBeNull();
+  client.clear();
+});

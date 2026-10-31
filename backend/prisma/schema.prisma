@@ -86,6 +86,7 @@ enum AuditAction {
 }
 
 enum AuditEntityType {
+  PRODUCTION_ROUTE
   USER
   ROLE
   PRODUCT
@@ -192,6 +193,7 @@ model User {
 }
 
 model Product {
+  productionRoute           ProductionRoute?
   id                        String                @id @default(uuid(7)) @db.Uuid
   code                      String                @unique
   name                      String
@@ -672,4 +674,36 @@ model PurchaseReceiptItem {
   @@index([purchaseOrderItemId])
   @@index([purchaseReceiptId])
   @@map("purchase_receipt_items")
+}
+
+model ProductionRoute {
+  id          String           @id @default(uuid(7)) @db.Uuid
+  productId   String           @unique @map("product_id") @db.Uuid
+  code        String           @unique @db.VarChar(32)
+  name        String           @db.VarChar(120)
+  description String?          @db.VarChar(500)
+  isActive    Boolean          @default(true) @map("is_active")
+  createdAt   DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime         @updatedAt @map("updated_at") @db.Timestamptz(6)
+  product     Product          @relation(fields: [productId], references: [id], onDelete: Restrict)
+  operations  RouteOperation[]
+
+  @@index([isActive])
+  @@map("production_routes")
+}
+
+model RouteOperation {
+  id              String          @id @default(uuid(7)) @db.Uuid
+  routeId         String          @map("route_id") @db.Uuid
+  sequence        Int
+  name            String          @db.VarChar(120)
+  description     String?         @db.VarChar(500)
+  standardMinutes Decimal         @map("standard_minutes") @db.Decimal(12, 2)
+  createdAt       DateTime        @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime        @updatedAt @map("updated_at") @db.Timestamptz(6)
+  route           ProductionRoute @relation(fields: [routeId], references: [id], onDelete: Restrict)
+
+  @@unique([routeId, sequence])
+  @@index([routeId])
+  @@map("route_operations")
 }

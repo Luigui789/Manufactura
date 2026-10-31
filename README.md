@@ -259,3 +259,5 @@ Docker ahora verifica también ambos perfiles deviation y sus alertas.
 La [integración IIoT en Calidad (Fase 8)](docs/iiot-quality-integration.md) presenta evidencia
 antes de inspeccionar el lote: CRITICAL no implica rechazo automático. La decisión sigue
 siendo explícita del inspector, con pruebas PostgreSQL y aceptación Docker.
+
+Producción: BOM → [Rutas estándar](docs/production-routes.md) → Órdenes → Calidad → Dashboard.
