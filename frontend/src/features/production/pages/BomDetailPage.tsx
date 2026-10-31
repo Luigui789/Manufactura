@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useParams } from 'react-router';
+import { Link, useParams } from 'react-router';
 import { Controller, useFieldArray, useForm, useWatch } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Calculator, Pencil, Plus, Trash2 } from 'lucide-react';
@@ -240,27 +240,34 @@ function Detail({ bom }: { bom: Bom }) {
         status={<StatusBadge status={bom.isActive} />}
         breadcrumbs={[{ label: 'Fórmulas', to: '/production/boms' }, { label: bom.name }]}
         actions={
-          canManage && (
-            <>
-              <Button variant="outline" disabled={busy} onClick={() => setRenaming(true)}>
-                <Pencil className="size-4" aria-hidden="true" />
-                Editar nombre
-              </Button>
-              <Button
-                variant="outline"
-                disabled={busy}
-                onClick={() => setNextStatus(!bom.isActive)}
-              >
-                {bom.isActive ? 'Desactivar fórmula' : 'Activar fórmula'}
-              </Button>
-              {bom.isActive && (
-                <Button disabled={busy} onClick={() => setCreating(true)}>
-                  <Plus className="size-4" aria-hidden="true" />
-                  Nueva versión
+          <>
+            <Button asChild variant="outline">
+              <Link to={'/production/structure/' + bom.productId}>
+                Ver estructura de manufactura
+              </Link>
+            </Button>
+            {canManage && (
+              <>
+                <Button variant="outline" disabled={busy} onClick={() => setRenaming(true)}>
+                  <Pencil className="size-4" aria-hidden="true" />
+                  Editar nombre
                 </Button>
-              )}
-            </>
-          )
+                <Button
+                  variant="outline"
+                  disabled={busy}
+                  onClick={() => setNextStatus(!bom.isActive)}
+                >
+                  {bom.isActive ? 'Desactivar fórmula' : 'Activar fórmula'}
+                </Button>
+                {bom.isActive && (
+                  <Button disabled={busy} onClick={() => setCreating(true)}>
+                    <Plus className="size-4" aria-hidden="true" />
+                    Nueva versión
+                  </Button>
+                )}
+              </>
+            )}
+          </>
         }
       />
       {notice && <SuccessNotice>{notice}</SuccessNotice>}

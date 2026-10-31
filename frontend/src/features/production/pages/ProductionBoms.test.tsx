@@ -170,12 +170,15 @@ afterEach(() => {
 });
 describe('Producción: fórmulas y versiones', () => {
   it('permite consulta y cálculo para VENTAS sin mostrar controles de edición', async () => {
-    const { fetch } = setup('VENTAS');
+    const { fetch, bom } = setup('VENTAS');
     fireEvent.click(await screen.findByRole('link', { name: 'Fórmula jabón' }));
     await screen.findByRole('heading', { name: 'Fórmula jabón' });
     expect(screen.queryByRole('button', { name: 'Nueva fórmula' })).toBeNull();
     expect(screen.queryByRole('button', { name: 'Nueva versión' })).toBeNull();
     expect(screen.queryByRole('button', { name: 'Guardar nombre' })).toBeNull();
+    expect(
+      screen.getByRole('link', { name: 'Ver estructura de manufactura' }).getAttribute('href'),
+    ).toBe('/production/structure/' + bom.productId);
     fireEvent.click(screen.getByRole('button', { name: 'Calcular' }));
     await screen.findByText(/50000.0000/);
     const call = fetch.mock.calls.find(([url]) => url.endsWith('/calculate'))!;

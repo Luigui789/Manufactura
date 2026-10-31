@@ -65,6 +65,11 @@ const BomDetailPage = lazy(() =>
     default: module.BomDetailPage,
   })),
 );
+const ManufacturingStructurePage = lazy(() =>
+  import('@/features/production/pages/ManufacturingStructurePage').then((module) => ({
+    default: module.ManufacturingStructurePage,
+  })),
+);
 
 const UsersPage = lazy(() =>
   import('@/features/users/pages/UsersPage').then((module) => ({
@@ -343,6 +348,23 @@ export function AppRoutes() {
               element={
                 <Suspense fallback={<LoadingState label="Cargando rutas…" />}>
                   <RouteDetailPage />
+                </Suspense>
+              }
+            />
+
+            <Route
+              path="/production/structure"
+              element={
+                <Suspense fallback={<LoadingState label="Cargando estructura…" />}>
+                  <ManufacturingStructurePage />
+                </Suspense>
+              }
+            />
+            <Route
+              path="/production/structure/:productId"
+              element={
+                <Suspense fallback={<LoadingState label="Cargando estructura…" />}>
+                  <ManufacturingStructurePage />
                 </Suspense>
               }
             />

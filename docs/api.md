@@ -667,7 +667,10 @@ La primera versión queda activa automáticamente. Las siguientes requieren acti
 No hay edición/borrado de contenido de versiones; los componentes se guardan en la unidad
 base de su producto. La salida debe estar activa, ser intermedia o terminada y trazable.
 Los componentes deben estar activos y ser materia prima, consumible o intermedio, sin
-duplicados ni autorreferencia. El cálculo retorna `requiredQuantity` por componente;
+duplicados ni autorreferencia. Desde C4, crear una versión (aunque nazca inactiva), activarla o
+reactivar la fórmula también rechaza ciclos indirectos (`A → B → A`) con `422
+BOM_CYCLE_DETECTED` y `path` de códigos; ver
+[manufactura multinivel](multilevel-manufacturing.md). El cálculo retorna `requiredQuantity` por componente;
 resultados no representables exactamente en cuatro decimales se rechazan con `422`.
 
 ### Órdenes y disponibilidad
@@ -894,3 +897,20 @@ Contrato completo, fórmula y reglas en [`sustainability-carbon-footprint.md`](s
   Editar o eliminar una actividad automática: 422. La unidad de una actividad manual la define el
   factor; enviar `activityUnit` es 400.
 - `POST /api/production/orders/:id/complete` no cambió: no exige factores ni crea huellas.
+
+## Producción C4: estructura de manufactura multinivel
+
+| Método | Ruta                                                 | Acceso             | Operación                                                      |
+| ------ | ---------------------------------------------------- | ------------------ | -------------------------------------------------------------- |
+| GET    | `/api/production/manufacturing-structure/:productId` | `@Authenticated()` | Árbol vigente de fórmulas, rutas y preparación (solo lectura). |
+
+Respuesta `{ data, message }`. `data` es el nodo raíz con `product`, `bom` (`activeVersion` o
+`null`), `route` (operaciones ordenadas, `operationCount`, `totalStandardMinutes`) o `null`,
+`routeStatus`, `components[]` (`product`, `quantity`, `unit`, `type`, `isManufactured`, `child`),
+`issues[]` (`code`, `message`), `readiness` (`READY` | `INCOMPLETE`) y `maxDepth`. Decimales como
+string.
+
+Errores: `404` producto inexistente; `422 INVALID_MANUFACTURING_STRUCTURE_ROOT` si la raíz es
+materia prima o consumible; `409 BOM_GRAPH_CORRUPTED` con `path` si los datos almacenados contienen
+un ciclo. No audita, no toma locks y no bloquea producción. Detalle en
+[`multilevel-manufacturing.md`](multilevel-manufacturing.md).

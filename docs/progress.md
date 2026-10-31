@@ -1051,3 +1051,29 @@ y las suites de sostenibilidad (unitarias, E2E y frontend), también aprobadas.
 pasó, y la lógica de `docker/verify-sustainability.mjs` se ejecutó contra el backend real en local.
 La aceptación Docker completa queda a cargo del job `Docker development` de la CI; no marcar C3 como
 verificada en Docker ni integrada hasta ver la CI verde y completar la revisión del PR.
+
+### C4 — BOM multinivel e integración de estructura de manufactura (2026-10-31)
+
+Rama `feature/multilevel-bom-integration` desde `develop` en `72959af` (sin commits nuevos en
+`origin/develop` al validar). **Sin migración ni cambios de schema.** Agrega detección de ciclos
+indirectos con advisory lock del grafo, `GET /api/production/manufacturing-structure/:productId`,
+las pantallas `/production/structure` y `/production/structure/:productId`, enlaces desde el detalle
+de fórmula y de ruta, y la documentación [`multilevel-manufacturing.md`](multilevel-manufacturing.md).
+El ejemplo EcoSoap vive solo en fixtures de prueba; el seed oficial queda para C5.
+
+Validación local contra PostgreSQL 18 (base dedicada `ecosoap_c4_test`):
+`pnpm install --frozen-lockfile`, `prisma generate`, `prisma validate`, `migrate deploy`,
+`migrate diff` (No difference detected), backend unitarias (386 en 24 archivos), E2E backend
+(574 en 41 archivos), `test:migrations` (C1, C2 y C3 preservadas), simulador (51), frontend
+(632 en 35 archivos), build y lint de frontend, `pnpm lint`, `pnpm format:check` y `pnpm build`,
+todo aprobado. En la primera corrida E2E, una prueba existente de C-2
+(`validates per-lot stock, product and warehouse after START`) superó el timeout de 5 s bajo carga;
+aislada tarda ~2,6 s, pasó tres veces seguidas y la suite completa repetida pasó 574/574.
+
+La prueba de concurrencia se verificó también en negativo: con el advisory lock deshabilitado
+ambas activaciones concurrentes entran (`[200, 200]`) y queda un ciclo activo; con el lock, siempre
+`[200, 422]` y grafo acíclico.
+
+Docker: `docker compose config`, `docker compose up --build -d --wait` y `docker/verify.mjs`
+completo (incluido el nuevo bloque C4 de `docker/verify-multilevel.mjs`) aprobados sobre una base
+`_test` separada. **Pendiente:** CI del PR y revisión; no marcar C4 como integrada hasta el merge.
