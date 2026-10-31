@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { ConflictException, Injectable } from '@nestjs/common';
 import {
   type InventoryMovement,
   type Lot,
@@ -397,6 +397,8 @@ export class InventoryService {
           'El lote no pertenece al producto del movimiento',
         );
       }
+      if (lot.status === LotStatus.SCRAPPED)
+        throw new ConflictException('Un lote descartado no admite nuevos movimientos');
       if (
         (line.type === InventoryMovementType.PRODUCTION_CONSUMPTION ||
           line.type === InventoryMovementType.SALE_DISPATCH) &&
@@ -525,6 +527,80 @@ export class InventoryService {
         'Solo se inspeccionan lotes producidos en cuarentena',
       );
     return tx.lot.update({ where: { id: lotId }, data: { status } });
+  }
+
+  /** Caller holds the production-order lock. Exclusive product lock stabilizes the
+   * warehouse set before catalog → balances → lot locks, including new-warehouse adjustments.
+   * Disposal remains possible for an inactive catalog: it removes physical waste, not usable stock.
+   */
+  async applyQualityDisposition(
+    tx: Prisma.TransactionClient,
+    lotId: string,
+    type: 'RELEASE' | 'REWORK' | 'SCRAP',
+    actorId: string,
+    requestId?: string | null,
+  ) {
+    const origin = await tx.lot.findUniqueOrThrow({ where: { id: lotId } });
+    await tx.$queryRaw`SELECT id FROM products WHERE id = ${origin.productId}::uuid FOR UPDATE`;
+    const balances = await tx.stockBalance.findMany({
+      where: { productId: origin.productId },
+      orderBy: { warehouseId: 'asc' },
+    });
+    await this.lockCatalogRows(
+      tx,
+      'warehouses',
+      balances.map((b) => b.warehouseId),
+    );
+    await this.lockBalances(
+      tx,
+      balances.map((b) => ({ productId: b.productId, warehouseId: b.warehouseId })),
+    );
+    await tx.$queryRaw`SELECT id FROM lots WHERE id = ${lotId}::uuid FOR UPDATE`;
+    const lot = await tx.lot.findUniqueOrThrow({ where: { id: lotId } });
+    if (!lot.productionOrderId || lot.status !== LotStatus.REJECTED)
+      throw new ConflictException('El lote ya no está rechazado o no es producido');
+    const scrappedInventory: { warehouseId: string; quantity: string }[] = [];
+    if (type === 'SCRAP') {
+      const totals = await tx.inventoryMovement.groupBy({
+        by: ['warehouseId'],
+        where: { lotId },
+        _sum: { quantity: true },
+        orderBy: { warehouseId: 'asc' },
+      });
+      for (const total of totals) {
+        const quantity = total._sum.quantity ?? new Prisma.Decimal(0);
+        if (quantity.isNegative())
+          throw new ConflictException('El ledger del lote contiene un saldo negativo');
+        if (quantity.isZero()) continue;
+        const balance = balances.find((b) => b.warehouseId === total.warehouseId);
+        if (!balance || balance.quantity.lt(quantity))
+          throw new ConflictException('El saldo general no permite retirar el saldo del lote');
+        await tx.inventoryMovement.create({
+          data: {
+            productId: lot.productId,
+            warehouseId: total.warehouseId,
+            lotId,
+            type: InventoryMovementType.QUALITY_SCRAP,
+            quantity: quantity.negated(),
+            performedByUserId: actorId,
+            requestId,
+          },
+        });
+        await tx.stockBalance.update({
+          where: { id: balance.id },
+          data: { quantity: { decrement: quantity } },
+        });
+        scrappedInventory.push({ warehouseId: total.warehouseId, quantity: quantity.toFixed(4) });
+      }
+    }
+    const status =
+      type === 'RELEASE'
+        ? LotStatus.RELEASED
+        : type === 'REWORK'
+          ? LotStatus.REWORK
+          : LotStatus.SCRAPPED;
+    await tx.lot.update({ where: { id: lotId }, data: { status } });
+    return { status, scrappedInventory };
   }
 
   private async lockCatalogRows(
