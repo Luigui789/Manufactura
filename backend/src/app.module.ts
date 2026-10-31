@@ -14,6 +14,7 @@ import { PrismaModule } from './prisma/prisma.module.js';
 import { ProductionModule } from './production/production.module.js';
 import { PurchasesModule } from './purchases/purchases.module.js';
 import { SalesModule } from './sales/sales.module.js';
+import { SustainabilityModule } from './sustainability/sustainability.module.js';
 import { UsersModule } from './users/users.module.js';
 
 /**
@@ -43,6 +44,7 @@ import { UsersModule } from './users/users.module.js';
     ProductionModule,
     SalesModule,
     IiotModule,
+    SustainabilityModule,
   ],
   providers: [
     // Unica configuracion efectiva del pipe global. Al registrarlo aqui y no en
