@@ -27,6 +27,11 @@ const SaleOrderDetailPage = lazy(() =>
     default: m.SaleOrderDetailPage,
   })),
 );
+const SalesDashboardPage = lazy(() =>
+  import('@/features/sales/pages/SalesDashboardPage').then((m) => ({
+    default: m.SalesDashboardPage,
+  })),
+);
 const PurchasesDashboardPage = lazy(() =>
   import('@/features/purchases/pages/PurchasesDashboardPage').then((m) => ({
     default: m.PurchasesDashboardPage,
@@ -168,6 +173,14 @@ export function AppRoutes() {
         <Route element={<RequirePasswordCurrent />}>
           <Route element={<AppLayout />}>
             <Route index element={<HomePage />} />
+            <Route
+              path="/sales/dashboard"
+              element={
+                <Suspense fallback={<LoadingState label="Cargando dashboard de ventas" />}>
+                  <SalesDashboardPage />
+                </Suspense>
+              }
+            />
             <Route
               path="/purchases/dashboard"
               element={

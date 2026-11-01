@@ -73,7 +73,7 @@ export function CatalogPicker({
       if (kind === 'supplier') return getSuppliers(page, 20, signal);
       if (kind === 'customer')
         return getCustomers(page, 20, signal, {
-          isActive: true,
+          ...(allowInactive ? {} : { isActive: true }),
           ...(search.trim() ? { search: search.trim() } : {}),
         });
       if (kind === 'product')
