@@ -11,6 +11,6 @@ import { MovementsQueryController } from './movements-query.controller.js';
   imports: [AuditModule],
   controllers: [AdjustmentController, MovementsQueryController],
   providers: [AdjustmentService, InventoryService, MovementQueryService],
-  exports: [InventoryService],
+  exports: [InventoryService, MovementQueryService],
 })
 export class MovementsModule {}
