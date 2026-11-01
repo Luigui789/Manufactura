@@ -18,8 +18,9 @@ export function SalesOrdersPage() {
   return (
     <section className="space-y-5">
       <PageHeader
+        breadcrumbs={[{ label: 'Ventas' }, { label: 'Órdenes' }]}
         title="Órdenes de venta"
-        description="Prepara borradores y confirma pedidos después de revisar la disponibilidad informativa."
+        description="Prepará borradores y confirmá pedidos después de revisar la disponibilidad informativa."
         actions={
           canManage ? (
             <Button asChild>
@@ -94,10 +95,7 @@ export function SalesOrdersPage() {
               {orders.data.data.map((order) => (
                 <tr key={order.id}>
                   <td>
-                    <Link
-                      className="font-medium underline underline-offset-4"
-                      to={`/sales/orders/${order.id}`}
-                    >
+                    <Link className="table-link" to={`/sales/orders/${order.id}`}>
                       {order.number}
                     </Link>
                   </td>

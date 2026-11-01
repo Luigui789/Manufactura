@@ -48,6 +48,7 @@ export function OrdersPage() {
   return (
     <section className="space-y-6">
       <PageHeader
+        breadcrumbs={[{ label: 'Producción' }, { label: 'Órdenes' }]}
         title="Órdenes de producción"
         description="Planificá la fabricación, consultá los materiales y seguí la ejecución de cada orden. Fechas en hora de Managua."
         actions={createAction}
@@ -180,10 +181,7 @@ export function OrdersPage() {
               {orders.data.data.map((order) => (
                 <tr key={order.id}>
                   <td className="whitespace-nowrap">
-                    <Link
-                      className="font-medium underline underline-offset-4"
-                      to={'/production/orders/' + order.id}
-                    >
+                    <Link className="table-link" to={'/production/orders/' + order.id}>
                       {order.number}
                     </Link>
                     <p className="mt-1 text-xs text-muted-foreground">

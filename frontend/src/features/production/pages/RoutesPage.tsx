@@ -102,7 +102,7 @@ export function RoutesPage() {
       {query.isPending && <LoadingState label="Cargando rutas…" />}
       <ErrorNotice error={query.error} />
       {query.isError && (
-        <Button onClick={() => void query.refetch()} disabled={query.isFetching}>
+        <Button variant="outline" onClick={() => void query.refetch()} disabled={query.isFetching}>
           Reintentar
         </Button>
       )}

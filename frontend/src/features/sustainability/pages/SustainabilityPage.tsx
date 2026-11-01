@@ -83,7 +83,7 @@ export function SustainabilityPage() {
       {query.isPending && <LoadingState label="Cargando órdenes completadas…" />}
       <ErrorNotice error={query.error} />
       {query.isError && (
-        <Button onClick={() => void query.refetch()} disabled={query.isFetching}>
+        <Button variant="outline" onClick={() => void query.refetch()} disabled={query.isFetching}>
           Reintentar
         </Button>
       )}

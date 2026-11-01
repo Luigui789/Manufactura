@@ -63,7 +63,7 @@ function TraceabilityTree({ trace }: { trace: Traceability }) {
         <p className="text-sm">
           {ancestors.has(id) ? 'Referencia circular detectada' : 'Lote compartido con otra rama'} ·{' '}
           <a
-            className="font-medium underline underline-offset-4"
+            className="table-link"
             href={'#' + nodeId(id)}
             onClick={(event) => {
               event.preventDefault();
@@ -126,7 +126,7 @@ function TraceabilityTree({ trace }: { trace: Traceability }) {
               <p>
                 Orden de producción:{' '}
                 <Link
-                  className="font-medium underline underline-offset-4"
+                  className="table-link"
                   to={'/production/orders/' + lot.origin.productionOrder.id}
                 >
                   {lot.origin.productionOrder.number}
@@ -143,7 +143,7 @@ function TraceabilityTree({ trace }: { trace: Traceability }) {
               <p>
                 Recepción {lot.origin.purchaseReceipt.number} ·{' '}
                 <Link
-                  className="font-medium underline underline-offset-4"
+                  className="table-link"
                   to={'/purchases/orders/' + lot.origin.purchaseOrder.id}
                 >
                   {lot.origin.purchaseOrder.number}
@@ -208,10 +208,7 @@ function TraceabilityTree({ trace }: { trace: Traceability }) {
                     <p>
                       Despacho <span className="font-medium">{dispatch.dispatchNumber}</span> ·
                       Orden de venta{' '}
-                      <Link
-                        className="font-medium underline underline-offset-4"
-                        to={'/sales/orders/' + dispatch.saleOrder.id}
-                      >
+                      <Link className="table-link" to={'/sales/orders/' + dispatch.saleOrder.id}>
                         {dispatch.saleOrder.number}
                       </Link>
                     </p>

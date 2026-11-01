@@ -51,8 +51,9 @@ export default function SuppliersPage() {
   return (
     <section className="space-y-5">
       <PageHeader
+        breadcrumbs={[{ label: 'Compras' }, { label: 'Proveedores' }]}
         title="Gestión de Proveedores"
-        description="Consulta y administra los proveedores de materias primas e insumos."
+        description="Consultá y administrá los proveedores de materias primas e insumos."
         actions={
           <>
             {' '}

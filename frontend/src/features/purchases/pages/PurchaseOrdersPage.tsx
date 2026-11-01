@@ -33,6 +33,7 @@ export function PurchaseOrdersPage() {
   return (
     <section className="space-y-5">
       <PageHeader
+        breadcrumbs={[{ label: 'Compras' }, { label: 'Órdenes' }]}
         title="Órdenes de compra"
         description="Prepará compras, registrá recepciones y consultá lo pendiente por proveedor."
       />
@@ -119,7 +120,11 @@ export function PurchaseOrdersPage() {
 
       {orders.isPending && <LoadingState label="Cargando compras…" />}
       <ErrorNotice error={orders.error} />
-      {orders.isError && <Button onClick={() => void orders.refetch()}>Reintentar</Button>}
+      {orders.isError && (
+        <Button variant="outline" onClick={() => void orders.refetch()}>
+          Reintentar
+        </Button>
+      )}
 
       {orders.data && orders.data.data.length > 0 && (
         <div className="overflow-x-auto rounded-lg border bg-background">
@@ -138,10 +143,7 @@ export function PurchaseOrdersPage() {
               {orders.data.data.map((order) => (
                 <tr key={order.id}>
                   <td>
-                    <Link
-                      className="font-medium underline underline-offset-4"
-                      to={'/purchases/orders/' + order.id}
-                    >
+                    <Link className="table-link" to={'/purchases/orders/' + order.id}>
                       {order.number}
                     </Link>
                   </td>

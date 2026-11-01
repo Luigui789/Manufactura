@@ -389,7 +389,7 @@ export function OrderDetailPage() {
                     <dt>Lote fabricado</dt>
                     <dd>
                       <Link
-                        className="font-medium underline underline-offset-4"
+                        className="table-link"
                         to={
                           current.lot
                             ? '/inventory/lots?lotId=' + current.lot.id

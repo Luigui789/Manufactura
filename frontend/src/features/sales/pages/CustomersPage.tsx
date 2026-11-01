@@ -51,8 +51,9 @@ export default function CustomersPage() {
   return (
     <section className="space-y-5">
       <PageHeader
+        breadcrumbs={[{ label: 'Ventas' }, { label: 'Clientes' }]}
         title="Gestión de Clientes"
-        description="Consulta y administra los clientes que compran los productos terminados."
+        description="Consultá y administrá los clientes que compran los productos terminados."
         actions={
           <>
             {' '}

@@ -172,7 +172,7 @@ export function EmissionFactorsPage() {
       {query.isPending && <LoadingState label="Cargando factores…" />}
       <ErrorNotice error={query.error ?? toggle.error} />
       {query.isError && (
-        <Button onClick={() => void query.refetch()} disabled={query.isFetching}>
+        <Button variant="outline" onClick={() => void query.refetch()} disabled={query.isFetching}>
           Reintentar
         </Button>
       )}

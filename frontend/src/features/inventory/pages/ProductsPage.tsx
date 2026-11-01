@@ -64,8 +64,9 @@ export function ProductsPage() {
   return (
     <section className="space-y-5">
       <PageHeader
+        breadcrumbs={[{ label: 'Maestros' }, { label: 'Productos' }]}
         title="Gestión de Productos"
-        description="Consulta las materias primas, productos intermedios y productos terminados."
+        description="Consultá las materias primas, productos intermedios y productos terminados."
         actions={
           <>
             {' '}

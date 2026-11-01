@@ -41,8 +41,9 @@ export function UsersPage() {
   return (
     <section className="space-y-5">
       <PageHeader
+        breadcrumbs={[{ label: 'Administración' }, { label: 'Usuarios' }]}
         title="Usuarios"
-        description="Administra las cuentas y el acceso al ERP."
+        description="Administrá las cuentas y el acceso al ERP."
         actions={
           <>
             {' '}

@@ -70,6 +70,7 @@ export function WarehousesList() {
   return (
     <div className="space-y-4">
       <PageHeader
+        breadcrumbs={[{ label: 'Maestros' }, { label: 'Almacenes' }]}
         title="Gestión de Almacenes"
         description="Organizá las ubicaciones donde se reciben, almacenan y consumen los productos."
         actions={
