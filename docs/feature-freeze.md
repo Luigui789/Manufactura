@@ -1,10 +1,9 @@
 # Congelamiento funcional EcoSoap ERP
 
-**Estado: alcance reabierto exclusivamente para D5 — Dashboard de Calidad**
+**Estado: alcance reabierto exclusivamente para D6 — Dashboard General/Home**
 
-La decisión D5 autoriza un dashboard de calidad de lectura agregada, con estado
-actual y actividad del período. No autoriza D6, migraciones ni cambios en las
-reglas de escritura. El reporte C7 conserva sus resultados históricos.
+La decisión D6 autoriza exclusivamente la composición de lectura de D1–D5 en Home `/`.
+No autoriza D7, reglas duplicadas, migraciones ni cambios en las reglas de escritura. El reporte C7 conserva sus resultados históricos.
 
 | Dashboard       | Estado                     |
 | --------------- | -------------------------- |
@@ -12,26 +11,25 @@ reglas de escritura. El reporte C7 conserva sus resultados históricos.
 | D2 Inventario   | Integrado (PR #39)         |
 | D3 Compras      | Integrado (PR #40)         |
 | D4 Ventas       | Integrado (PR #41)         |
-| D5 Calidad      | Autorizado / en desarrollo |
-| D6 General/Home | Excluido                   |
+| D5 Calidad      | Integrado (PR #42)         |
+| D6 General/Home | Autorizado / en desarrollo |
 
-C7 cerró la fase técnica previa; D1–D4 están integrados y D5 es la nueva excepción autorizada.
+C7 cerró la fase técnica previa; D1–D5 están integrados y D6 es la nueva excepción autorizada.
 El código se entrega a revisión;
 la aprobación de merge exige los checks nuevos de C7 en verde y revisión humana.
-No se habilita auto-merge ni squash. Base D5: `develop` en `82dfb1f1757441814fe83ffac71f063ae38e83c9`, con C1–C7, D1–D4 y PR #41 mergeado.
+No se habilita auto-merge ni squash. Base D6: `develop` en `4fe72b6f686e9006a8c02afdd550b4649cc38741`, con C1–C7, D1–D5 y PR #42 mergeado.
 
 ## Incluido
 
 Authentication/RBAC; productos/UOM y almacenes; proveedores/clientes; compras y
 recepciones; inventario con ledger; BOM multinivel; Production Routes; órdenes
 de producción; lotes y trazabilidad; calidad y disposition; ventas/despachos;
-IIoT/MQTT y simulador de demostración; dashboards de Producción, Inventario, Compras y Ventas; Calidad (D5 autorizado); sostenibilidad,
+IIoT/MQTT y simulador de demostración; dashboards de Producción, Inventario, Compras Ventas y Calidad; General/Home (D6 autorizado); sostenibilidad,
 carbono y circularidad; dataset oficial y E2E integrado de defensa.
 
 ## Excluido
 
-Contabilidad, RRHH/nómina, tesorería y mantenimiento. Continúa excluido el
-dashboard General/Home (D6).
+Contabilidad, RRHH/nómina, tesorería y mantenimiento. No existe D7 ni se autoriza ningún dashboard adicional.
 No se promete ejecución MES por operación, MRP recursivo automático, plataforma
 IIoT de alta disponibilidad, despliegue productivo endurecido ni certificación de carbono.
 
@@ -56,7 +54,7 @@ IIoT de alta disponibilidad, despliegue productivo endurecido ni certificación 
 
 ## Cambios posteriores permitidos
 
-Con la excepción explícita de D5 (D1–D4 integrados), después del merge de C7 solo se aceptan bugs críticos con reproducción y regresión,
+Con la excepción explícita de D6 (D1–D5 integrados), después del merge de C7 solo se aceptan bugs críticos con reproducción y regresión,
 correcciones documentales y ajustes de defensa sin cambio funcional. No módulos,
 otros dashboards, upgrades oportunistas ni ampliación de fórmulas/rutas/IIoT/calidad/carbono.
 No iniciar C8. La siguiente etapa es informe final, manual/evidencias, bitácora,
