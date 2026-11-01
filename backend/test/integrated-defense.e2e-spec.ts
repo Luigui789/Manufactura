@@ -7,6 +7,10 @@ import type { TraceabilityService } from '../src/production/quality/traceability
 import type { FootprintsService } from '../src/sustainability/footprints/footprints.service.js';
 import type { MonitoringService } from '../src/iiot/monitoring/monitoring.service.js';
 import type { DashboardService } from '../src/production/dashboard/dashboard.service.js';
+import type { DashboardService as InventoryDashboardService } from '../src/inventory/dashboard/dashboard.service.js';
+import type { DashboardService as PurchasesDashboardService } from '../src/purchases/dashboard/dashboard.service.js';
+import type { DashboardService as SalesDashboardService } from '../src/sales/dashboard/dashboard.service.js';
+import type { DashboardService as QualityDashboardService } from '../src/production/quality/dashboard/dashboard.service.js';
 import { createTestApp, login, type TestApp } from './support/auth-test-kit.js';
 import { waitForCondition } from './support/wait-for-condition.js';
 
@@ -567,6 +571,49 @@ describe('C6 — defensa integrada EcoSoap (dataset oficial limpio, MQTT y simul
         `${action} ${entityId}`,
       ).toBe(true);
     }
+    // D6: composition compatibility after the real defense flow, without a duplicate API.
+    const calendar = Object.fromEntries(
+      new Intl.DateTimeFormat('en-CA', {
+        timeZone: 'America/Managua',
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+      })
+        .formatToParts(new Date())
+        .map(({ type, value }) => [type, value]),
+    );
+    const to = `${calendar.year}-${calendar.month}-${calendar.day}`;
+    const from = new Date(Date.parse(`${to}T00:00:00Z`) - 29 * 86400000).toISOString().slice(0, 10);
+    const commonQuery = new URLSearchParams({ from, to });
+    const productionSummary = data<Dashboard>(
+      await get(`production/dashboard?${commonQuery}`).expect(200),
+    );
+    const inventorySummary = data<Awaited<ReturnType<InventoryDashboardService['get']>>>(
+      await get(`inventory/dashboard?${commonQuery}`).expect(200),
+    );
+    const purchasesSummary = data<Awaited<ReturnType<PurchasesDashboardService['get']>>>(
+      await get(`purchases/dashboard?${commonQuery}`).expect(200),
+    );
+    const salesSummary = data<Awaited<ReturnType<SalesDashboardService['get']>>>(
+      await get(`sales/dashboard?${commonQuery}`).expect(200),
+    );
+    const qualitySummary = data<Awaited<ReturnType<QualityDashboardService['get']>>>(
+      await get(`production/quality/dashboard?${commonQuery}`).expect(200),
+    );
+    for (const summary of [
+      productionSummary,
+      inventorySummary,
+      purchasesSummary,
+      salesSummary,
+      qualitySummary,
+    ])
+      expect(summary.period).toEqual({ from, to, timeZone: 'America/Managua', granularity: 'day' });
+    expect(productionSummary.orders.completed).toBeGreaterThan(0);
+    expect(inventorySummary.movements.total).toBeGreaterThan(0);
+    expect(purchasesSummary.receipts.total).toBeGreaterThan(0);
+    expect(salesSummary.dispatches.total).toBeGreaterThan(0);
+    expect(qualitySummary.inspections.total).toBeGreaterThan(0);
+
     const after = await verifyDemoDataset(kit.prisma);
     expect(formatChecks(after).ready).toBe(false);
     expect(after).toEqual(
