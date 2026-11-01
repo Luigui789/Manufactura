@@ -26,6 +26,13 @@ export const navigation: {
 }[] = [
   { to: '/', label: 'Inicio', roles: ROLE_CODES, group: 'General', icon: Home },
   {
+    to: '/purchases/dashboard',
+    label: 'Compras · Dashboard',
+    roles: ROLE_CODES,
+    group: 'Operaciones',
+    icon: ChartNoAxesCombined,
+  },
+  {
     to: '/purchases/orders',
     label: 'Compras',
     roles: ROLE_CODES,
