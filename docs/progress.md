@@ -1124,3 +1124,21 @@ Pantalla `/quality/dashboard` con TanStack Query/Recharts, picker compartido que
 permite inactivos y todos los tipos, tablas accesibles y enlaces al lote/OP.
 Contrato y semántica: [D5](quality-dashboard.md). Evidencias de esta entrega:
 [validación D5](quality-dashboard-validation.md).
+
+### D6 — Dashboard General / Home (2026-11-01)
+
+Base `develop`: `4fe72b6f686e9006a8c02afdd550b4649cc38741`, merge del PR #42 (D5),
+confirmado antes de crear `feature/general-dashboard`, con C1–C7 y D1–D5.
+Home `/` conserva bienvenida, rol y accesos. Composición paralela de los cinco hooks
+existentes con un único período calendario de America/Managua, validación previa,
+estados/reintentos independientes, atención sin suma y dos gráficos accesibles.
+Sostenibilidad conserva su contexto metodológico y enlace, sin KPI corporativo.
+
+Sin API General, SQL duplicado, cambios a contratos D1–D5, código productivo backend,
+esquema, migraciones, writers ni seed. Los valores Decimal no se suman ni reciben
+moneda; no se agregan cantidades multi-UOM, scores o severidades compartidas.
+Smoke y defensa verifican compatibilidad de las cinco fuentes después del flujo real.
+
+Contrato visual y límites: [D6](general-dashboard.md). Evidencias:
+[validación D6](general-dashboard-validation.md). Tras el merge de D6 se completa
+D1–D6 y vuelve FEATURE FROZEN; no existe D7. Se preserva evidencia histórica C7.
