@@ -1,4 +1,5 @@
 import type { LoggerService } from '@nestjs/common';
+import { vi } from 'vitest';
 
 import { ActorType, AuditAction, RoleCode } from '../src/generated/prisma/client.js';
 import { BootstrapRefusedError, UsersService } from '../src/users/users.service.js';
@@ -15,10 +16,16 @@ import {
 
 let kit: TestApp;
 const logLines: string[] = [];
+const capture = (args: unknown[]) =>
+  JSON.stringify(args, (_key, value: unknown) =>
+    value instanceof Error
+      ? { name: value.name, message: value.message, stack: value.stack }
+      : value,
+  );
 
 const capturingLogger: LoggerService = {
   log: (...args: unknown[]) => logLines.push(JSON.stringify(args)),
-  error: (...args: unknown[]) => logLines.push(JSON.stringify(args)),
+  error: (...args: unknown[]) => logLines.push(capture(args)),
   warn: (...args: unknown[]) => logLines.push(JSON.stringify(args)),
   debug: (...args: unknown[]) => logLines.push(JSON.stringify(args)),
   verbose: (...args: unknown[]) => logLines.push(JSON.stringify(args)),
@@ -88,6 +95,29 @@ describe('admin:create (solo bootstrap)', () => {
 });
 
 describe('Información sensible', () => {
+  it('C7 does not expose unexpected database error details in responses or logs', async () => {
+    const user = await createUser(kit, RoleCode.VENTAS);
+    const cookie = await login(kit, user);
+    const secret = randomPassword();
+    const before = logLines.length;
+    const query = vi
+      .spyOn(kit.prisma.user, 'findUnique')
+      .mockRejectedValueOnce(
+        new Error(
+          `DATABASE_URL=postgresql://user:${encodeURIComponent(secret)}@db/private passwordHash=${secret}`,
+        ),
+      );
+    try {
+      const response = await kit.http().get('/api/auth/me').set('Cookie', cookie).expect(500);
+      const diagnostics = JSON.stringify(response.body) + logLines.slice(before).join('\n');
+      expect(diagnostics).not.toContain(secret);
+      expect(diagnostics).not.toContain('DATABASE_URL');
+      expect(diagnostics).not.toContain('passwordHash');
+      expect(response.headers['x-request-id']).toBeTruthy();
+    } finally {
+      query.mockRestore();
+    }
+  });
   it('S1 + S2 + S3: ninguna contraseña, hash, JWT ni JWT_SECRET en respuestas, auditoría o logs', async () => {
     const startedAt = new Date();
     const admin = await createUser(kit, RoleCode.ADMIN);

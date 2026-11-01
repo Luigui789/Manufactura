@@ -739,14 +739,17 @@ describe('Despachos de venta RF-VEN-003', () => {
     ).toBe('2');
   });
 
-  it('serializa órdenes distintas que compiten por el mismo lote', async () => {
+  it.each([
+    ['3', '2'],
+    ['5', '0'],
+  ])('serializa órdenes distintas por el mismo lote, despacho=%s', async (quantity, remaining) => {
     const product = await finishedProduct(true);
     const warehouse = await createInventoryWarehouse(kit.prisma);
     const lot = await createInventoryLot(kit.prisma, product.id, LotStatus.RELEASED);
     await stock(product.id, warehouse.id, '6', lot.id);
     const orders = await Promise.all([
-      confirmedOrder(product.id, '3'),
-      confirmedOrder(product.id, '3'),
+      confirmedOrder(product.id, quantity),
+      confirmedOrder(product.id, quantity),
     ]);
     await removeStock(product.id, warehouse.id, '1', lot.id);
     const results = await Promise.all(
@@ -759,7 +762,7 @@ describe('Despachos de venta RF-VEN-003', () => {
                 saleOrderItemId: order.itemId,
                 warehouseId: warehouse.id,
                 lotId: lot.id,
-                quantity: '3',
+                quantity,
               },
             ],
           }),
@@ -770,7 +773,11 @@ describe('Despachos de venta RF-VEN-003', () => {
       where: { lotId: lot.id, warehouseId: warehouse.id },
       _sum: { quantity: true },
     });
-    expect(lotBalance._sum.quantity?.toString()).toBe('2');
+    expect(lotBalance._sum.quantity?.toString()).toBe(remaining);
+    const balance = await kit.prisma.stockBalance.findUniqueOrThrow({
+      where: { productId_warehouseId: { productId: product.id, warehouseId: warehouse.id } },
+    });
+    expect(balance.quantity.toString()).toBe(remaining);
   });
 
   it('revierte todas las líneas si una línea posterior no tiene saldo', async () => {

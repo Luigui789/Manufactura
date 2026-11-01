@@ -255,6 +255,29 @@ describe('C2 quality disposition PostgreSQL', () => {
         ).quantity.toFixed(4),
       ).toBe('0.0000');
   });
+  it('C7 scraps the remaining 6, not the original 125, after a partial adjustment', async () => {
+    const f = await produced();
+    await reject(f);
+    await post('/api/inventory/adjustments')
+      .send({
+        productId: f.output.id,
+        warehouseId: f.warehouse.id,
+        lotId: f.lotId,
+        type: 'ADJUSTMENT_OUT',
+        quantity: '119',
+        reason: 'CORRECTION',
+      })
+      .expect(201);
+    await dispose(f.lotId, 'SCRAP').expect(201);
+    const after = await snapshot(f);
+    expect(
+      after.movements
+        .filter((movement) => movement.type === 'QUALITY_SCRAP')
+        .map((movement) => movement.quantity.toFixed(4)),
+    ).toEqual(['-6.0000']);
+    expect(after.balances[0].quantity.toFixed(4)).toBe('0.0000');
+    expect(after.lot?.status).toBe('SCRAPPED');
+  });
   it('rolls back disposition, lot, movements and balances if audit fails', async () => {
     const f = await produced();
     await reject(f);
