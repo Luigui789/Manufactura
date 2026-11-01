@@ -6,7 +6,8 @@ La decisión D2 autoriza un dashboard de inventario de lectura agregada, con
 existencia actual y actividad del período. No autoriza D3–D6, migraciones ni
 cambios en las reglas de escritura. El reporte C7 conserva sus resultados históricos.
 
-C7 cierra la fase técnica de funcionalidades. El código se entrega a revisión;
+C7 cerró la fase técnica previa; D2 es la excepción posterior autorizada.
+El código se entrega a revisión;
 la aprobación de merge exige los checks nuevos de C7 en verde y revisión humana.
 No se habilita auto-merge ni squash. Base: `develop` con C1–C6 y PR #37 mergeado.
 
@@ -48,7 +49,7 @@ IIoT de alta disponibilidad, despliegue productivo endurecido ni certificación 
 
 Con la excepción explícita de D2, después del merge de C7 solo se aceptan bugs críticos con reproducción y regresión,
 correcciones documentales y ajustes de defensa sin cambio funcional. No módulos,
-dashboards, upgrades oportunistas ni ampliación de fórmulas/rutas/IIoT/calidad/carbono.
+otros dashboards, upgrades oportunistas ni ampliación de fórmulas/rutas/IIoT/calidad/carbono.
 No iniciar C8. La siguiente etapa es informe final, manual/evidencias, bitácora,
 capturas y ensayo de defensa.
 
