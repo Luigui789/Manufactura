@@ -136,6 +136,12 @@ const ProductsPage = lazy(() =>
   })),
 );
 
+const InventoryDashboardPage = lazy(() =>
+  import('@/features/inventory/pages/InventoryDashboardPage').then((m) => ({
+    default: m.InventoryDashboardPage,
+  })),
+);
+
 const StockPage = lazy(() =>
   import('@/features/inventory/pages/StockPage').then((m) => ({ default: m.StockPage })),
 );
@@ -157,6 +163,14 @@ export function AppRoutes() {
         <Route element={<RequirePasswordCurrent />}>
           <Route element={<AppLayout />}>
             <Route index element={<HomePage />} />
+            <Route
+              path="/inventory/dashboard"
+              element={
+                <Suspense fallback={<LoadingState label="Cargando dashboard de inventario" />}>
+                  <InventoryDashboardPage />
+                </Suspense>
+              }
+            />
 
             <Route element={<RequireRole roles={['ADMIN']} />}>
               <Route

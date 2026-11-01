@@ -82,6 +82,13 @@ export const navigation: {
     icon: Leaf,
   },
   {
+    to: '/inventory/dashboard',
+    label: 'Inventario · Dashboard',
+    roles: ROLE_CODES,
+    group: 'Inventario',
+    icon: ChartNoAxesCombined,
+  },
+  {
     to: '/inventory/stock',
     label: 'Existencias',
     roles: ROLE_CODES,
