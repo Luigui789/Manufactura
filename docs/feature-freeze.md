@@ -30,7 +30,7 @@ carbono y circularidad; dataset oficial y E2E integrado de defensa.
 
 ## Excluido
 
-Contabilidad, RRHH/nómina, tesorería y mantenimiento. Continúan excluidos los
+Contabilidad, RRHH/nómina, tesorería y mantenimiento. Continúa excluido el
 dashboard General/Home (D6).
 No se promete ejecución MES por operación, MRP recursivo automático, plataforma
 IIoT de alta disponibilidad, despliegue productivo endurecido ni certificación de carbono.

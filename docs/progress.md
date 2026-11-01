@@ -1107,3 +1107,20 @@ recepción real de 10000 mL de `MP-ACU` volvió a dar FAIL identificando `MP-ACU
 **Pendiente:** el stack Docker no se pudo construir en el entorno de desarrollo (sin DNS para
 `apt-get` dentro de los contenedores). La CI ejecuta el dataset dos veces en el job
 `Docker development`; no marcar C5 como verificada en Docker hasta ver esa CI verde.
+
+### D5 — Dashboard de Calidad (2026-11-01)
+
+Base `develop`: `82dfb1f1757441814fe83ffac71f063ae38e83c9`, merge del PR #41 (D4).
+Rama `feature/quality-dashboard`, con D1–D4 integrados. D5 autoriza exclusivamente
+lectura agregada y UI; D6 General/Home sigue excluido y se conserva evidencia C7.
+
+Se incorpora `GET /api/production/quality/dashboard` para usuarios autenticados,
+con producto histórico y fechas de Managua. Distingue colas actuales de inspecciones
+por inspectedAt y disposiciones por decidedAt, preservando REJECTED incluso tras
+RELEASE. Lectura RepeatableRead, SQL agregado, series con buckets cero, cola e
+inspecciones recientes acotadas; sin migraciones, writers ni seed nuevos.
+
+Pantalla `/quality/dashboard` con TanStack Query/Recharts, picker compartido que
+permite inactivos y todos los tipos, tablas accesibles y enlaces al lote/OP.
+Contrato y semántica: [D5](quality-dashboard.md). Evidencias de esta entrega:
+[validación D5](quality-dashboard-validation.md).
