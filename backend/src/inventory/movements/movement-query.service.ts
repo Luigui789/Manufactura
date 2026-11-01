@@ -9,7 +9,7 @@ import type { MovementsQueryDto } from './dto/movements-query.dto.js';
 export class MovementQueryService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async list(query: MovementsQueryDto) {
+  async list(query: MovementsQueryDto, toExclusive?: Date) {
     const { page, limit, productId, warehouseId, lotId, type, from, to } = query;
     const start = from ? new Date(from) : undefined;
     const end = to ? new Date(to) : undefined;
@@ -20,14 +20,14 @@ export class MovementQueryService {
 
     const occurredAt: Prisma.DateTimeFilter = {
       ...(start ? { gte: start } : {}),
-      ...(end ? { lte: end } : {}),
+      ...(toExclusive ? { lt: toExclusive } : end ? { lte: end } : {}),
     };
     const where: Prisma.InventoryMovementWhereInput = {
       ...(productId ? { productId } : {}),
       ...(warehouseId ? { warehouseId } : {}),
       ...(lotId ? { lotId } : {}),
       ...(type ? { type } : {}),
-      ...(start || end ? { occurredAt } : {}),
+      ...(start || end || toExclusive ? { occurredAt } : {}),
     };
 
     const [data, total] = await this.prisma.$transaction([
