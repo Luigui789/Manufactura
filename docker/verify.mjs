@@ -72,6 +72,7 @@ for (const route of [
   '/inventory/stock',
   '/inventory/movements',
   '/inventory/lots',
+  '/inventory/dashboard',
 ]) {
   const authenticated = await fetch(`${api}${route}`, { headers: { Cookie, Origin: origin } });
   assert.equal(authenticated.status, 200, route);
@@ -90,6 +91,36 @@ async function request(route, method = 'GET', body) {
   return (await result.json()).data;
 }
 const suffix = randomUUID().slice(0, 8);
+const inventoryDashboard = await request('/inventory/dashboard');
+assert.equal(inventoryDashboard.period.timeZone, 'America/Managua');
+assert.equal(inventoryDashboard.stock, null);
+assert.equal(inventoryDashboard.movementQuantity, null);
+assert.equal(
+  Object.values(inventoryDashboard.catalog.productsByType).reduce((sum, count) => sum + count, 0),
+  inventoryDashboard.catalog.activeProducts,
+);
+assert.equal(
+  inventoryDashboard.movementsByPeriod.reduce((sum, point) => sum + point.count, 0),
+  inventoryDashboard.movements.total,
+);
+assert.ok(inventoryDashboard.recentMovements.length <= 5);
+for (const status of ['quarantined', 'released', 'rejected', 'rework', 'scrapped']) {
+  assert.equal(typeof inventoryDashboard.lotsOnHand[status], 'number');
+}
+const catalogProduct = (await request('/products?limit=1'))[0];
+if (catalogProduct) {
+  const selected = await request(`/inventory/dashboard?productId=${catalogProduct.id}`);
+  assert.equal(selected.stock.unit, catalogProduct.unit);
+  for (const value of [
+    selected.stock.onHand,
+    selected.stock.consumable,
+    selected.movementQuantity.in,
+    selected.movementQuantity.out,
+    selected.movementQuantity.net,
+  ]) {
+    assert.match(value, /^-?\d+\.\d{4}$/);
+  }
+}
 const supplier = await request('/suppliers', 'POST', {
   code: 'DOCKER-' + suffix,
   name: 'Docker purchase supplier',
