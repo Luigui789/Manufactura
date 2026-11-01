@@ -41,6 +41,7 @@ export function StockPage() {
   return (
     <section className="space-y-5">
       <PageHeader
+        breadcrumbs={[{ label: 'Inventario' }, { label: 'Existencias' }]}
         title="Existencias"
         description="Saldo físico por producto y almacén. Consultá qué tenés disponible antes de operar."
         actions={canAdjust && <Button onClick={() => setAdjust(true)}>Nuevo ajuste</Button>}

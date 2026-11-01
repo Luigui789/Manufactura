@@ -287,6 +287,7 @@ export function LotsPage() {
   return (
     <section className="space-y-6">
       <PageHeader
+        breadcrumbs={[{ label: 'Inventario' }, { label: 'Lotes' }]}
         title="Lotes"
         description="Consultá existencias, estado y origen de cada lote en compras o producción."
       />

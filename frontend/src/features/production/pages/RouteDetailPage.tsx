@@ -49,7 +49,9 @@ export function RouteDetailPage() {
     return (
       <div className="space-y-4">
         <ErrorNotice error={query.error} />
-        <Button onClick={() => void query.refetch()}>Reintentar</Button>
+        <Button variant="outline" onClick={() => void query.refetch()}>
+          Reintentar
+        </Button>
         <Link to="/production/routes">Volver a rutas</Link>
       </div>
     );

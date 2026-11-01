@@ -1,33 +1,35 @@
 # Congelamiento funcional EcoSoap ERP
 
-**Estado: D1–D6 implementados — FEATURE FROZEN tras merge de D6**
+**Estado: FEATURE FROZEN — D1–D6 completos · UX/UI final (UX1) en revisión · No D7**
 
-D6 completa la composición de lectura de D1–D5 en Home `/`, sin reglas duplicadas,
-migraciones ni cambios a writers. D6 está implementado y pendiente de merge.
-Tras merge de D6 el alcance de dashboards D1–D6 queda completo y vuelve a
-**FEATURE FROZEN — D1–D6 completos**. No D7; no se abren dashboards automáticamente.
+D6 completa la composición de lectura de D1–D5 en Home `/` y está integrado en `develop`
+(PR #43). UX1 es una fase de UX/UI final sin cambio funcional: navegación, jerarquía visual,
+consistencia, responsive y accesibilidad, sin reglas, KPIs, contratos, schema, migraciones,
+writers ni dataset nuevos. Detalle en [UX1](ux-ui-polish.md). Tras su merge el estado es
+**FEATURE FROZEN — D1–D6 completos · UX/UI final integrado · No D7**.
 El reporte C7 conserva sus resultados históricos.
 
-| Dashboard       | Estado                            |
-| --------------- | --------------------------------- |
-| D1 Producción   | Integrado                         |
-| D2 Inventario   | Integrado (PR #39)                |
-| D3 Compras      | Integrado (PR #40)                |
-| D4 Ventas       | Integrado (PR #41)                |
-| D5 Calidad      | Integrado (PR #42)                |
-| D6 General/Home | Implementado / pendiente de merge |
+| Dashboard       | Estado             |
+| --------------- | ------------------ |
+| D1 Producción   | Integrado          |
+| D2 Inventario   | Integrado (PR #39) |
+| D3 Compras      | Integrado (PR #40) |
+| D4 Ventas       | Integrado (PR #41) |
+| D5 Calidad      | Integrado (PR #42) |
+| D6 General/Home | Integrado (PR #43) |
 
 C7 cerró la fase técnica previa; D1–D5 están integrados y D6 completa el plan autorizado de dashboards.
 El código se entrega a revisión;
 la aprobación de merge exige los gates oficiales vigentes en verde y revisión humana.
 No se habilita auto-merge ni squash. Base D6: `develop` en `4fe72b6f686e9006a8c02afdd550b4649cc38741`, con C1–C7, D1–D5 y PR #42 mergeado.
+Base UX1: `develop` en `50464812e025c84040b6dc2320149dc59f2e7e78`, con D6 (PR #43) mergeado.
 
 ## Incluido
 
 Authentication/RBAC; productos/UOM y almacenes; proveedores/clientes; compras y
 recepciones; inventario con ledger; BOM multinivel; Production Routes; órdenes
 de producción; lotes y trazabilidad; calidad y disposition; ventas/despachos;
-IIoT/MQTT y simulador de demostración; dashboards de Producción, Inventario, Compras, Ventas, Calidad y General/Home (D6 implementado); sostenibilidad,
+IIoT/MQTT y simulador de demostración; dashboards de Producción, Inventario, Compras, Ventas, Calidad y General/Home; sostenibilidad,
 carbono y circularidad; dataset oficial y E2E integrado de defensa.
 
 ## Excluido
@@ -57,8 +59,8 @@ IIoT de alta disponibilidad, despliegue productivo endurecido ni certificación 
 
 ## Cambios posteriores permitidos
 
-Tras el merge de D6, con D1–D6 completos, el alcance queda FEATURE FROZEN.
-Solo se permiten:
+Con D1–D6 completos, el alcance queda FEATURE FROZEN. UX1 se admite como ajuste de
+presentación sin cambio funcional. Tras UX1 solo se permiten:
 
 - Bugs críticos con reproducción y prueba de regresión.
 - Documentación.

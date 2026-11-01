@@ -39,6 +39,7 @@ export function MovementsPage() {
   return (
     <section className="space-y-5">
       <PageHeader
+        breadcrumbs={[{ label: 'Inventario' }, { label: 'Movimientos' }]}
         title="Movimientos"
         description="Qué cambió y por qué: historial inmutable de entradas, salidas y su referencia empresarial. Fechas y horas de Managua."
       />

@@ -209,6 +209,8 @@ mismo checkout. Ver [smoke de 10–15 min](docs/final-smoke-checklist.md),
 y [alcance vigente: cierre D1–D6](docs/feature-freeze.md).
 El [Dashboard General/Home D6](docs/general-dashboard.md) compone los cinco dashboards
 con un período común de Managua, errores parciales y acceso al contexto de sostenibilidad.
+El [pulido final UX1](docs/ux-ui-polish.md) agrupa el menú por módulo (cada uno con su
+**Resumen**) y unifica filtros, KPIs y estados de los dashboards, sin cambio funcional.
 El [Dashboard de Inventario D2](docs/inventory-dashboard.md) distingue existencia
 actual de actividad histórica, con cantidades físicas solo por producto seleccionado.
 El [Dashboard de Compras D3](docs/purchases-dashboard.md) distingue pipeline actual

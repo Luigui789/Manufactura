@@ -80,7 +80,7 @@ describe('SalesDashboardPage', () => {
     resolve(response({ data: dashboard }));
     await screen.findByText('Clientes activos');
     for (const label of [
-      'Estado actual',
+      'Pipeline actual',
       'Actividad del período',
       'Pendientes de despacho',
       'Órdenes emitidas',
@@ -149,7 +149,7 @@ describe('SalesDashboardPage', () => {
     expect(await screen.findByText('Sin actividad de ventas en este período.')).toBeTruthy();
     expect(screen.getByText('0.00')).toBeTruthy();
     expect(screen.getByText('Pendientes de despacho')).toBeTruthy();
-    expect(screen.getByText('No hay órdenes recientes.')).toBeTruthy();
+    expect(screen.getByText('No hubo órdenes de venta en este período.')).toBeTruthy();
     expect(screen.queryByRole('img', { name: 'Gráfico de órdenes por estado' })).toBeNull();
   });
   it('keeps dispatch-only activity visible', async () => {
@@ -213,13 +213,17 @@ describe('SalesDashboardPage', () => {
         .filter(([url]) => url.includes('/customers?'))
         .every(([url]) => !url.includes('isActive=true')),
     ).toBe(true);
-    fireEvent.click(screen.getByRole('button', { name: 'Todos los clientes' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Limpiar filtros' }));
     expect(await screen.findByText('Cliente: Todos')).toBeTruthy();
   });
   it('places dashboard before the unchanged Ventas navigation entry for all roles', () => {
     const i = navigation.findIndex((row) => row.to === '/sales/dashboard');
-    expect(navigation[i].label).toBe('Ventas · Dashboard');
-    expect(navigation[i + 1]).toMatchObject({ to: '/sales/orders', label: 'Ventas · Órdenes' });
+    expect(navigation[i]).toMatchObject({ label: 'Resumen', module: 'Ventas' });
+    expect(navigation[i + 1]).toMatchObject({
+      to: '/sales/orders',
+      label: 'Órdenes',
+      module: 'Ventas',
+    });
     expect(navigation[i].roles).toEqual(navigation[i + 1].roles);
   });
   it('selects an active customer', async () => {
@@ -274,7 +278,7 @@ describe('SalesDashboardPage', () => {
       </QueryClientProvider>,
     );
     expect(await screen.findByRole('heading', { name: 'Dashboard de ventas' })).toBeTruthy();
-    expect(screen.getByRole('link', { name: 'Ventas · Dashboard' }).getAttribute('href')).toBe(
+    expect(screen.getByRole('link', { name: 'Ventas · Resumen' }).getAttribute('href')).toBe(
       '/sales/dashboard',
     );
     await screen.findByText('Clientes activos');

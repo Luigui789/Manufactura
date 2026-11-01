@@ -230,7 +230,7 @@ describe('InventoryDashboardPage', () => {
     );
   });
   it('places dashboard before stock in inventory navigation', () => {
-    const inventory = navigation.filter((row) => row.group === 'Inventario');
+    const inventory = navigation.filter((row) => row.module === 'Inventario');
     expect(inventory.slice(0, 2).map((row) => row.to)).toEqual([
       '/inventory/dashboard',
       '/inventory/stock',
@@ -255,7 +255,7 @@ describe('InventoryDashboardPage', () => {
       </QueryClientProvider>,
     );
     expect(await screen.findByRole('heading', { name: 'Dashboard de inventario' })).toBeTruthy();
-    expect(screen.getByRole('link', { name: 'Inventario · Dashboard' }).getAttribute('href')).toBe(
+    expect(screen.getByRole('link', { name: 'Inventario · Resumen' }).getAttribute('href')).toBe(
       '/inventory/dashboard',
     );
     await screen.findByText('Productos activos');

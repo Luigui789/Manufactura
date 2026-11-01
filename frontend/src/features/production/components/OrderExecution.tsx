@@ -135,10 +135,7 @@ function LotSelection({
                   return (
                     <tr key={lot.id}>
                       <td>
-                        <Link
-                          className="font-medium underline underline-offset-4"
-                          to={'/inventory/lots?lotId=' + lot.id}
-                        >
+                        <Link className="table-link" to={'/inventory/lots?lotId=' + lot.id}>
                           {lot.code}
                         </Link>
                       </td>
