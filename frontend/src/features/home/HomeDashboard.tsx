@@ -5,7 +5,6 @@ import { useInventoryDashboard } from '@/features/inventory/api/dashboard';
 import { usePurchasesDashboard } from '@/features/purchases/api/dashboard';
 import { useSalesDashboard } from '@/features/sales/api/dashboard';
 import { useQualityDashboard } from '@/features/production/api/quality-dashboard';
-import { CarbonDisclaimer } from '@/features/sustainability/components/CarbonDisclaimer';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -291,7 +290,6 @@ export function HomeDashboard() {
               <CardDescription>Huella parcial de carbono y circularidad</CardDescription>
             </CardHeader>
             <CardContent className="space-y-3">
-              <CarbonDisclaimer />
               <Link className="text-primary underline" to="/sustainability">
                 Ver sostenibilidad
               </Link>

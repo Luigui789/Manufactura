@@ -141,7 +141,7 @@ describe('D6 Home composition', () => {
     metric('Calidad', 'Tasa de aprobación', '80.00%');
     metric('Calidad', 'Disposiciones de descarte', '1');
     expect(document.body.textContent).not.toMatch(
-      /C\$|\b(?:NIO|USD)\b|11111\.10|Stock total|Producción total|totalOperations|globalHealthScore|ERPScore|OEE|margen|beneficio|huella corporativa/i,
+      /C\$|\b(?:NIO|USD)\b|11111\.10|Stock total|Producción total|totalOperations|globalHealthScore|ERPScore|OEE|margen|beneficio|huella corporativa|académic|Aviso metodológico/i,
     );
     expect(screen.getByRole('link', { name: 'Ver sostenibilidad' }).getAttribute('href')).toBe(
       '/sustainability',

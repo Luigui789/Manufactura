@@ -94,7 +94,7 @@ Formularios con labels, errores asociados, botones y enlaces nativos, foco del
 sistema visual existente y regiones con nombres por módulo.
 
 Sostenibilidad enlaza `/sustainability`, con «Huella parcial de carbono y
-circularidad» y el CarbonDisclaimer existente. No dispara una sexta consulta,
+circularidad» y su alcance parcial. No dispara una sexta consulta,
 no suma huellas históricas ni muestra carbono corporativo o una comparación
 entre bases funcionales distintas.
 

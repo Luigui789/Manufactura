@@ -89,6 +89,7 @@ function setup({
 it('shows compact historical evidence before inspection, overview counts, precise metrics and nullable alerts', async () => {
   setup();
   const panel = await screen.findByRole('region', { name: 'Contexto IIoT de producción' });
+  expect(within(panel).queryByText(/Reglas académicas/)).toBeNull();
   await screen.findByText('Se registraron 4 alertas críticas durante la producción.', {
     exact: false,
   });
