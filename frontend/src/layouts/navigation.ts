@@ -2,99 +2,77 @@ import { ROLE_CODES, type RoleCode } from '@/features/auth/types';
 import {
   Home,
   ShoppingCart,
+  Store,
   Factory,
-  FlaskConical,
-  Package,
-  ArrowLeftRight,
+  ClipboardCheck,
   Boxes,
   PackageOpen,
   Warehouse,
-  Truck,
-  Users,
   UserCog,
-  ChartNoAxesCombined,
   Leaf,
-  ListTree,
   type LucideIcon,
 } from 'lucide-react';
-export const navigation: {
+
+export type NavigationItem = {
   to: string;
+  /** Short visible label. Inside a module it is read together with the module name. */
   label: string;
   roles: readonly RoleCode[];
   group: string;
+  /** Module that groups the item in the sidebar (Compras, Producción…). */
+  module?: string;
   icon: LucideIcon;
-}[] = [
+};
+
+export const navigationGroups = [
+  'General',
+  'Operaciones',
+  'Análisis',
+  'Maestros',
+  'Administración',
+] as const;
+
+export const navigationModules: Record<string, LucideIcon> = {
+  Compras: ShoppingCart,
+  Ventas: Store,
+  Producción: Factory,
+  Calidad: ClipboardCheck,
+  Inventario: Boxes,
+};
+
+const operation = (
+  module: keyof typeof navigationModules,
+  to: string,
+  label: string,
+  roles: readonly RoleCode[] = ROLE_CODES,
+): NavigationItem => ({
+  to,
+  label,
+  roles,
+  group: 'Operaciones',
+  module,
+  icon: navigationModules[module],
+});
+
+// Presentation only: routes, role visibility and RouteGuards are unchanged.
+export const navigation: NavigationItem[] = [
   { to: '/', label: 'Inicio', roles: ROLE_CODES, group: 'General', icon: Home },
-  {
-    to: '/purchases/dashboard',
-    label: 'Compras · Dashboard',
-    roles: ROLE_CODES,
-    group: 'Operaciones',
-    icon: ChartNoAxesCombined,
-  },
-  {
-    to: '/purchases/orders',
-    label: 'Compras',
-    roles: ROLE_CODES,
-    group: 'Operaciones',
-    icon: ShoppingCart,
-  },
-  {
-    to: '/sales/dashboard',
-    label: 'Ventas · Dashboard',
-    roles: ROLE_CODES,
-    group: 'Operaciones',
-    icon: ChartNoAxesCombined,
-  },
-  {
-    to: '/sales/orders',
-    label: 'Ventas · Órdenes',
-    roles: ROLE_CODES,
-    group: 'Operaciones',
-    icon: ShoppingCart,
-  },
-  {
-    to: '/production/dashboard',
-    label: 'Producción · Dashboard',
-    roles: ROLE_CODES,
-    group: 'Operaciones',
-    icon: ChartNoAxesCombined,
-  },
-  {
-    to: '/production/orders',
-    label: 'Producción · Órdenes',
-    roles: ROLE_CODES,
-    group: 'Operaciones',
-    icon: Factory,
-  },
-  {
-    to: '/production/boms',
-    label: 'Producción · Fórmulas',
-    roles: ROLE_CODES,
-    group: 'Operaciones',
-    icon: FlaskConical,
-  },
-  {
-    to: '/production/routes',
-    label: 'Producción · Rutas',
-    roles: ROLE_CODES,
-    group: 'Operaciones',
-    icon: Factory,
-  },
-  {
-    to: '/production/structure',
-    label: 'Producción · Estructura',
-    roles: ROLE_CODES,
-    group: 'Operaciones',
-    icon: ListTree,
-  },
-  {
-    to: '/quality/dashboard',
-    label: 'Calidad · Dashboard',
-    roles: ROLE_CODES,
-    group: 'Operaciones',
-    icon: ChartNoAxesCombined,
-  },
+  operation('Compras', '/purchases/dashboard', 'Resumen'),
+  operation('Compras', '/purchases/orders', 'Órdenes'),
+  operation('Compras', '/purchases/suppliers', 'Proveedores', ['ADMIN', 'COMPRAS']),
+  operation('Ventas', '/sales/dashboard', 'Resumen'),
+  operation('Ventas', '/sales/orders', 'Órdenes'),
+  operation('Ventas', '/sales/customers', 'Clientes', ['ADMIN', 'VENTAS']),
+  operation('Producción', '/production/dashboard', 'Resumen'),
+  operation('Producción', '/production/orders', 'Órdenes'),
+  operation('Producción', '/production/boms', 'Fórmulas'),
+  operation('Producción', '/production/routes', 'Rutas'),
+  operation('Producción', '/production/structure', 'Estructura'),
+  operation('Calidad', '/quality/dashboard', 'Resumen'),
+  operation('Inventario', '/inventory/dashboard', 'Resumen'),
+  operation('Inventario', '/inventory/stock', 'Existencias'),
+  operation('Inventario', '/inventory/movements', 'Movimientos'),
+  operation('Inventario', '/inventory/lots', 'Lotes'),
   {
     to: '/sustainability',
     label: 'Sostenibilidad',
@@ -102,28 +80,6 @@ export const navigation: {
     group: 'Análisis',
     icon: Leaf,
   },
-  {
-    to: '/inventory/dashboard',
-    label: 'Inventario · Dashboard',
-    roles: ROLE_CODES,
-    group: 'Inventario',
-    icon: ChartNoAxesCombined,
-  },
-  {
-    to: '/inventory/stock',
-    label: 'Existencias',
-    roles: ROLE_CODES,
-    group: 'Inventario',
-    icon: Package,
-  },
-  {
-    to: '/inventory/movements',
-    label: 'Movimientos',
-    roles: ROLE_CODES,
-    group: 'Inventario',
-    icon: ArrowLeftRight,
-  },
-  { to: '/inventory/lots', label: 'Lotes', roles: ROLE_CODES, group: 'Inventario', icon: Boxes },
   {
     to: '/inventory/products',
     label: 'Productos',
@@ -138,19 +94,15 @@ export const navigation: {
     group: 'Maestros',
     icon: Warehouse,
   },
-  {
-    to: '/purchases/suppliers',
-    label: 'Proveedores',
-    roles: ['ADMIN', 'COMPRAS'],
-    group: 'Maestros',
-    icon: Truck,
-  },
-  {
-    to: '/sales/customers',
-    label: 'Clientes',
-    roles: ['ADMIN', 'VENTAS'],
-    group: 'Maestros',
-    icon: Users,
-  },
   { to: '/users', label: 'Usuarios', roles: ['ADMIN'], group: 'Administración', icon: UserCog },
 ];
+
+const matches = (item: NavigationItem, pathname: string) =>
+  item.to === '/' ? pathname === '/' : pathname === item.to || pathname.startsWith(`${item.to}/`);
+
+/** Most specific navigation entry for the current path (deep links included). */
+export function activeNavigation(pathname: string) {
+  return navigation
+    .filter((item) => matches(item, pathname))
+    .sort((a, b) => b.to.length - a.to.length)[0];
+}

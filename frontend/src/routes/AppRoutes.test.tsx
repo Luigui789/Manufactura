@@ -51,6 +51,13 @@ function mount(path = '/', user: SessionUser | null = account, loadSession = fal
   );
   return client;
 }
+/** Opens every collapsed module of the sidebar (or of the mobile drawer when given). */
+function expandModules(
+  scope: HTMLElement = screen.getByRole('navigation', { name: 'Menú principal' }),
+) {
+  for (const button of within(scope).queryAllByRole('button', { expanded: false }))
+    fireEvent.click(button);
+}
 function fill(label: string, value: string) {
   fireEvent.change(screen.getByLabelText(label), { target: { value } });
 }
@@ -113,9 +120,10 @@ describe('Aceptación F1–F5', () => {
   it('F3: con sesión muestra el contenido protegido', () => {
     mount();
     expect(screen.getByText('Bienvenido, Administrador de prueba')).toBeTruthy();
+    expandModules();
     expect(screen.getByRole('link', { name: 'Usuarios' })).toBeTruthy();
-    expect(screen.getByRole('link', { name: 'Proveedores' })).toBeTruthy();
-    expect(screen.getByRole('link', { name: 'Clientes' })).toBeTruthy();
+    expect(screen.getByRole('link', { name: 'Compras · Proveedores' })).toBeTruthy();
+    expect(screen.getByRole('link', { name: 'Ventas · Clientes' })).toBeTruthy();
     expect(screen.getByRole('link', { name: 'Productos' })).toBeTruthy();
     expect(screen.getByRole('link', { name: 'Almacenes' })).toBeTruthy();
   });
@@ -175,7 +183,7 @@ describe('Integración de los catálogos de Compras, Inventario y Ventas', () =>
     expect(
       await screen.findByRole('heading', { name: 'Dashboard de producción' }, { timeout: 10000 }),
     ).toBeTruthy();
-    expect(screen.getByRole('link', { name: 'Producción · Dashboard' })).toBeTruthy();
+    expect(screen.getByRole('link', { name: 'Producción · Resumen' })).toBeTruthy();
     await waitFor(() =>
       expect(fetch).toHaveBeenCalledWith(
         'http://localhost:3000/api/production/dashboard',
@@ -202,11 +210,12 @@ describe('Integración de los catálogos de Compras, Inventario y Ventas', () =>
       mount(path, { ...account, role });
 
       expect(await screen.findByRole('heading', { name: heading })).toBeTruthy();
+      expandModules();
       expect(screen.getByRole('link', { name: 'Productos' })).toBeTruthy();
       expect(screen.getByRole('link', { name: 'Almacenes' })).toBeTruthy();
-      expect(screen.getByRole('link', { name: 'Existencias' })).toBeTruthy();
-      expect(screen.getByRole('link', { name: 'Movimientos' })).toBeTruthy();
-      expect(screen.getByRole('link', { name: 'Lotes' })).toBeTruthy();
+      expect(screen.getByRole('link', { name: 'Inventario · Existencias' })).toBeTruthy();
+      expect(screen.getByRole('link', { name: 'Inventario · Movimientos' })).toBeTruthy();
+      expect(screen.getByRole('link', { name: 'Inventario · Lotes' })).toBeTruthy();
       await waitFor(() =>
         expect(fetch).toHaveBeenCalledWith(
           expect.stringContaining(`/api/${endpoint}?`),
@@ -221,7 +230,8 @@ describe('Integración de los catálogos de Compras, Inventario y Ventas', () =>
     (role) => {
       mount('/purchases/suppliers', { ...account, role });
       expect(screen.getByRole('heading', { name: '403 · Acceso denegado' })).toBeTruthy();
-      expect(screen.queryByRole('link', { name: 'Proveedores' })).toBeNull();
+      expandModules();
+      expect(screen.queryByRole('link', { name: 'Compras · Proveedores' })).toBeNull();
       expect(screen.getByRole('link', { name: 'Productos' })).toBeTruthy();
       expect(screen.getByRole('link', { name: 'Almacenes' })).toBeTruthy();
     },
@@ -232,11 +242,12 @@ describe('Integración de los catálogos de Compras, Inventario y Ventas', () =>
     (role) => {
       mount('/sales/customers', { ...account, role });
       expect(screen.getByRole('heading', { name: '403 · Acceso denegado' })).toBeTruthy();
-      expect(screen.queryByRole('link', { name: 'Clientes' })).toBeNull();
+      expandModules();
+      expect(screen.queryByRole('link', { name: 'Ventas · Clientes' })).toBeNull();
       expect(screen.getByRole('link', { name: 'Productos' })).toBeTruthy();
       expect(screen.getByRole('link', { name: 'Almacenes' })).toBeTruthy();
       if (role === 'COMPRAS') {
-        expect(screen.getByRole('link', { name: 'Proveedores' })).toBeTruthy();
+        expect(screen.getByRole('link', { name: 'Compras · Proveedores' })).toBeTruthy();
       }
     },
   );
@@ -448,7 +459,17 @@ describe('Purchase and inventory routes after merging develop', () => {
     const client = mount(path);
     expect(await screen.findByRole('heading', { name: heading })).toBeTruthy();
     const nav = within(screen.getByRole('navigation', { name: 'Menú principal' }));
-    for (const name of ['Compras', 'Existencias', 'Movimientos', 'Lotes'])
+    // Detail and creation pages keep their module entry active.
+    expect(nav.getByRole('link', { name: 'Compras · Órdenes' }).getAttribute('aria-current')).toBe(
+      'page',
+    );
+    expandModules();
+    for (const name of [
+      'Compras · Órdenes',
+      'Inventario · Existencias',
+      'Inventario · Movimientos',
+      'Inventario · Lotes',
+    ])
       expect(nav.getByRole('link', { name })).toBeTruthy();
     client.clear();
   });
@@ -460,9 +481,15 @@ describe('Navegación del ERP', () => {
     (role) => {
       mount('/', { ...account, role });
       const nav = within(screen.getByRole('navigation', { name: 'Menú principal' }));
-      for (const group of ['General', 'Operaciones', 'Inventario', 'Maestros']) {
+      for (const group of ['General', 'Operaciones', 'Análisis', 'Maestros']) {
         expect(nav.getByText(group, { exact: true })).toBeTruthy();
       }
+      // Home starts with every module collapsed: one entry per module, no repeated labels.
+      expect(
+        nav.getAllByRole('button', { expanded: false }).map((button) => button.textContent),
+      ).toEqual(['Compras', 'Ventas', 'Producción', 'Calidad', 'Inventario']);
+      expect(nav.queryByRole('link', { name: 'Producción · Órdenes' })).toBeNull();
+      expandModules();
       expect(nav.getByRole('link', { name: 'Producción · Órdenes' })).toBeTruthy();
       expect(nav.getByRole('link', { name: 'Producción · Fórmulas' })).toBeTruthy();
       if (role === 'ADMIN') {
@@ -472,12 +499,20 @@ describe('Navegación del ERP', () => {
         expect(nav.queryByText('Administración', { exact: true })).toBeNull();
         expect(nav.queryByRole('link', { name: 'Usuarios' })).toBeNull();
       }
-      expect(!!nav.queryByRole('link', { name: 'Proveedores' })).toBe(
+      expect(!!nav.queryByRole('link', { name: 'Compras · Proveedores' })).toBe(
         role === 'ADMIN' || role === 'COMPRAS',
       );
-      expect(!!nav.queryByRole('link', { name: 'Clientes' })).toBe(
+      expect(!!nav.queryByRole('link', { name: 'Ventas · Clientes' })).toBe(
         role === 'ADMIN' || role === 'VENTAS',
       );
+      for (const name of [
+        'Compras · Resumen',
+        'Ventas · Resumen',
+        'Producción · Resumen',
+        'Calidad · Resumen',
+        'Inventario · Resumen',
+      ])
+        expect(nav.getByRole('link', { name })).toBeTruthy();
       expect(nav.getByRole('link', { name: 'Inicio' }).getAttribute('aria-current')).toBe('page');
     },
   );
@@ -568,6 +603,10 @@ describe('Navegación del ERP', () => {
     mount();
     fireEvent.click(screen.getByRole('button', { name: 'Abrir menú' }));
     const dialog = await screen.findByRole('dialog', { name: 'EcoSoap ERP' });
+    const production = within(dialog).getByRole('button', { name: 'Producción' });
+    expect(production.getAttribute('aria-expanded')).toBe('false');
+    fireEvent.click(production);
+    expect(production.getAttribute('aria-expanded')).toBe('true');
     fireEvent.click(within(dialog).getByRole('link', { name: 'Producción · Fórmulas' }));
     expect(
       await screen.findByRole('heading', { name: 'Fórmulas de producción', level: 1 }),
