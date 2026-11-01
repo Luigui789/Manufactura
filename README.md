@@ -176,6 +176,38 @@ pnpm --filter frontend test      # Vitest + React Testing Library (F1–F6)
 Las e2e requieren una `DATABASE_URL` de una base dedicada con nombre terminado en `_test`, con
 migraciones y seed aplicados. Nunca se ejecutan sobre `ecosoap_erp`; ejemplos en `docs/setup.md`.
 
+## Demo y operación final
+
+El [runbook de defensa](docs/defense-runbook.md) describe Docker limpio, migraciones,
+recuperación manual y diagnóstico por requestId. `demo:seed` es solo para desarrollo/demo;
+no se ejecuta en el arranque de producción. Con el entorno local configurado:
+
+```powershell
+$env:DEMO_USER_PASSWORD = Read-Host 'Frase temporal local de demo (15–128 caracteres)'
+pnpm demo:seed
+pnpm demo:verify
+```
+
+```bash
+read -rs -p 'Frase temporal local de demo (15–128 caracteres): ' DEMO_USER_PASSWORD
+export DEMO_USER_PASSWORD
+pnpm demo:seed
+pnpm demo:verify
+```
+
+Los usuarios demo son `admin.demo`, `compras.demo`, `inventario.demo`, `produccion.demo`
+y `ventas.demo`, todos con dominio `@ecosoap.test`. Usan la contraseña local del seed.
+Rutas principales: `/purchases/orders`, `/inventory/stock`, `/production/orders`,
+`/production/routes`, `/production/structure`, `/sustainability`,
+`/sales/orders` y `/production/dashboard`; IIoT se abre desde cada OP.
+
+`pnpm demo:e2e` (`pnpm --filter backend test:defense`) requiere otra base limpia `_test`,
+MQTT y el simulador compilado. Comprueba el flujo real y consume inventario: READY antes,
+NOT READY después. No usar la base preparada para UI ni ejecutar builds simultáneos en el
+mismo checkout. Ver [smoke de 10–15 min](docs/final-smoke-checklist.md),
+[guion integrado](docs/defense-demo-checklist.md), [reporte C7](docs/final-hardening-report.md)
+y [alcance congelado](docs/feature-freeze.md).
+
 ## Integración continua
 
 GitHub Actions ejecuta `.github/workflows/ci.yml` en PR hacia `develop`/`main` y en pushes a esas
