@@ -1,19 +1,23 @@
 import { lazy, Suspense, useState } from 'react';
 import { Link } from 'react-router';
+import { Boxes, ClipboardCheck, Factory, Leaf, ShoppingCart, Store } from 'lucide-react';
 import { useProductionDashboard } from '@/features/production/api/dashboard';
 import { useInventoryDashboard } from '@/features/inventory/api/dashboard';
 import { usePurchasesDashboard } from '@/features/purchases/api/dashboard';
 import { useSalesDashboard } from '@/features/sales/api/dashboard';
 import { useQualityDashboard } from '@/features/production/api/quality-dashboard';
+import { DashboardFilterBar, DashboardNote } from '@/components/dashboard';
+import { isZeroMetric } from '@/lib/dashboard';
 import { Button } from '@/components/ui/button';
-import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 const ActivityChart = lazy(() =>
   import('./components/ActivityChart').then((m) => ({ default: m.ActivityChart })),
 );
-import { OverviewCard, Metrics, MetricScope } from './components/OverviewCard';
+import { OverviewCard, Metrics, MinorMetrics, OpenLink } from './components/OverviewCard';
 import { commercialActivity } from './commercial-activity';
 import { compatibleHomePeriods, defaultHomePeriod, homePeriodError } from './period';
+
+const nf = new Intl.NumberFormat('es-NI');
 
 export function HomeDashboard() {
   // Resolve Managua's calendar only once, before any query. Every source gets both dates.
@@ -33,305 +37,329 @@ export function HomeDashboard() {
     q.data && !q.isError && compatibleHomePeriods([q.data.period], period);
   const attention = [
     {
-      label: 'Compras · Pendientes de recepción',
-      value: purchases.data?.pipeline.awaitingReceipt,
-      query: purchases,
+      domain: 'Compras',
       to: '/purchases/dashboard',
+      query: purchases,
+      items: [
+        ['Pendientes de recepción', purchases.data?.pipeline.awaitingReceipt],
+        ['Vencidas', purchases.data?.pipeline.overdue],
+      ],
     },
     {
-      label: 'Compras · Vencidas',
-      value: purchases.data?.pipeline.overdue,
-      query: purchases,
-      to: '/purchases/dashboard',
-    },
-    {
-      label: 'Ventas · Pendientes de despacho',
-      value: sales.data?.pipeline.awaitingDispatch,
-      query: sales,
+      domain: 'Ventas',
       to: '/sales/dashboard',
+      query: sales,
+      items: [['Pendientes de despacho', sales.data?.pipeline.awaitingDispatch]],
     },
     {
-      label: 'Calidad · Pendientes de inspección',
-      value: quality.data?.current.pendingInspection,
-      query: quality,
+      domain: 'Calidad',
       to: '/quality/dashboard',
-    },
-    {
-      label: 'Calidad · Rechazados sin disposición',
-      value: quality.data?.current.rejectedAwaitingDisposition,
       query: quality,
-      to: '/quality/dashboard',
+      items: [
+        ['Pendientes de inspección', quality.data?.current.pendingInspection],
+        ['Rechazados sin disposición', quality.data?.current.rejectedAwaitingDisposition],
+        ['Marcados para reproceso', quality.data?.current.rework],
+      ],
     },
-    {
-      label: 'Calidad · Marcados para reproceso',
-      value: quality.data?.current.rework,
-      query: quality,
-      to: '/quality/dashboard',
-    },
-  ];
+  ] as const;
+  const attentionClear = attention.every(
+    (group) => usable(group.query) && group.items.every(([, value]) => value === 0),
+  );
   const commercial =
     purchases.data && sales.data && usable(purchases) && usable(sales)
       ? commercialActivity(purchases.data, sales.data, period)
       : null;
   return (
-    <div className="space-y-6">
-      <form
-        className="filter-bar flex flex-wrap items-end gap-3"
-        aria-label="Período común de los dashboards"
-        onSubmit={(event) => {
-          event.preventDefault();
-          const next = { from, to };
-          const error = homePeriodError(next);
-          setValidation(error);
-          if (!error) setPeriod(next);
-        }}
-      >
-        <div className="space-y-2">
-          <Label htmlFor="home-from">Desde</Label>
-          <input
-            id="home-from"
-            type="date"
-            value={from}
-            onChange={(e) => setFrom(e.target.value)}
-            aria-invalid={!!validation}
-            aria-describedby={validation ? 'home-period-error' : undefined}
-            className="h-11 rounded-md border bg-background px-3 text-sm"
-          />
-        </div>
-        <div className="space-y-2">
-          <Label htmlFor="home-to">Hasta</Label>
-          <input
-            id="home-to"
-            type="date"
-            value={to}
-            onChange={(e) => setTo(e.target.value)}
-            aria-invalid={!!validation}
-            aria-describedby={validation ? 'home-period-error' : undefined}
-            className="h-11 rounded-md border bg-background px-3 text-sm"
-          />
-        </div>
-        <Button type="submit" variant="outline">
-          Aplicar
-        </Button>
-        <Button
-          type="button"
-          variant="outline"
-          disabled={queries.every((q) => q.isFetching)}
-          onClick={() => {
-            for (const query of queries) void query.refetch();
+    <div className="space-y-8">
+      <div className="space-y-2">
+        <DashboardFilterBar
+          idPrefix="home"
+          label="Período común de los dashboards"
+          from={from}
+          to={to}
+          onFromChange={setFrom}
+          onToChange={setTo}
+          invalid={!!validation}
+          errorId="home-period-error"
+          onSubmit={() => {
+            const next = { from, to };
+            const error = homePeriodError(next);
+            setValidation(error);
+            if (!error) setPeriod(next);
           }}
-        >
-          Actualizar
-        </Button>
-      </form>
-      {validation && (
-        <p id="home-period-error" role="alert" className="text-sm text-destructive">
-          {validation}
-        </p>
-      )}
-      <p className="text-sm text-muted-foreground">
-        Período común: {period.from} — {period.to} · America/Managua. Las colas y existencias
-        actuales no dependen de estas fechas.
-      </p>
-      {!compatible && (
-        <p role="alert" className="text-sm text-destructive">
-          Los dashboards devolvieron períodos, zonas o granularidades incompatibles. Revisá cada
-          módulo; no se combinan series incompatibles.
-        </p>
-      )}
+          actions={
+            <Button
+              type="button"
+              variant="outline"
+              className="h-10"
+              disabled={queries.every((q) => q.isFetching)}
+              onClick={() => {
+                for (const query of queries) void query.refetch();
+              }}
+            >
+              Actualizar
+            </Button>
+          }
+        />
+        {validation && (
+          <p id="home-period-error" role="alert" className="text-sm text-destructive">
+            {validation}
+          </p>
+        )}
+        <DashboardNote>
+          Período común: {period.from} — {period.to} · America/Managua. Las colas y existencias
+          actuales no dependen de estas fechas.
+        </DashboardNote>
+        {!compatible && (
+          <p role="alert" className="text-sm text-destructive">
+            Los dashboards devolvieron períodos, zonas o granularidades incompatibles. Revisá cada
+            módulo; no se combinan series incompatibles.
+          </p>
+        )}
+      </div>
+
       <section aria-labelledby="home-attention" className="space-y-3">
-        <h2 id="home-attention" className="text-lg font-semibold">
-          Requieren atención
-        </h2>
-        <p className="text-sm text-muted-foreground">
-          Estado actual por dominio. Los conteos pueden solaparse y se muestran por separado.
-        </p>
-        <dl className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-          {attention.map((item) => (
-            <div key={item.label} className="rounded-lg border bg-card p-4">
-              <dt className="text-sm text-muted-foreground">
-                <Link to={item.to} className="hover:underline">
-                  {item.label}
-                </Link>
-              </dt>
-              <dd className="mt-2 font-semibold tabular-nums">
-                {item.query.isPending
-                  ? 'Cargando…'
-                  : usable(item.query)
-                    ? item.value
-                    : 'No disponible'}
-              </dd>
+        <div className="space-y-1">
+          <h2 id="home-attention" className="text-lg font-semibold">
+            Requieren atención
+          </h2>
+          <p className="text-sm text-muted-foreground">
+            {attentionClear
+              ? 'Sin pendientes en este momento.'
+              : 'Estado actual por dominio. Los conteos pueden solaparse y se muestran por separado.'}
+          </p>
+        </div>
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+          {attention.map((group) => (
+            <div key={group.domain} className="rounded-xl bg-card p-4 ring-1 ring-foreground/10">
+              <h3 className="text-sm font-semibold">{group.domain}</h3>
+              <dl className="mt-2 divide-y">
+                {group.items.map(([label, value]) => {
+                  const shown = group.query.isPending
+                    ? 'Cargando…'
+                    : usable(group.query)
+                      ? nf.format(value ?? 0)
+                      : 'No disponible';
+                  const active = typeof value === 'number' && !isZeroMetric(value);
+                  return (
+                    <div key={label} className="flex items-center justify-between gap-3 py-1.5">
+                      <dt className="text-sm">
+                        <Link
+                          to={group.to}
+                          className="text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
+                        >
+                          <span className="sr-only">{group.domain} ·</span> {label}
+                        </Link>
+                      </dt>
+                      <dd
+                        className={`tabular-nums ${active && usable(group.query) ? 'text-lg font-semibold text-foreground' : 'text-sm text-muted-foreground'}`}
+                      >
+                        {shown}
+                      </dd>
+                    </div>
+                  );
+                })}
+              </dl>
             </div>
           ))}
-        </dl>
+        </div>
       </section>
+
       <section aria-labelledby="home-summary" className="space-y-3">
         <h2 id="home-summary" className="text-lg font-semibold">
           Resumen operativo
         </h2>
-        <div className="grid items-start gap-4 md:grid-cols-2 xl:grid-cols-3">
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
           <OverviewCard
             title="Producción"
+            scope="Actividad del período"
+            icon={Factory}
             to="/production/dashboard"
             query={production}
             period={period}
           >
             {(d) => (
-              <>
-                <MetricScope>Actividad del período</MetricScope>
-                <Metrics
-                  items={[
-                    ['Órdenes de producción', d.orders.total],
-                    ['Completadas', d.orders.completed],
-                    ['En proceso', d.orders.inProgress],
-                  ]}
-                />
-                <p className="text-xs text-muted-foreground">
-                  Estados de las órdenes que pertenecen al período según Producción.
-                </p>
-              </>
+              <Metrics
+                primary={['Órdenes', d.orders.total]}
+                secondary={[
+                  ['Completadas', d.orders.completed],
+                  ['En proceso', d.orders.inProgress],
+                ]}
+              />
             )}
           </OverviewCard>
           <OverviewCard
             title="Inventario"
+            scope="Estado actual"
+            icon={Boxes}
             to="/inventory/dashboard"
             query={inventory}
             period={period}
           >
             {(d) => (
               <>
-                <MetricScope>Estado actual</MetricScope>
                 <Metrics
-                  items={[
-                    ['Posiciones con existencia', d.stockPositions.withOnHand],
+                  primary={['Posiciones con existencia', d.stockPositions.withOnHand]}
+                  secondary={[
                     ['Lotes con existencia', d.lotsOnHand.total],
                     ['Lotes liberados', d.lotsOnHand.released],
+                  ]}
+                />
+                <MinorMetrics
+                  items={[
                     ['En cuarentena', d.lotsOnHand.quarantined],
                     ['Rechazados', d.lotsOnHand.rejected],
-                    ['Marcados para reproceso', d.lotsOnHand.rework],
+                    ['Reproceso', d.lotsOnHand.rework],
                   ]}
                 />
               </>
             )}
           </OverviewCard>
-          <OverviewCard title="Compras" to="/purchases/dashboard" query={purchases} period={period}>
+          <OverviewCard
+            title="Calidad"
+            scope="Actividad del período"
+            icon={ClipboardCheck}
+            to="/quality/dashboard"
+            query={quality}
+            period={period}
+          >
             {(d) => (
-              <>
-                <MetricScope>Estado actual</MetricScope>
-                <Metrics
-                  items={[
-                    ['Pendientes de recepción', d.pipeline.awaitingReceipt],
-                    ['Órdenes vencidas', d.pipeline.overdue],
-                  ]}
-                />
-                <MetricScope>Actividad del período</MetricScope>
-                <Metrics
-                  items={[
-                    ['Órdenes del período', d.orders.total],
-                    ['Recepciones', d.receipts.total],
-                    ['Valor comprometido', d.amounts.committed],
-                    ['Proveedores con actividad', d.suppliers.usedInPeriod],
-                  ]}
-                />
-              </>
+              <Metrics
+                primary={['Inspecciones', d.inspections.total]}
+                secondary={[
+                  [
+                    'Tasa de aprobación',
+                    d.inspections.approvalRatePct === null
+                      ? '—'
+                      : `${d.inspections.approvalRatePct}%`,
+                  ],
+                  ['Rechazadas', d.inspections.rejected],
+                ]}
+              />
             )}
           </OverviewCard>
-          <OverviewCard title="Ventas" to="/sales/dashboard" query={sales} period={period}>
+          <OverviewCard
+            title="Compras"
+            scope="Actividad del período"
+            icon={ShoppingCart}
+            to="/purchases/dashboard"
+            query={purchases}
+            period={period}
+          >
             {(d) => (
-              <>
-                <MetricScope>Estado actual</MetricScope>
-                <Metrics items={[['Pendientes de despacho', d.pipeline.awaitingDispatch]]} />
-                <MetricScope>Actividad del período</MetricScope>
-                <Metrics
-                  items={[
-                    ['Órdenes del período', d.orders.total],
-                    ['Despachos', d.dispatches.total],
-                    ['Valor confirmado', d.amounts.confirmed],
-                    ['Clientes con actividad', d.customers.usedInPeriod],
-                  ]}
-                />
-              </>
+              <Metrics
+                primary={['Órdenes del período', d.orders.total]}
+                secondary={[
+                  ['Recepciones', d.receipts.total],
+                  ['Valor comprometido', d.amounts.committed],
+                ]}
+              />
             )}
           </OverviewCard>
-          <OverviewCard title="Calidad" to="/quality/dashboard" query={quality} period={period}>
+          <OverviewCard
+            title="Ventas"
+            scope="Actividad del período"
+            icon={Store}
+            to="/sales/dashboard"
+            query={sales}
+            period={period}
+          >
             {(d) => (
-              <>
-                <MetricScope>Estado actual</MetricScope>
-                <Metrics
-                  items={[
-                    ['Pendientes de inspección', d.current.pendingInspection],
-                    ['Rechazados sin disposición', d.current.rejectedAwaitingDisposition],
-                    ['Marcados para reproceso', d.current.rework],
-                  ]}
-                />
-                <MetricScope>Actividad del período</MetricScope>
-                <Metrics
-                  items={[
-                    ['Inspecciones', d.inspections.total],
-                    ['Aprobadas', d.inspections.approved],
-                    ['Rechazadas', d.inspections.rejected],
-                    [
-                      'Tasa de aprobación',
-                      d.inspections.approvalRatePct === null
-                        ? '—'
-                        : `${d.inspections.approvalRatePct}%`,
-                    ],
-                    ['Disposiciones de descarte', d.dispositions.scrap],
-                  ]}
-                />
-              </>
+              <Metrics
+                primary={['Órdenes del período', d.orders.total]}
+                secondary={[
+                  ['Despachos', d.dispatches.total],
+                  ['Valor confirmado', d.amounts.confirmed],
+                ]}
+              />
             )}
           </OverviewCard>
-          <Card role="region" aria-label="Sostenibilidad">
+          <Card role="region" aria-label="Sostenibilidad" className="h-full">
             <CardHeader>
-              <CardTitle>
+              <CardTitle className="flex items-center gap-2">
+                <Leaf aria-hidden className="size-4 text-muted-foreground" />
                 <h3>Sostenibilidad</h3>
               </CardTitle>
               <CardDescription>Huella parcial de carbono y circularidad</CardDescription>
             </CardHeader>
-            <CardContent className="space-y-3">
-              <Link className="text-primary underline" to="/sustainability">
-                Ver sostenibilidad
-              </Link>
+            <CardContent className="flex-1">
+              <p className="max-w-prose text-sm leading-relaxed">
+                Consultá la huella por orden de producción completada y los materiales circulares
+                registrados.
+              </p>
             </CardContent>
+            <div className="border-t px-4 pt-1">
+              <OpenLink to="/sustainability">Abrir sostenibilidad</OpenLink>
+            </div>
           </Card>
         </div>
-        <p className="text-xs text-muted-foreground">
+        <DashboardNote>
           Valores de compras y ventas tal como están registrados, sin moneda definida y con
           significados distintos.
-        </p>
+        </DashboardNote>
       </section>
-      <Suspense fallback={<p className="text-sm text-muted-foreground">Cargando gráficas…</p>}>
-        <section aria-label="Gráficos del período" className="grid min-w-0 gap-4 xl:grid-cols-2">
-          <ActivityChart
-            title="Actividad comercial"
-            description="Órdenes de compra y venta, recepciones y despachos. Cada serie conserva su significado."
-            rows={commercial}
-            unavailable="La gráfica requiere datos compatibles de Compras y Ventas. Consultá el estado y reintento de cada módulo arriba."
-            series={[
-              { key: 'purchaseOrders', label: 'Órdenes de compra', color: 'var(--color-primary)' },
-              { key: 'receipts', label: 'Recepciones', color: 'var(--color-chart-2)', dash: '5 3' },
-              {
-                key: 'saleOrders',
-                label: 'Órdenes de venta',
-                color: 'var(--color-chart-3)',
-                dash: '2 3',
-              },
-              { key: 'dispatches', label: 'Despachos', color: 'var(--color-chart-4)', dash: '8 3' },
-            ]}
-          />
-          <ActivityChart
-            title="Inspecciones de calidad"
-            description="Aprobadas y rechazadas por fecha de inspección. Una disposición posterior conserva el resultado original."
-            rows={quality.data && usable(quality) ? quality.data.inspectionsByPeriod : null}
-            unavailable="La gráfica requiere los datos de Calidad. Consultá su estado y reintento arriba."
-            series={[
-              { key: 'approved', label: 'Aprobadas', color: 'var(--color-primary)' },
-              { key: 'rejected', label: 'Rechazadas', color: 'var(--color-chart-2)', dash: '5 3' },
-            ]}
-          />
-        </section>
-      </Suspense>
+
+      <section aria-labelledby="home-activity" className="space-y-3">
+        <h2 id="home-activity" className="text-lg font-semibold">
+          Actividad del período
+        </h2>
+        <Suspense
+          fallback={
+            <p role="status" className="text-sm text-muted-foreground">
+              Cargando gráficas…
+            </p>
+          }
+        >
+          <div className="grid min-w-0 gap-4 xl:grid-cols-2">
+            <ActivityChart
+              title="Actividad comercial"
+              description="Órdenes de compra y venta, recepciones y despachos. Cada serie conserva su significado."
+              rows={commercial}
+              unavailable="La gráfica requiere datos compatibles de Compras y Ventas. Consultá el estado y reintento de cada módulo arriba."
+              series={[
+                {
+                  key: 'purchaseOrders',
+                  label: 'Órdenes de compra',
+                  color: 'var(--color-primary)',
+                },
+                {
+                  key: 'receipts',
+                  label: 'Recepciones',
+                  color: 'var(--color-chart-2)',
+                  dash: '5 3',
+                },
+                {
+                  key: 'saleOrders',
+                  label: 'Órdenes de venta',
+                  color: 'var(--color-chart-3)',
+                  dash: '2 3',
+                },
+                {
+                  key: 'dispatches',
+                  label: 'Despachos',
+                  color: 'var(--color-chart-4)',
+                  dash: '8 3',
+                },
+              ]}
+            />
+            <ActivityChart
+              title="Inspecciones de calidad"
+              description="Aprobadas y rechazadas por fecha de inspección. Una disposición posterior conserva el resultado original."
+              rows={quality.data && usable(quality) ? quality.data.inspectionsByPeriod : null}
+              unavailable="La gráfica requiere los datos de Calidad. Consultá su estado y reintento arriba."
+              series={[
+                { key: 'approved', label: 'Aprobadas', color: 'var(--color-primary)' },
+                {
+                  key: 'rejected',
+                  label: 'Rechazadas',
+                  color: 'var(--color-chart-2)',
+                  dash: '5 3',
+                },
+              ]}
+            />
+          </div>
+        </Suspense>
+      </section>
     </div>
   );
 }

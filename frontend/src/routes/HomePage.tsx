@@ -1,5 +1,4 @@
 import { Link } from 'react-router';
-import { ArrowUpRight } from 'lucide-react';
 import { PageHeader } from '@/components/erp';
 import { useSession } from '@/features/auth/hooks/use-auth';
 import { ROLE_LABELS } from '@/features/auth/types';
@@ -7,6 +6,11 @@ import { HomeDashboard } from '@/features/home/HomeDashboard';
 import { navigation } from '@/layouts/navigation';
 export function HomePage() {
   const { data: user } = useSession();
+  // Same role filter as the sidebar: the shortcuts never expose a route the menu hides.
+  const allowed = user
+    ? navigation.filter((item) => item.to !== '/' && item.roles.includes(user.role))
+    : [];
+  const groups = [...new Set(allowed.map((item) => item.module ?? item.group))];
   return (
     <section className="space-y-8">
       <PageHeader
@@ -14,23 +18,34 @@ export function HomePage() {
         description={`Resumen operativo de EcoSoap · ${user ? ROLE_LABELS[user.role] : ''}`}
       />
       <HomeDashboard />
-      <section className="space-y-4">
-        <h2 className="text-lg font-semibold">Accesos de tu cuenta</h2>
-        <div className="grid gap-x-6 sm:grid-cols-2 xl:grid-cols-3">
-          {user &&
-            navigation
-              .filter((item) => item.to !== '/' && item.roles.includes(user.role))
-              .map(({ to, label, icon: Icon }) => (
-                <Link
-                  key={to}
-                  to={to}
-                  className="flex items-center gap-3 border-b py-4 text-sm hover:underline"
-                >
-                  <Icon aria-hidden className="size-4 text-muted-foreground" />
-                  <span className="flex-1">Abrir {label.toLowerCase()}</span>
-                  <ArrowUpRight aria-hidden className="size-4" />
-                </Link>
-              ))}
+      <section aria-labelledby="home-shortcuts" className="space-y-3">
+        <h2 id="home-shortcuts" className="text-lg font-semibold">
+          Accesos rápidos
+        </h2>
+        <div className="grid gap-x-6 gap-y-4 rounded-xl bg-card p-4 ring-1 ring-foreground/10 sm:grid-cols-2 lg:grid-cols-4">
+          {groups.map((group) => (
+            <div key={group} className="min-w-0">
+              <h3 className="text-sm font-semibold">{group}</h3>
+              <ul className="mt-1">
+                {allowed
+                  .filter((item) => (item.module ?? item.group) === group)
+                  .map((item) => (
+                    <li key={item.to}>
+                      <Link
+                        to={item.to}
+                        className="inline-flex min-h-8 items-center text-sm text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
+                      >
+                        {/* Distinct from the sidebar link that shares the visible label. */}
+                        <span className="sr-only">
+                          {item.module ? `Abrir ${item.module} ·` : 'Abrir'}
+                        </span>{' '}
+                        {item.label}
+                      </Link>
+                    </li>
+                  ))}
+              </ul>
+            </div>
+          ))}
         </div>
       </section>
     </section>

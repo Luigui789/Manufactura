@@ -113,37 +113,38 @@ describe('D6 Home composition', () => {
       fireEvent.click(screen.getByRole('button', { name: 'Aplicar' }));
       expect(screen.getByRole('alert').textContent).toContain(error);
       expect(fetch).toHaveBeenCalledTimes(5);
-      metric('Producción', 'Órdenes de producción', '8');
+      metric('Producción', 'Órdenes', '8');
     },
   );
   it('renders only native-domain counts and exact Decimal strings without combined money, physical stock or production', async () => {
     stub();
     mount();
     await waitFor(() => metric('Calidad', 'Inspecciones', '5'));
-    metric('Producción', 'Órdenes de producción', '8');
+    metric('Producción', 'Órdenes', '8');
     metric('Producción', 'Completadas', '4');
     metric('Producción', 'En proceso', '2');
     metric('Inventario', 'Posiciones con existencia', '11');
     metric('Inventario', 'Lotes con existencia', '7');
     metric('Inventario', 'Lotes liberados', '4');
-    metric('Compras', 'Pendientes de recepción', '6');
-    metric('Compras', 'Órdenes vencidas', '2');
     metric('Compras', 'Órdenes del período', '9');
     metric('Compras', 'Recepciones', '4');
     metric('Compras', 'Valor comprometido', '1234.56');
-    metric('Ventas', 'Pendientes de despacho', '5');
     metric('Ventas', 'Órdenes del período', '10');
     metric('Ventas', 'Despachos', '8');
     metric('Ventas', 'Valor confirmado', '9876.54');
-    metric('Calidad', 'Pendientes de inspección', '3');
-    metric('Calidad', 'Rechazados sin disposición', '1');
-    metric('Calidad', 'Marcados para reproceso', '2');
+    metric('Calidad', 'Rechazadas', '1');
     metric('Calidad', 'Tasa de aprobación', '80.00%');
-    metric('Calidad', 'Disposiciones de descarte', '1');
+    // Queue counts live only in "Requieren atención"; module cards do not repeat them.
+    for (const [module, label] of [
+      ['Compras', 'Pendientes de recepción'],
+      ['Ventas', 'Pendientes de despacho'],
+      ['Calidad', 'Pendientes de inspección'],
+    ])
+      expect(region(module).queryByText(label)).toBeNull();
     expect(document.body.textContent).not.toMatch(
       /C\$|\b(?:NIO|USD)\b|11111\.10|Stock total|Producción total|totalOperations|globalHealthScore|ERPScore|OEE|margen|beneficio|huella corporativa|académic|Aviso metodológico/i,
     );
-    expect(screen.getByRole('link', { name: 'Ver sostenibilidad' }).getAttribute('href')).toBe(
+    expect(screen.getByRole('link', { name: 'Abrir sostenibilidad' }).getAttribute('href')).toBe(
       '/sustainability',
     );
     expect(screen.getByText('Huella parcial de carbono y circularidad')).toBeTruthy();
@@ -175,8 +176,53 @@ describe('D6 Home composition', () => {
       ['calidad', '/quality/dashboard'],
     ])
       expect(
-        screen.getByRole('link', { name: `Ver dashboard de ${name}` }).getAttribute('href'),
+        screen.getByRole('link', { name: `Abrir dashboard de ${name}` }).getAttribute('href'),
       ).toBe(path);
+  });
+  it('keeps an all-zero home complete, with neutral zeros and a calm attention state', async () => {
+    const d = fixtures();
+    d.production.orders = { total: 0, draft: 0, inProgress: 0, completed: 0, cancelled: 0 };
+    d.purchases.pipeline = { awaitingReceipt: 0, overdue: 0 };
+    d.purchases.orders = {
+      total: 0,
+      draft: 0,
+      confirmed: 0,
+      partiallyReceived: 0,
+      received: 0,
+      cancelled: 0,
+    };
+    d.sales.pipeline = { awaitingDispatch: 0 };
+    d.sales.orders.total = 0;
+    d.quality.current = { pendingInspection: 0, rejectedAwaitingDisposition: 0, rework: 0 };
+    d.quality.inspections = { total: 0, approved: 0, rejected: 0, approvalRatePct: null };
+    stub(d);
+    mount();
+    await waitFor(() => metric('Calidad', 'Inspecciones', '0'));
+    metric('Producción', 'Órdenes', '0');
+    metric('Compras', 'Órdenes del período', '0');
+    const attention = region('Requieren atención');
+    expect(attention.getByText('Sin pendientes en este momento.')).toBeTruthy();
+    expect(attention.getAllByRole('definition').map((dd) => dd.textContent)).toEqual([
+      '0',
+      '0',
+      '0',
+      '0',
+      '0',
+      '0',
+    ]);
+    for (const name of ['producción', 'inventario', 'compras', 'ventas', 'calidad'])
+      expect(screen.getByRole('link', { name: `Abrir dashboard de ${name}` })).toBeTruthy();
+    expect(screen.getByRole('link', { name: 'Abrir sostenibilidad' })).toBeTruthy();
+  });
+  it('explains overlapping queues only while something requires attention', async () => {
+    stub();
+    mount();
+    await waitFor(() => metric('Calidad', 'Inspecciones', '5'));
+    const attention = region('Requieren atención');
+    expect(attention.queryByText('Sin pendientes en este momento.')).toBeNull();
+    expect(attention.getByText(/Los conteos pueden solaparse/)).toBeTruthy();
+    for (const domain of ['Compras', 'Ventas', 'Calidad'])
+      expect(attention.getByRole('heading', { name: domain, level: 3 })).toBeTruthy();
   });
   it('shows null approval as a dash, with zeros preserved', async () => {
     const d = fixtures();
@@ -291,12 +337,16 @@ describe('D6 Home composition', () => {
     stub();
     mount(role);
     await waitFor(() => metric('Calidad', 'Inspecciones', '5'));
-    const access = within(
-      screen.getByRole('heading', { name: 'Accesos de tu cuenta' }).parentElement!,
+    const access = within(screen.getByRole('heading', { name: 'Accesos rápidos' }).parentElement!);
+    expect(!!access.queryByRole('link', { name: 'Abrir Usuarios' })).toBe(role === 'ADMIN');
+    expect(!!access.queryByRole('link', { name: 'Abrir Compras · Proveedores' })).toBe(
+      role === 'ADMIN' || role === 'COMPRAS',
     );
-    expect(!!access.queryByRole('link', { name: 'Abrir usuarios' })).toBe(role === 'ADMIN');
+    expect(!!access.queryByRole('link', { name: 'Abrir Ventas · Clientes' })).toBe(
+      role === 'ADMIN' || role === 'VENTAS',
+    );
     expect(
-      access.getByRole('link', { name: 'Abrir producción · dashboard' }).getAttribute('href'),
+      access.getByRole('link', { name: 'Abrir Producción · Resumen' }).getAttribute('href'),
     ).toBe('/production/dashboard');
   });
 });
