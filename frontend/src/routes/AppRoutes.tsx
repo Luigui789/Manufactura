@@ -27,6 +27,11 @@ const SaleOrderDetailPage = lazy(() =>
     default: m.SaleOrderDetailPage,
   })),
 );
+const QualityDashboardPage = lazy(() =>
+  import('@/features/production/pages/QualityDashboardPage').then((m) => ({
+    default: m.QualityDashboardPage,
+  })),
+);
 const SalesDashboardPage = lazy(() =>
   import('@/features/sales/pages/SalesDashboardPage').then((m) => ({
     default: m.SalesDashboardPage,
@@ -173,6 +178,14 @@ export function AppRoutes() {
         <Route element={<RequirePasswordCurrent />}>
           <Route element={<AppLayout />}>
             <Route index element={<HomePage />} />
+            <Route
+              path="/quality/dashboard"
+              element={
+                <Suspense fallback={<LoadingState label="Cargando dashboard de calidad" />}>
+                  <QualityDashboardPage />
+                </Suspense>
+              }
+            />
             <Route
               path="/sales/dashboard"
               element={

@@ -1,3 +1,4 @@
+import { DashboardModule } from './dashboard/dashboard.module.js';
 import { DispositionService } from './disposition.service.js';
 import { Module } from '@nestjs/common';
 import { AuditModule } from '../../audit/audit.module.js';
@@ -7,7 +8,7 @@ import { QualityService } from './quality.service.js';
 import { TraceabilityService } from './traceability.service.js';
 
 @Module({
-  imports: [AuditModule, MovementsModule],
+  imports: [AuditModule, MovementsModule, DashboardModule],
   controllers: [QualityController],
   providers: [QualityService, TraceabilityService, DispositionService],
 })

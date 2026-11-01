@@ -75,6 +75,7 @@ for (const route of [
   '/inventory/dashboard',
   '/purchases/dashboard',
   '/sales/dashboard',
+  '/production/quality/dashboard',
 ]) {
   const authenticated = await fetch(`${api}${route}`, { headers: { Cookie, Origin: origin } });
   assert.equal(authenticated.status, 200, route);
@@ -662,6 +663,62 @@ for (const row of salesDashboard.topCustomers) assert.match(row.confirmedAmount,
 for (const row of salesDashboard.recentOrders) assert.match(row.total, /^\d+\.\d{2}$/);
 console.log(
   'Docker D4: real partial/full dispatch from a RELEASED lot, pipeline, Decimal strings and reconciled activity verified.',
+);
+
+// D5: the real approval and scrap smoke lots must remain visible independently.
+const qualityDashboard = await request(
+  `/production/quality/dashboard?productId=${outputProduct.id}`,
+);
+assert.equal(qualityDashboard.period.timeZone, 'America/Managua');
+assert.equal(
+  qualityDashboard.inspections.total,
+  qualityDashboard.inspections.approved + qualityDashboard.inspections.rejected,
+);
+assert.equal(
+  qualityDashboard.dispositions.total,
+  qualityDashboard.dispositions.release +
+    qualityDashboard.dispositions.rework +
+    qualityDashboard.dispositions.scrap,
+);
+assert.equal(qualityDashboard.inspections.approved, 1);
+assert.ok(
+  qualityDashboard.recentInspections.some(
+    (row) => row.id === manualInspection.id && row.result === 'APPROVED',
+  ),
+);
+for (const row of [qualityDashboard]) {
+  assert.equal(
+    row.inspectionsByPeriod.reduce((s, p) => s + p.approved + p.rejected, 0),
+    row.inspections.total,
+  );
+  assert.equal(
+    row.dispositionsByPeriod.reduce((s, p) => s + p.release + p.rework + p.scrap, 0),
+    row.dispositions.total,
+  );
+  if (row.inspections.total === 0) assert.equal(row.inspections.approvalRatePct, null);
+  else {
+    assert.match(row.inspections.approvalRatePct, /^\d+\.\d{2}$/);
+    assert.ok(
+      Number(row.inspections.approvalRatePct) >= 0 &&
+        Number(row.inspections.approvalRatePct) <= 100,
+    );
+  }
+  assert.ok(row.attention.length <= 5 && row.recentInspections.length <= 5);
+}
+const scrapDashboard = await request(`/production/quality/dashboard?productId=${outputProduct.id}`);
+assert.equal(scrapDashboard.inspections.rejected, 1);
+assert.equal(scrapDashboard.inspections.approved, 1);
+assert.equal(scrapDashboard.dispositions.scrap, 1);
+assert.ok(
+  scrapDashboard.recentInspections.some(
+    (row) =>
+      row.lot.id === scrapCompleted.lot.id &&
+      row.result === 'REJECTED' &&
+      row.disposition?.type === 'SCRAP',
+  ),
+);
+console.log(
+  'Docker D5: aggregated quality dashboard reconciles real APPROVED and REJECTED/SCRAP flows.',
 );
 
 const logout = await fetch(`${api}/auth/logout`, {
