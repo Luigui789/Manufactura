@@ -73,6 +73,7 @@ for (const route of [
   '/inventory/movements',
   '/inventory/lots',
   '/inventory/dashboard',
+  '/purchases/dashboard',
 ]) {
   const authenticated = await fetch(`${api}${route}`, { headers: { Cookie, Origin: origin } });
   assert.equal(authenticated.status, 200, route);
@@ -91,6 +92,30 @@ async function request(route, method = 'GET', body) {
   return (await result.json()).data;
 }
 const suffix = randomUUID().slice(0, 8);
+const purchasesDashboard = await request('/purchases/dashboard');
+assert.equal(purchasesDashboard.period.timeZone, 'America/Managua');
+assert.equal(
+  ['draft', 'confirmed', 'partiallyReceived', 'received', 'cancelled'].reduce(
+    (sum, status) => sum + purchasesDashboard.orders[status],
+    0,
+  ),
+  purchasesDashboard.orders.total,
+);
+assert.match(purchasesDashboard.amounts.committed, /^\d+\.\d{2}$/);
+assert.equal(
+  purchasesDashboard.activityByPeriod.reduce((sum, p) => sum + p.orders, 0),
+  purchasesDashboard.orders.total,
+);
+assert.equal(
+  purchasesDashboard.activityByPeriod.reduce((sum, p) => sum + p.receipts, 0),
+  purchasesDashboard.receipts.total,
+);
+assert.ok(purchasesDashboard.receipts.lines >= purchasesDashboard.receipts.total);
+assert.ok(purchasesDashboard.topSuppliers.length <= 5);
+assert.ok(purchasesDashboard.recentOrders.length <= 5);
+for (const row of purchasesDashboard.topSuppliers)
+  assert.match(row.committedAmount, /^\d+\.\d{2}$/);
+for (const row of purchasesDashboard.recentOrders) assert.match(row.total, /^\d+\.\d{2}$/);
 const inventoryDashboard = await request('/inventory/dashboard');
 assert.equal(inventoryDashboard.period.timeZone, 'America/Managua');
 assert.equal(inventoryDashboard.stock, null);
@@ -157,6 +182,12 @@ const complete = await request('/purchase-orders/' + order.id + '/receive', 'POS
 assert.equal(complete.status, 'RECEIVED');
 assert.equal(complete.items[0].quantityPending, '0.0000');
 assert.equal((await request('/purchase-orders/' + order.id + '/receipts')).length, 2);
+const receivedDashboard = await request(`/purchases/dashboard?supplierId=${supplier.id}`);
+assert.equal(receivedDashboard.orders.received, 1);
+assert.equal(receivedDashboard.pipeline.awaitingReceipt, 0);
+assert.deepEqual(receivedDashboard.receipts, { total: 2, lines: 3 });
+assert.equal(receivedDashboard.amounts.committed, '100.50');
+assert.equal(receivedDashboard.recentOrders[0].id, order.id);
 assert.equal(
   (
     await fetch(api + '/purchase-orders/' + order.id + '/cancel', {
