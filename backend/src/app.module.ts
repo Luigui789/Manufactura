@@ -1,11 +1,12 @@
 import { type MiddlewareConsumer, Module, type NestModule, ValidationPipe } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
-import { APP_PIPE } from '@nestjs/core';
+import { APP_FILTER, APP_PIPE } from '@nestjs/core';
 import cookieParser from 'cookie-parser';
 
 import { AuditModule } from './audit/audit.module.js';
 import { AuthModule } from './auth/auth.module.js';
 import { RequestContextMiddleware } from './common/request-context/request-context.js';
+import { SafeExceptionFilter } from './common/safe-exception.filter.js';
 import { validateEnv } from './config/env.validation.js';
 import { HealthModule } from './health/health.module.js';
 import { InventoryModule } from './inventory/inventory.module.js';
@@ -47,6 +48,7 @@ import { UsersModule } from './users/users.module.js';
     SustainabilityModule,
   ],
   providers: [
+    { provide: APP_FILTER, useClass: SafeExceptionFilter },
     // Unica configuracion efectiva del pipe global. Al registrarlo aqui y no en
     // main.ts, las pruebas e2e usan exactamente la misma validacion que
     // produccion. whitelist descarta lo no declarado en el DTO y
