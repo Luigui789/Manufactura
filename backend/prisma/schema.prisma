@@ -1,0 +1,895 @@
+// Foundation física. Compras, Producción y Ventas se añaden por migración.
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum RoleCode {
+  ADMIN
+  COMPRAS
+  INVENTARIO
+  PRODUCCION
+  VENTAS
+}
+
+enum ProductType {
+  RAW_MATERIAL
+  INTERMEDIATE
+  FINISHED_GOOD
+  CONSUMABLE
+}
+
+enum UnitOfMeasure {
+  UNIT
+  GRAM
+  KILOGRAM
+  MILLILITER
+  LITER
+}
+
+enum LotStatus {
+  REWORK
+  SCRAPPED
+  QUARANTINED
+  RELEASED
+  REJECTED
+}
+
+enum InventoryMovementType {
+  QUALITY_SCRAP
+  ADJUSTMENT_IN
+  ADJUSTMENT_OUT
+  PURCHASE_RECEIPT
+  PRODUCTION_CONSUMPTION
+  PRODUCTION_OUTPUT
+  SALE_DISPATCH
+}
+
+enum AdjustmentReason {
+  INITIAL_LOAD
+  PHYSICAL_COUNT
+  DAMAGE
+  LOSS
+  EXPIRY
+  CORRECTION
+}
+
+enum ActorType {
+  USER
+  SYSTEM
+  ANONYMOUS
+}
+
+enum AuditAction {
+  QUALITY_DISPOSITION_RELEASE
+  QUALITY_DISPOSITION_REWORK
+  QUALITY_DISPOSITION_SCRAP
+  CREATE
+  UPDATE
+  DELETE
+  ENABLE
+  DISABLE
+  LOGIN
+  LOGIN_FAILED
+  LOGOUT
+  ADJUST_STOCK
+  CHANGE_ROLE
+  CHANGE_PASSWORD
+  RESET_PASSWORD
+  CANCEL_PRODUCTION
+  CONFIRM
+  CANCEL
+  RECEIVE
+  START
+  COMPLETE
+  QUALITY_APPROVE
+  QUALITY_REJECT
+  DISPATCH
+  FINALIZE_CARBON_FOOTPRINT
+}
+
+enum AuditEntityType {
+  QUALITY_DISPOSITION
+  PRODUCTION_ROUTE
+  USER
+  ROLE
+  PRODUCT
+  WAREHOUSE
+  LOT
+  INVENTORY_MOVEMENT
+  SUPPLIER
+  CUSTOMER
+  BILL_OF_MATERIAL
+  BOM_VERSION
+  PRODUCTION_ORDER
+  PURCHASE_ORDER
+  PURCHASE_RECEIPT
+  SALES_ORDER
+  SALE_DISPATCH
+  QUALITY_INSPECTION
+  EMISSION_FACTOR
+  CARBON_ACTIVITY
+  PRODUCTION_FOOTPRINT
+  CIRCULAR_MATERIAL_PROFILE
+}
+
+enum QualityResult {
+  APPROVED
+  REJECTED
+}
+
+enum DocumentType {
+  LOT
+  OP
+  PURCHASE_ORDER
+  PURCHASE_RECEIPT
+  SALE_ORDER
+  SALE_DISPATCH
+}
+
+enum SaleOrderStatus {
+  DRAFT
+  CONFIRMED
+  PARTIALLY_DISPATCHED
+  DISPATCHED
+  CANCELLED
+}
+
+enum ProductionOrderStatus {
+  DRAFT
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+enum PurchaseOrderStatus {
+  DRAFT
+  CONFIRMED
+  PARTIALLY_RECEIVED
+  RECEIVED
+  CANCELLED
+}
+
+enum IiotMetric {
+  TEMPERATURE
+  HUMIDITY
+  PH
+  TANK_LEVEL
+  MIXER_RPM
+}
+
+enum IiotAlertSeverity {
+  WARNING
+  CRITICAL
+}
+
+model Role {
+  id    String   @id @default(uuid(7)) @db.Uuid
+  code  RoleCode @unique
+  name  String
+  users User[]
+
+  @@map("roles")
+}
+
+model User {
+  qualityDispositions QualityDisposition[]
+  id                  String                @id @default(uuid(7)) @db.Uuid
+  // La migración auth_rbac añade CHECK (email = lower(btrim(email))).
+  email               String                @unique
+  passwordHash        String                @map("password_hash")
+  fullName            String                @map("full_name")
+  roleId              String                @map("role_id") @db.Uuid
+  isActive            Boolean               @default(true) @map("is_active")
+  // Valor seguro por omisión: una cuenta que nadie marque explícitamente queda restringida.
+  mustChangePassword  Boolean               @default(true) @map("must_change_password")
+  // Versión de sesión que viaja en el JWT como `ver`; CHECK (token_version >= 0).
+  tokenVersion        Int                   @default(0) @map("token_version")
+  createdAt           DateTime              @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt           DateTime              @updatedAt @map("updated_at") @db.Timestamptz(6)
+  role                Role                  @relation(fields: [roleId], references: [id], onDelete: Restrict)
+  movements           InventoryMovement[]
+  auditLogs           AuditLog[]
+  bomVersions         BomVersion[]
+  productionOrders    ProductionOrder[]
+  purchaseOrders      PurchaseOrder[]
+  purchaseReceipts    PurchaseReceipt[]
+  saleOrders          SaleOrder[]
+  saleDispatches      SaleDispatch[]
+  qualityInspections  QualityInspection[]
+  emissionFactors     EmissionFactor[]
+  footprintsFinalized ProductionFootprint[]
+  carbonActivities    CarbonActivity[]
+
+  @@map("users")
+}
+
+model Product {
+  productionRoute           ProductionRoute?
+  id                        String                   @id @default(uuid(7)) @db.Uuid
+  code                      String                   @unique
+  name                      String
+  category                  String                   @db.VarChar(100)
+  type                      ProductType
+  unit                      UnitOfMeasure
+  isLotTracked              Boolean                  @default(false) @map("is_lot_tracked")
+  requiresQualityInspection Boolean                  @default(false) @map("requires_quality_inspection")
+  isActive                  Boolean                  @default(true) @map("is_active")
+  createdAt                 DateTime                 @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt                 DateTime                 @updatedAt @map("updated_at") @db.Timestamptz(6)
+  lots                      Lot[]
+  balances                  StockBalance[]
+  movements                 InventoryMovement[]
+  billOfMaterial            BillOfMaterial?
+  bomComponents             BomItem[]
+  productionOrders          ProductionOrder[]
+  purchaseOrderItems        PurchaseOrderItem[]
+  purchaseReceiptItems      PurchaseReceiptItem[]
+  saleOrderItems            SaleOrderItem[]
+  saleDispatchItems         SaleDispatchItem[]
+  emissionFactors           EmissionFactor[]
+  circularMaterialProfile   CircularMaterialProfile?
+
+  @@index([type])
+  @@index([isActive])
+  @@map("products")
+}
+
+// C-1: fórmulas versionadas; todavía sin ejecución ni escritura de inventario.
+model BillOfMaterial {
+  id        String       @id @default(uuid(7)) @db.Uuid
+  productId String       @unique @map("product_id") @db.Uuid
+  name      String       @db.VarChar(120)
+  isActive  Boolean      @default(true) @map("is_active")
+  createdAt DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime     @updatedAt @map("updated_at") @db.Timestamptz(6)
+  product   Product      @relation(fields: [productId], references: [id], onDelete: Restrict)
+  versions  BomVersion[]
+
+  @@index([isActive])
+  @@map("bills_of_material")
+}
+
+model BomVersion {
+  id               String            @id @default(uuid(7)) @db.Uuid
+  bomId            String            @map("bom_id") @db.Uuid
+  version          Int
+  outputQuantity   Decimal           @map("output_quantity") @db.Decimal(18, 4)
+  isActive         Boolean           @default(false) @map("is_active")
+  createdAt        DateTime          @default(now()) @map("created_at") @db.Timestamptz(6)
+  createdByUserId  String            @map("created_by_user_id") @db.Uuid
+  bom              BillOfMaterial    @relation(fields: [bomId], references: [id], onDelete: Restrict)
+  createdBy        User              @relation(fields: [createdByUserId], references: [id], onDelete: Restrict)
+  items            BomItem[]
+  productionOrders ProductionOrder[]
+
+  // Una sola versión activa por BOM: índice parcial de la migración C-1.
+  @@unique([bomId, version])
+  @@map("bom_versions")
+}
+
+model BomItem {
+  id                 String     @id @default(uuid(7)) @db.Uuid
+  bomVersionId       String     @map("bom_version_id") @db.Uuid
+  componentProductId String     @map("component_product_id") @db.Uuid
+  quantity           Decimal    @db.Decimal(18, 4)
+  bomVersion         BomVersion @relation(fields: [bomVersionId], references: [id], onDelete: Restrict)
+  componentProduct   Product    @relation(fields: [componentProductId], references: [id], onDelete: Restrict)
+
+  @@unique([bomVersionId, componentProductId])
+  @@map("bom_items")
+}
+
+model Warehouse {
+  id                   String                @id @default(uuid(7)) @db.Uuid
+  code                 String                @unique
+  name                 String
+  location             String                @db.VarChar(255)
+  isActive             Boolean               @default(true) @map("is_active")
+  createdAt            DateTime              @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt            DateTime              @updatedAt @map("updated_at") @db.Timestamptz(6)
+  balances             StockBalance[]
+  movements            InventoryMovement[]
+  productionOrders     ProductionOrder[]
+  purchaseReceiptItems PurchaseReceiptItem[]
+  saleDispatchItems    SaleDispatchItem[]
+
+  @@map("warehouses")
+}
+
+model ProductionOrder {
+  id               String                @id @default(uuid(7)) @db.Uuid
+  number           String                @unique @db.VarChar(32)
+  productId        String                @map("product_id") @db.Uuid
+  bomVersionId     String                @map("bom_version_id") @db.Uuid
+  warehouseId      String                @map("warehouse_id") @db.Uuid
+  quantityPlanned  Decimal               @map("quantity_planned") @db.Decimal(18, 4)
+  quantityProduced Decimal               @default(0) @map("quantity_produced") @db.Decimal(18, 4)
+  status           ProductionOrderStatus @default(DRAFT)
+  plannedStartAt   DateTime?             @map("planned_start_at") @db.Timestamptz(6)
+  plannedEndAt     DateTime?             @map("planned_end_at") @db.Timestamptz(6)
+  startedAt        DateTime?             @map("started_at") @db.Timestamptz(6)
+  completedAt      DateTime?             @map("completed_at") @db.Timestamptz(6)
+  createdByUserId  String                @map("created_by_user_id") @db.Uuid
+  createdAt        DateTime              @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt        DateTime              @updatedAt @map("updated_at") @db.Timestamptz(6)
+  product          Product               @relation(fields: [productId], references: [id], onDelete: Restrict)
+  bomVersion       BomVersion            @relation(fields: [bomVersionId], references: [id], onDelete: Restrict)
+  warehouse        Warehouse             @relation(fields: [warehouseId], references: [id], onDelete: Restrict)
+  createdBy        User                  @relation(fields: [createdByUserId], references: [id], onDelete: Restrict)
+  lot              Lot?
+  movements        InventoryMovement[]
+
+  iiotReadings IiotReading[]
+  iiotAlerts   IiotAlert[]
+  footprint    ProductionFootprint?
+
+  @@unique([id, productId])
+  @@unique([id, warehouseId])
+  @@index([status, createdAt])
+  @@index([productId])
+  @@index([warehouseId])
+  @@index([bomVersionId])
+  @@map("production_orders")
+}
+
+// Fase 2: persistencia solamente, sin consumo MQTT ni motor de reglas.
+// La migración añade CHECK para textos obligatorios no vacíos y value distinto de NaN.
+model IiotDevice {
+  id          String        @id @default(uuid(7)) @db.Uuid
+  code        String        @unique @db.VarChar(80)
+  name        String        @db.VarChar(120)
+  description String?       @db.VarChar(1000)
+  isActive    Boolean       @default(true) @map("is_active")
+  createdAt   DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime      @updatedAt @map("updated_at") @db.Timestamptz(6)
+  readings    IiotReading[]
+
+  @@map("iiot_devices")
+}
+
+model IiotReading {
+  id                String          @id @default(uuid(7)) @db.Uuid
+  productionOrderId String          @map("production_order_id") @db.Uuid
+  deviceId          String          @map("device_id") @db.Uuid
+  metric            IiotMetric
+  value             Decimal         @db.Decimal(18, 4)
+  unit              String          @db.VarChar(16)
+  recordedAt        DateTime        @map("recorded_at") @db.Timestamptz(6)
+  receivedAt        DateTime        @default(now()) @map("received_at") @db.Timestamptz(6)
+  productionOrder   ProductionOrder @relation(fields: [productionOrderId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  device            IiotDevice      @relation(fields: [deviceId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  alerts            IiotAlert[]
+
+  // Clave candidata para que la FK de alerta exija la misma OP.
+  @@unique([id, productionOrderId])
+  @@index([productionOrderId, recordedAt])
+  @@index([productionOrderId, metric, recordedAt])
+  @@index([deviceId, recordedAt])
+  @@map("iiot_readings")
+}
+
+model IiotAlert {
+  id                String            @id @default(uuid(7)) @db.Uuid
+  productionOrderId String            @map("production_order_id") @db.Uuid
+  readingId         String?           @map("reading_id") @db.Uuid
+  type              String            @db.VarChar(80)
+  severity          IiotAlertSeverity
+  message           String            @db.VarChar(1000)
+  createdAt         DateTime          @default(now()) @map("created_at") @db.Timestamptz(6)
+  acknowledgedAt    DateTime?         @map("acknowledged_at") @db.Timestamptz(6)
+  productionOrder   ProductionOrder   @relation(fields: [productionOrderId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  reading           IiotReading?      @relation(fields: [readingId, productionOrderId], references: [id, productionOrderId], onDelete: Restrict, onUpdate: Restrict, map: "iiot_alerts_reading_order_fkey")
+
+  @@index([productionOrderId, createdAt])
+  @@index([readingId, productionOrderId])
+  @@map("iiot_alerts")
+}
+
+model Lot {
+  qualityDisposition    QualityDisposition?
+  id                    String               @id @default(uuid(7)) @db.Uuid
+  code                  String               @unique
+  productId             String               @map("product_id") @db.Uuid
+  status                LotStatus
+  originatedAt          DateTime             @map("originated_at") @db.Timestamptz(6)
+  expiresAt             DateTime?            @map("expires_at") @db.Date
+  product               Product              @relation(fields: [productId], references: [id], onDelete: Restrict)
+  movements             InventoryMovement[]
+  purchaseReceiptItemId String?              @unique @map("purchase_receipt_item_id") @db.Uuid
+  purchaseReceiptItem   PurchaseReceiptItem? @relation(fields: [purchaseReceiptItemId, productId], references: [id, productId], onDelete: Restrict)
+  productionOrderId     String?              @unique @map("production_order_id") @db.Uuid
+  productionOrder       ProductionOrder?     @relation(fields: [productionOrderId, productId], references: [id, productId], onDelete: Restrict)
+  qualityInspection     QualityInspection?
+  saleDispatchItems     SaleDispatchItem[]
+  footprint             ProductionFootprint?
+
+  // Referencia compuesta de InventoryMovement: el lote debe ser del producto.
+  @@unique([id, productId])
+  // Referencia compuesta de ProductionFootprint: el lote debe ser de la OP.
+  @@unique([id, productionOrderId])
+  @@unique([purchaseReceiptItemId, productId])
+  @@unique([productionOrderId, productId])
+  @@index([productId])
+  @@index([status])
+  @@map("lots")
+}
+
+model StockBalance {
+  id          String    @id @default(uuid(7)) @db.Uuid
+  productId   String    @map("product_id") @db.Uuid
+  warehouseId String    @map("warehouse_id") @db.Uuid
+  quantity    Decimal   @default(0) @db.Decimal(18, 4)
+  updatedAt   DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+  product     Product   @relation(fields: [productId], references: [id], onDelete: Restrict)
+  warehouse   Warehouse @relation(fields: [warehouseId], references: [id], onDelete: Restrict)
+
+  @@unique([productId, warehouseId])
+  @@map("stock_balances")
+}
+
+model InventoryMovement {
+  id                    String                @id @default(uuid(7)) @db.Uuid
+  productId             String                @map("product_id") @db.Uuid
+  warehouseId           String                @map("warehouse_id") @db.Uuid
+  lotId                 String?               @map("lot_id") @db.Uuid
+  type                  InventoryMovementType
+  quantity              Decimal               @db.Decimal(18, 4)
+  reason                AdjustmentReason?
+  occurredAt            DateTime              @default(now()) @map("occurred_at") @db.Timestamptz(6)
+  performedByUserId     String                @map("performed_by_user_id") @db.Uuid
+  requestId             String?               @map("request_id")
+  purchaseReceiptItemId String?               @unique @map("purchase_receipt_item_id") @db.Uuid
+  product               Product               @relation(fields: [productId], references: [id], onDelete: Restrict)
+  warehouse             Warehouse             @relation(fields: [warehouseId], references: [id], onDelete: Restrict)
+  lot                   Lot?                  @relation(fields: [lotId, productId], references: [id, productId], onDelete: Restrict)
+  performedByUser       User                  @relation(fields: [performedByUserId], references: [id], onDelete: Restrict)
+  purchaseReceiptItem   PurchaseReceiptItem?  @relation(fields: [purchaseReceiptItemId, productId, warehouseId, quantity], references: [id, productId, warehouseId, quantity], onDelete: Restrict, map: "inventory_movements_receipt_line_fkey")
+  productionOrderId     String?               @map("production_order_id") @db.Uuid
+  productionOrder       ProductionOrder?      @relation(fields: [productionOrderId, warehouseId], references: [id, warehouseId], onDelete: Restrict)
+  saleDispatchItemId    String?               @unique @map("sale_dispatch_item_id") @db.Uuid
+  saleDispatchItem      SaleDispatchItem?     @relation(fields: [saleDispatchItemId], references: [id], onDelete: Restrict)
+  carbonActivity        CarbonActivity?
+
+  @@unique([purchaseReceiptItemId, productId, warehouseId, quantity], map: "inventory_movements_receipt_line_key")
+  @@index([productId, occurredAt])
+  @@index([lotId, warehouseId])
+  @@index([warehouseId, occurredAt])
+  @@index([requestId])
+  @@index([productionOrderId])
+  @@map("inventory_movements")
+}
+
+model QualityInspection {
+  disposition       QualityDisposition?
+  id                String              @id @default(uuid(7)) @db.Uuid
+  lotId             String              @unique @map("lot_id") @db.Uuid
+  result            QualityResult
+  observations      String              @db.VarChar(1000)
+  nonConformities   String?             @map("non_conformities") @db.VarChar(1000)
+  inspectedAt       DateTime            @default(now()) @map("inspected_at") @db.Timestamptz(6)
+  createdAt         DateTime            @default(now()) @map("created_at") @db.Timestamptz(6)
+  inspectedByUserId String              @map("inspected_by_user_id") @db.Uuid
+  lot               Lot                 @relation(fields: [lotId], references: [id], onDelete: Restrict)
+  inspectedBy       User                @relation(fields: [inspectedByUserId], references: [id], onDelete: Restrict)
+
+  @@unique([id, lotId])
+  @@index([inspectedAt])
+  @@map("quality_inspections")
+}
+
+model AuditLog {
+  id             String           @id @default(uuid(7)) @db.Uuid
+  actorType      ActorType        @map("actor_type")
+  actorUserId    String?          @map("actor_user_id") @db.Uuid
+  action         AuditAction
+  entityType     AuditEntityType? @map("entity_type")
+  entityId       String?          @map("entity_id") @db.Uuid
+  previousValues Json?            @map("previous_values") @db.JsonB
+  newValues      Json?            @map("new_values") @db.JsonB
+  requestId      String?          @map("request_id")
+  ipAddress      String?          @map("ip_address")
+  createdAt      DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
+  actorUser      User?            @relation(fields: [actorUserId], references: [id], onDelete: Restrict)
+
+  @@index([entityType, entityId, createdAt])
+  @@index([actorUserId, createdAt])
+  @@index([requestId])
+  @@index([createdAt])
+  @@map("audit_logs")
+}
+
+model DocumentSequence {
+  id           String       @id @default(uuid(7)) @db.Uuid
+  documentType DocumentType @map("document_type")
+  year         Int
+  lastNumber   Int          @default(0) @map("last_number")
+
+  @@unique([documentType, year])
+  @@map("document_sequences")
+}
+
+// Datos maestros de Compras (RF-COM-001). Contacto opcional según database.md §10.
+model Supplier {
+  id             String          @id @default(uuid(7)) @db.Uuid
+  code           String          @unique
+  name           String
+  taxId          String?         @map("tax_id") @db.VarChar(50)
+  email          String?         @db.VarChar(254)
+  phone          String?         @db.VarChar(50)
+  address        String?         @db.VarChar(255)
+  isActive       Boolean         @default(true) @map("is_active")
+  createdAt      DateTime        @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime        @updatedAt @map("updated_at") @db.Timestamptz(6)
+  purchaseOrders PurchaseOrder[]
+
+  @@index([isActive])
+  @@map("suppliers")
+}
+
+// Datos maestros de Ventas (RF-VEN-001). Contacto opcional según database.md §10.
+model Customer {
+  id         String      @id @default(uuid(7)) @db.Uuid
+  code       String      @unique
+  name       String
+  taxId      String?     @map("tax_id") @db.VarChar(50)
+  email      String?     @db.VarChar(254)
+  phone      String?     @db.VarChar(50)
+  address    String?     @db.VarChar(255)
+  isActive   Boolean     @default(true) @map("is_active")
+  createdAt  DateTime    @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt  DateTime    @updatedAt @map("updated_at") @db.Timestamptz(6)
+  saleOrders SaleOrder[]
+
+  @@index([isActive])
+  @@map("customers")
+}
+
+model SaleOrder {
+  id              String          @id @default(uuid(7)) @db.Uuid
+  number          String          @unique @db.VarChar(32)
+  customerId      String          @map("customer_id") @db.Uuid
+  status          SaleOrderStatus @default(DRAFT)
+  orderedAt       DateTime        @map("ordered_at") @db.Timestamptz(6)
+  createdByUserId String          @map("created_by_user_id") @db.Uuid
+  createdAt       DateTime        @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime        @updatedAt @map("updated_at") @db.Timestamptz(6)
+  customer        Customer        @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  createdBy       User            @relation(fields: [createdByUserId], references: [id], onDelete: Restrict)
+  items           SaleOrderItem[]
+  dispatches      SaleDispatch[]
+
+  @@index([status, orderedAt])
+  @@index([customerId, orderedAt])
+  @@map("sale_orders")
+}
+
+model SaleOrderItem {
+  id            String             @id @default(uuid(7)) @db.Uuid
+  saleOrderId   String             @map("sale_order_id") @db.Uuid
+  productId     String             @map("product_id") @db.Uuid
+  quantity      Decimal            @db.Decimal(18, 4)
+  unitPrice     Decimal            @map("unit_price") @db.Decimal(14, 4)
+  lineTotal     Decimal            @map("line_total") @db.Decimal(14, 2)
+  saleOrder     SaleOrder          @relation(fields: [saleOrderId], references: [id], onDelete: Cascade)
+  product       Product            @relation(fields: [productId], references: [id], onDelete: Restrict)
+  dispatchItems SaleDispatchItem[]
+
+  @@unique([id, saleOrderId, productId])
+  @@index([saleOrderId])
+  @@index([productId])
+  @@map("sale_order_items")
+}
+
+model SaleDispatch {
+  id              String             @id @default(uuid(7)) @db.Uuid
+  number          String             @unique @db.VarChar(32)
+  saleOrderId     String             @map("sale_order_id") @db.Uuid
+  dispatchedAt    DateTime           @map("dispatched_at") @db.Timestamptz(6)
+  createdByUserId String             @map("created_by_user_id") @db.Uuid
+  createdAt       DateTime           @default(now()) @map("created_at") @db.Timestamptz(6)
+  saleOrder       SaleOrder          @relation(fields: [saleOrderId], references: [id], onDelete: Restrict)
+  createdBy       User               @relation(fields: [createdByUserId], references: [id], onDelete: Restrict)
+  items           SaleDispatchItem[]
+
+  @@unique([id, saleOrderId])
+  @@index([saleOrderId, dispatchedAt])
+  @@map("sale_dispatches")
+}
+
+model SaleDispatchItem {
+  id              String             @id @default(uuid(7)) @db.Uuid
+  saleDispatchId  String             @map("sale_dispatch_id") @db.Uuid
+  saleOrderId     String             @map("sale_order_id") @db.Uuid
+  saleOrderItemId String             @map("sale_order_item_id") @db.Uuid
+  productId       String             @map("product_id") @db.Uuid
+  warehouseId     String             @map("warehouse_id") @db.Uuid
+  lotId           String?            @map("lot_id") @db.Uuid
+  quantity        Decimal            @db.Decimal(18, 4)
+  saleDispatch    SaleDispatch       @relation(fields: [saleDispatchId, saleOrderId], references: [id, saleOrderId], onDelete: Restrict, map: "sale_dispatch_items_dispatch_order_fkey")
+  saleOrderItem   SaleOrderItem      @relation(fields: [saleOrderItemId, saleOrderId, productId], references: [id, saleOrderId, productId], onDelete: Restrict, map: "sale_dispatch_items_order_item_product_fkey")
+  product         Product            @relation(fields: [productId], references: [id], onDelete: Restrict, map: "sale_dispatch_items_product_fkey")
+  warehouse       Warehouse          @relation(fields: [warehouseId], references: [id], onDelete: Restrict, map: "sale_dispatch_items_warehouse_fkey")
+  lot             Lot?               @relation(fields: [lotId, productId], references: [id, productId], onDelete: Restrict, map: "sale_dispatch_items_lot_product_fkey")
+  movement        InventoryMovement?
+
+  @@unique([id, productId, warehouseId])
+  @@index([saleDispatchId])
+  @@index([saleOrderItemId])
+  @@index([productId, warehouseId], map: "sale_dispatch_items_product_warehouse_idx")
+  @@map("sale_dispatch_items")
+}
+
+model PurchaseOrder {
+  id              String              @id @default(uuid(7)) @db.Uuid
+  number          String              @unique
+  supplierId      String              @map("supplier_id") @db.Uuid
+  status          PurchaseOrderStatus @default(DRAFT)
+  orderedAt       DateTime            @map("ordered_at") @db.Timestamptz(6)
+  expectedDate    DateTime?           @map("expected_date") @db.Date
+  createdByUserId String              @map("created_by_user_id") @db.Uuid
+  createdAt       DateTime            @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime            @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  supplier  Supplier            @relation(fields: [supplierId], references: [id], onDelete: Restrict)
+  createdBy User                @relation(fields: [createdByUserId], references: [id], onDelete: Restrict)
+  items     PurchaseOrderItem[]
+  receipts  PurchaseReceipt[]
+
+  @@index([status, createdAt])
+  @@index([supplierId])
+  @@map("purchase_orders")
+}
+
+model PurchaseOrderItem {
+  id              String  @id @default(uuid(7)) @db.Uuid
+  purchaseOrderId String  @map("purchase_order_id") @db.Uuid
+  productId       String  @map("product_id") @db.Uuid
+  quantityOrdered Decimal @map("quantity_ordered") @db.Decimal(18, 4)
+  unitPrice       Decimal @map("unit_price") @db.Decimal(14, 4)
+  lineTotal       Decimal @map("line_total") @db.Decimal(14, 2)
+
+  purchaseOrder PurchaseOrder         @relation(fields: [purchaseOrderId], references: [id], onDelete: Cascade)
+  product       Product               @relation(fields: [productId], references: [id], onDelete: Restrict)
+  receiptItems  PurchaseReceiptItem[]
+
+  @@unique([id, productId])
+  @@index([purchaseOrderId])
+  @@map("purchase_order_items")
+}
+
+model PurchaseReceipt {
+  id               String   @id @default(uuid(7)) @db.Uuid
+  number           String   @unique
+  purchaseOrderId  String   @map("purchase_order_id") @db.Uuid
+  receivedAt       DateTime @map("received_at") @db.Timestamptz(6)
+  receivedByUserId String   @map("received_by_user_id") @db.Uuid
+  notes            String?  @db.VarChar(500)
+  createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  purchaseOrder PurchaseOrder         @relation(fields: [purchaseOrderId], references: [id], onDelete: Restrict)
+  receivedBy    User                  @relation(fields: [receivedByUserId], references: [id], onDelete: Restrict)
+  items         PurchaseReceiptItem[]
+
+  @@index([purchaseOrderId, receivedAt])
+  @@map("purchase_receipts")
+}
+
+model PurchaseReceiptItem {
+  id                  String  @id @default(uuid(7)) @db.Uuid
+  purchaseReceiptId   String  @map("purchase_receipt_id") @db.Uuid
+  purchaseOrderItemId String  @map("purchase_order_item_id") @db.Uuid
+  productId           String  @map("product_id") @db.Uuid
+  warehouseId         String  @map("warehouse_id") @db.Uuid
+  quantity            Decimal @db.Decimal(18, 4)
+
+  receipt   PurchaseReceipt   @relation(fields: [purchaseReceiptId], references: [id], onDelete: Cascade)
+  orderItem PurchaseOrderItem @relation(fields: [purchaseOrderItemId, productId], references: [id, productId], onDelete: Restrict)
+  product   Product           @relation(fields: [productId], references: [id], onDelete: Restrict)
+  warehouse Warehouse         @relation(fields: [warehouseId], references: [id], onDelete: Restrict)
+
+  movement InventoryMovement?
+  lot      Lot?
+
+  @@unique([id, productId])
+  @@unique([id, productId, warehouseId, quantity])
+  @@index([purchaseOrderItemId])
+  @@index([purchaseReceiptId])
+  @@map("purchase_receipt_items")
+}
+
+model ProductionRoute {
+  id          String           @id @default(uuid(7)) @db.Uuid
+  productId   String           @unique @map("product_id") @db.Uuid
+  code        String           @unique @db.VarChar(32)
+  name        String           @db.VarChar(120)
+  description String?          @db.VarChar(500)
+  isActive    Boolean          @default(true) @map("is_active")
+  createdAt   DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime         @updatedAt @map("updated_at") @db.Timestamptz(6)
+  product     Product          @relation(fields: [productId], references: [id], onDelete: Restrict)
+  operations  RouteOperation[]
+
+  @@index([isActive])
+  @@map("production_routes")
+}
+
+model RouteOperation {
+  id              String          @id @default(uuid(7)) @db.Uuid
+  routeId         String          @map("route_id") @db.Uuid
+  sequence        Int
+  name            String          @db.VarChar(120)
+  description     String?         @db.VarChar(500)
+  standardMinutes Decimal         @map("standard_minutes") @db.Decimal(12, 2)
+  createdAt       DateTime        @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime        @updatedAt @map("updated_at") @db.Timestamptz(6)
+  route           ProductionRoute @relation(fields: [routeId], references: [id], onDelete: Restrict)
+
+  @@unique([routeId, sequence])
+  @@index([routeId])
+  @@map("route_operations")
+}
+
+enum QualityDispositionType {
+  RELEASE
+  REWORK
+  SCRAP
+}
+
+model QualityDisposition {
+  id              String                 @id @default(uuid(7)) @db.Uuid
+  lotId           String                 @unique @map("lot_id") @db.Uuid
+  inspectionId    String                 @unique @map("inspection_id") @db.Uuid
+  type            QualityDispositionType
+  reason          String                 @db.VarChar(1000)
+  decidedAt       DateTime               @default(now()) @map("decided_at") @db.Timestamptz(6)
+  decidedByUserId String                 @map("decided_by_user_id") @db.Uuid
+  createdAt       DateTime               @default(now()) @map("created_at") @db.Timestamptz(6)
+  lot             Lot                    @relation(fields: [lotId], references: [id], onDelete: Restrict)
+  inspection      QualityInspection      @relation(fields: [inspectionId, lotId], references: [id, lotId], onDelete: Restrict)
+  decidedBy       User                   @relation(fields: [decidedByUserId], references: [id], onDelete: Restrict)
+
+  @@unique([inspectionId, lotId])
+  @@index([type, decidedAt])
+  @@index([decidedByUserId, decidedAt])
+  @@map("quality_dispositions")
+}
+
+// C3 — Sostenibilidad: estimación académica de huella parcial de carbono.
+// La migración añade CHECK de valores no negativos, fuentes no vacías,
+// coherencia de finalización/origen e índice parcial de un factor activo por producto.
+enum CarbonActivityUnit {
+  UNIT
+  GRAM
+  KILOGRAM
+  MILLILITER
+  LITER
+  KWH
+  KILOMETER
+  TON_KILOMETER
+}
+
+enum CarbonActivityCategory {
+  RAW_MATERIAL
+  ENERGY
+  INBOUND_TRANSPORT
+  PACKAGING
+  WASTE
+}
+
+enum CarbonActivitySource {
+  PRODUCTION_CONSUMPTION
+  MANUAL
+}
+
+enum CarbonFootprintStatus {
+  DRAFT
+  FINALIZED
+}
+
+enum CarbonFootprintScope {
+  PARTIAL_CRADLE_TO_GATE
+}
+
+model EmissionFactor {
+  id              String                 @id @default(uuid(7)) @db.Uuid
+  code            String                 @unique @db.VarChar(50)
+  name            String                 @db.VarChar(150)
+  category        CarbonActivityCategory
+  activityUnit    CarbonActivityUnit     @map("activity_unit")
+  kgCo2ePerUnit   Decimal                @map("kg_co2e_per_unit") @db.Decimal(20, 8)
+  productId       String?                @map("product_id") @db.Uuid
+  sourceName      String                 @map("source_name") @db.VarChar(200)
+  sourceReference String                 @map("source_reference") @db.VarChar(1000)
+  sourceYear      Int?                   @map("source_year")
+  notes           String?                @db.VarChar(1000)
+  isActive        Boolean                @default(true) @map("is_active")
+  createdByUserId String                 @map("created_by_user_id") @db.Uuid
+  createdAt       DateTime               @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime               @updatedAt @map("updated_at") @db.Timestamptz(6)
+  product         Product?               @relation(fields: [productId], references: [id], onDelete: Restrict)
+  createdBy       User                   @relation(fields: [createdByUserId], references: [id], onDelete: Restrict)
+  activities      CarbonActivity[]
+
+  // Un solo factor activo por producto: índice parcial de la migración C3.
+  @@index([category, isActive])
+  @@index([productId, isActive])
+  @@map("emission_factors")
+}
+
+model ProductionFootprint {
+  id                       String                @id @default(uuid(7)) @db.Uuid
+  productionOrderId        String                @unique @map("production_order_id") @db.Uuid
+  lotId                    String                @unique @map("lot_id") @db.Uuid
+  status                   CarbonFootprintStatus @default(DRAFT)
+  scope                    CarbonFootprintScope
+  totalKgCo2e              Decimal               @default(0) @map("total_kg_co2e") @db.Decimal(20, 8)
+  quantityProducedSnapshot Decimal               @map("quantity_produced_snapshot") @db.Decimal(18, 4)
+  outputUnitSnapshot       UnitOfMeasure         @map("output_unit_snapshot")
+  kgCo2ePerOutputUnit      Decimal?              @map("kg_co2e_per_output_unit") @db.Decimal(20, 8)
+  boundaryNotes            String?               @map("boundary_notes") @db.VarChar(2000)
+  calculatedAt             DateTime?             @map("calculated_at") @db.Timestamptz(6)
+  finalizedAt              DateTime?             @map("finalized_at") @db.Timestamptz(6)
+  finalizedByUserId        String?               @map("finalized_by_user_id") @db.Uuid
+  createdAt                DateTime              @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt                DateTime              @updatedAt @map("updated_at") @db.Timestamptz(6)
+  productionOrder          ProductionOrder       @relation(fields: [productionOrderId], references: [id], onDelete: Restrict)
+  lot                      Lot                   @relation(fields: [lotId, productionOrderId], references: [id, productionOrderId], onDelete: Restrict, map: "production_footprints_lot_order_fkey")
+  finalizedBy              User?                 @relation(fields: [finalizedByUserId], references: [id], onDelete: Restrict)
+  activities               CarbonActivity[]
+
+  @@unique([lotId, productionOrderId])
+  @@index([status])
+  @@map("production_footprints")
+}
+
+model CarbonActivity {
+  id                            String                 @id @default(uuid(7)) @db.Uuid
+  footprintId                   String                 @map("footprint_id") @db.Uuid
+  category                      CarbonActivityCategory
+  source                        CarbonActivitySource
+  description                   String                 @db.VarChar(250)
+  activityQuantity              Decimal                @map("activity_quantity") @db.Decimal(20, 8)
+  activityUnit                  CarbonActivityUnit     @map("activity_unit")
+  originalQuantity              Decimal?               @map("original_quantity") @db.Decimal(20, 8)
+  originalUnit                  CarbonActivityUnit?    @map("original_unit")
+  emissionFactorId              String                 @map("emission_factor_id") @db.Uuid
+  factorCodeSnapshot            String                 @map("factor_code_snapshot") @db.VarChar(50)
+  factorNameSnapshot            String                 @map("factor_name_snapshot") @db.VarChar(150)
+  factorValueSnapshot           Decimal                @map("factor_value_snapshot") @db.Decimal(20, 8)
+  factorSourceNameSnapshot      String                 @map("factor_source_name_snapshot") @db.VarChar(200)
+  factorSourceReferenceSnapshot String                 @map("factor_source_reference_snapshot") @db.VarChar(1000)
+  factorSourceYearSnapshot      Int?                   @map("factor_source_year_snapshot")
+  emissionsKgCo2e               Decimal                @map("emissions_kg_co2e") @db.Decimal(20, 8)
+  inventoryMovementId           String?                @unique @map("inventory_movement_id") @db.Uuid
+  createdByUserId               String?                @map("created_by_user_id") @db.Uuid
+  createdAt                     DateTime               @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt                     DateTime               @updatedAt @map("updated_at") @db.Timestamptz(6)
+  footprint                     ProductionFootprint    @relation(fields: [footprintId], references: [id], onDelete: Restrict)
+  emissionFactor                EmissionFactor         @relation(fields: [emissionFactorId], references: [id], onDelete: Restrict)
+  inventoryMovement             InventoryMovement?     @relation(fields: [inventoryMovementId], references: [id], onDelete: Restrict)
+  createdBy                     User?                  @relation(fields: [createdByUserId], references: [id], onDelete: Restrict)
+
+  @@index([footprintId, category])
+  @@index([emissionFactorId])
+  @@map("carbon_activities")
+}
+
+// Circularidad: indicador separado que nunca se descuenta de la huella.
+model CircularMaterialProfile {
+  id            String             @id @default(uuid(7)) @db.Uuid
+  productId     String             @unique @map("product_id") @db.Uuid
+  metricCode    String             @unique @map("metric_code") @db.VarChar(80)
+  displayName   String             @map("display_name") @db.VarChar(150)
+  reportingUnit CarbonActivityUnit @map("reporting_unit")
+  isActive      Boolean            @default(true) @map("is_active")
+  createdAt     DateTime           @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt     DateTime           @updatedAt @map("updated_at") @db.Timestamptz(6)
+  product       Product            @relation(fields: [productId], references: [id], onDelete: Restrict)
+
+  @@map("circular_material_profiles")
+}

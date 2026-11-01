@@ -1,0 +1,916 @@
+# API REST — EcoSoap ERP
+
+## 1. Convenciones
+
+- Prefijo global: `/api`
+- Documentación interactiva: `http://localhost:3000/api/docs`
+- Especificación OpenAPI: `http://localhost:3000/api/docs-json`
+- Formato: JSON
+- Verbos: `GET`, `POST`, `PATCH`, `DELETE` según corresponda
+
+## 2. Formato de respuesta
+
+Éxito con un recurso:
+
+```json
+{
+  "data": {},
+  "message": "Orden de producción creada correctamente"
+}
+```
+
+Éxito con una lista paginada:
+
+```json
+{
+  "data": [],
+  "meta": { "page": 1, "limit": 20, "total": 150 }
+}
+```
+
+Los códigos HTTP se usan por su significado real:
+
+| Código | Uso                                                        |
+| ------ | ---------------------------------------------------------- |
+| 200    | Operación correcta                                         |
+| 201    | Recurso creado                                             |
+| 400    | Petición mal formada                                       |
+| 401    | Sin autenticar                                             |
+| 403    | Autenticado pero sin permiso                               |
+| 404    | Recurso inexistente                                        |
+| 409    | Conflicto con el estado actual (p. ej. stock insuficiente) |
+| 422    | Entidad no procesable                                      |
+| 500    | Error interno                                              |
+| 503    | Dependencia no disponible (p. ej. base de datos caída)     |
+
+## 3. Validación
+
+Toda entrada usa DTO con `class-validator`. El `ValidationPipe` global está configurado con:
+
+- `whitelist: true` — descarta propiedades no declaradas en el DTO
+- `forbidNonWhitelisted: true` — las rechaza explícitamente en lugar de ignorarlas en silencio
+- `transform: true` — convierte los tipos primitivos de la petición
+
+El backend nunca recibe objetos arbitrarios sin validar. La validación del frontend ayuda al
+usuario; la del backend garantiza la regla.
+
+## 4. Endpoints implementados
+
+### `GET /api/health`
+
+Verifica la cadena NestJS → Prisma → PostgreSQL ejecutando `SELECT 1`. Cubre `RF-SYS-003`.
+
+Respuesta `200`:
+
+```json
+{
+  "data": {
+    "status": "ok",
+    "database": "up",
+    "timestamp": "2026-09-22T23:32:28.000Z"
+  },
+  "message": "Servicio operativo"
+}
+```
+
+Respuesta `503` cuando la base de datos no responde:
+
+```json
+{
+  "data": { "status": "error", "database": "down", "timestamp": "..." },
+  "message": "La base de datos no responde"
+}
+```
+
+El fallo viaja en el código HTTP y no solo en el cuerpo, para que cualquier supervisor externo lo
+detecte sin interpretar el JSON.
+
+## 5. Endpoints previstos
+
+Rutas pendientes conforme avancen las etapas. Productos y almacenes están implementados
+(§9), al igual que proveedores (§10) y clientes (§11). Órdenes y recepciones de Compras
+están implementadas en `feature/purchases`; su contrato vigente figura al final de esta página.
+
+```text
+/api/inventory
+/api/inventory/movements
+/api/boms
+/api/production-orders
+/api/lots
+/api/sales-orders
+```
+
+### Acciones de negocio
+
+Las operaciones que representan un hecho empresarial tienen endpoint propio y semántico, en lugar
+de esconderse tras un `PATCH` genérico. El nombre del endpoint debe decir qué ocurrió en la
+empresa:
+
+| Endpoint                               | Efecto                                                  |
+| -------------------------------------- | ------------------------------------------------------- |
+| `POST /purchase-orders/:id/confirm`    | Confirma la orden; no toca inventario                   |
+| `POST /purchase-orders/:id/receive`    | Registra recepción; **aumenta** inventario              |
+| `POST /production-orders/:id/start`    | Inicia la producción tras verificar disponibilidad      |
+| `POST /production-orders/:id/complete` | Consume materia prima, genera lote y producto terminado |
+| `POST /sales-orders/:id/confirm`       | Confirma la venta; no toca inventario                   |
+| `POST /sales-orders/:id/dispatch`      | Registra despacho; **disminuye** inventario             |
+
+## 6. Tags de Swagger
+
+Cada módulo declara su tag al incorporarse para agrupar su documentación.
+
+Están implementados los tags `Health`, `Auth`, `Users`, `Products`, `Warehouses`
+y `Suppliers`, junto con `Customers` y `Purchase Orders` (en `feature/purchases`).
+
+Los previstos para etapas posteriores son:
+
+```text
+Purchases · Inventory
+Production · Lots · Quality · Sales
+```
+
+## 7. Autenticación y autorización
+
+Implementado, verificado e integrado en `develop` mediante el PR #3 (merge `24bd515`). Las once
+rutas de Auth y Users se suman al health check público. No existen `/api/roles` ni `/api/audit`
+en esta etapa.
+
+| Método y ruta                        | Acceso                                            | Cuerpo                                         | Resultado                                                    |
+| ------------------------------------ | ------------------------------------------------- | ---------------------------------------------- | ------------------------------------------------------------ |
+| `POST /api/auth/login`               | Público; 10 intentos/minuto/IP                    | `{ email, password }`                          | `200 { data: UserResponse, message }` y cookie               |
+| `GET /api/auth/me`                   | Sesión válida, incluso cambio pendiente           | —                                              | `200 { data: UserResponse, message }`                        |
+| `POST /api/auth/logout`              | Sesión válida, incluso cambio pendiente           | —                                              | `200 { data: null, message }` y cookie expirada              |
+| `POST /api/auth/change-password`     | Sesión válida, incluso cambio pendiente; limitado | `{ currentPassword, newPassword }`             | `200 { data: UserResponse, message }` y cookie renovada      |
+| `GET /api/users?page=1&limit=20`     | ADMIN sin cambio pendiente                        | —                                              | `200 { data: UserResponse[], meta: { page, limit, total } }` |
+| `GET /api/users/:id`                 | ADMIN sin cambio pendiente                        | —                                              | `200 { data: UserResponse, message }`                        |
+| `POST /api/users`                    | ADMIN sin cambio pendiente                        | `{ fullName, email, role, temporaryPassword }` | `201 { data: UserResponse, message }`                        |
+| `POST /api/users/:id/enable`         | ADMIN sin cambio pendiente                        | —                                              | `200 { data: UserResponse, message }`                        |
+| `POST /api/users/:id/disable`        | ADMIN sin cambio pendiente                        | —                                              | `200 { data: UserResponse, message }`                        |
+| `PATCH /api/users/:id/role`          | ADMIN sin cambio pendiente                        | `{ role }`                                     | `200 { data: UserResponse, message }`                        |
+| `POST /api/users/:id/reset-password` | ADMIN sin cambio pendiente                        | `{ temporaryPassword }`                        | `200 { data: UserResponse, message }`                        |
+
+`UserResponse` contiene `id`, `email`, `fullName`, `role` (código), `isActive`,
+`mustChangePassword`, `createdAt` y `updatedAt`. Nunca contiene JWT, hash, versión de sesión ni
+`roleId`. Correos: trim + minúsculas; contraseñas nuevas: NFC, 15–128 caracteres, sin reglas de
+composición. El alta y el restablecimiento exigen cambio de contraseña; el bootstrap no.
+
+La cookie `ecosoap_session` es `HttpOnly`, `SameSite=Strict`, `Path=/`, dura 8 horas y es `Secure`
+en producción. El cliente usa `credentials: 'include'`. El JWT HS256 solo lleva `sub`, `ver`,
+`iat` y `exp`; el rol se lee de la base en cada petición. Logout revoca todas las sesiones del
+usuario. Desactivar, cambiar rol y restablecer contraseña también las revocan; cambiar la propia
+renueva solo la sesión actual.
+
+Los guards globales aplican protección de origen, autenticación, cambio pendiente y RBAC, en ese
+orden. Cada ruta declara `Public`, `Authenticated` o `Roles`; sin política se deniega. CORS admite
+solo `FRONTEND_URL`, con credenciales. Los métodos que modifican verifican `Sec-Fetch-Site` y
+`Origin`/`Referer` según el algoritmo del spec §4. Detrás de un proxy debe configurarse `trust
+proxy` antes de confiar en la IP; los límites viven en memoria y se reinician con el proceso.
+
+Errores de NestJS: `{ statusCode, message, error }`; la validación puede dar `message: string[]`.
+
+| Código | Casos en Auth/Users                                                                  |
+| ------ | ------------------------------------------------------------------------------------ |
+| `400`  | DTO inválido, propiedades adicionales o UUID incorrecto                              |
+| `401`  | Credenciales inválidas o sesión ausente, expirada, revocada o usuario inactivo       |
+| `403`  | Origen no permitido, rol insuficiente, acción sobre cuenta propia o cambio pendiente |
+| `404`  | Usuario inexistente                                                                  |
+| `409`  | Correo duplicado, transición sin efecto o retirada del último ADMIN activo           |
+| `422`  | Contraseña actual incorrecta o nueva igual a la actual                               |
+| `429`  | Límite de intentos por IP                                                            |
+
+El bloqueo de contraseña devuelve `error: 'PASSWORD_CHANGE_REQUIRED'`: el cliente lo convierte
+en `ApiError.code` y lleva a `/account/password`. Los otros `403` actualizan la consulta de sesión
+y muestran el mensaje. Un `401` fuera del login limpia datos privados y lleva a `/login`.
+`GET /auth/me` convierte `401` en sesión nula; login muestra el error genérico de credenciales.
+
+Toda respuesta incluye `X-Request-Id`, expuesto por CORS. Ante `5xx`, el frontend muestra solo
+«Error interno del servidor (ref. …)», sin interpretar el cuerpo interno. Sin red informa que no
+pudo conectar. Swagger en `/api/docs` declara cookie auth: ejecutar login desde Swagger permite
+probar las rutas; no se pega un JWT en el formulario de autorización.
+
+## 8. Paginación
+
+Los listados administrativos se paginan desde el backend. No se devuelven miles de registros de
+una vez para que el frontend los filtre.
+
+## 9. Inventario: productos y almacenes
+
+Implementado en la rama `feature/products-warehouses`. Los catálogos pertenecen
+al dominio de Inventario y reutilizan los modelos `Product` y `Warehouse`.
+
+La gestión de productos cubre `RF-INV-001`. Estas operaciones administran datos
+maestros y no modifican existencias ni generan movimientos de inventario.
+
+### 9.1. Acceso
+
+Todas las rutas requieren una sesión válida y haber completado cualquier cambio
+de contraseña obligatorio.
+
+- Consulta: `ADMIN`, `INVENTARIO`, `COMPRAS`, `PRODUCCION` y `VENTAS`.
+- Creación, edición y cambio de estado: únicamente `ADMIN` e `INVENTARIO`.
+- Sin sesión válida: `401`.
+- Sin permiso para modificar: `403`.
+
+Se reutilizan la cookie `ecosoap_session`, JWT y los guards y políticas del
+proyecto. El backend consulta el rol del usuario en la base de datos.
+
+Swagger agrupa los endpoints bajo `Products` y `Warehouses`, con autenticación
+por cookie. Se puede iniciar sesión desde `/api/docs` para probarlos.
+
+### 9.2. Endpoints de productos
+
+- `GET /api/products?page=1&limit=20`: listado paginado; responde `200`.
+- `POST /api/products`: crea un producto; responde `201`.
+- `GET /api/products/:id`: consulta el detalle; responde `200`.
+- `PATCH /api/products/:id`: actualiza los datos; responde `200`.
+- `PATCH /api/products/:id/status`: activa o desactiva; responde `200`.
+
+Ejemplo de creación:
+
+```json
+{
+  "code": "MP-ACEITE-01",
+  "name": "Aceite usado recolectado",
+  "category": "Aceites",
+  "type": "RAW_MATERIAL",
+  "unit": "LITER"
+}
+```
+
+Los cinco campos son obligatorios al crear:
+
+- `code`: texto de 1 a 50 caracteres; único.
+- `name`: texto de 1 a 200 caracteres.
+- `category`: texto de 1 a 100 caracteres, independiente del tipo.
+- `type`: uno de los valores del enum `ProductType`.
+- `unit`: uno de los valores del enum `UnitOfMeasure`.
+
+Código, nombre y categoría se recortan en los extremos. Además, el código del
+producto se convierte a mayúsculas al crear y editar, igual que el de almacenes.
+Por ejemplo, `" mp-aceite-01 "` se guarda como `"MP-ACEITE-01"`. Si el código
+normalizado ya pertenece a otro producto, la operación devuelve `409`.
+
+Tipos admitidos:
+
+- `RAW_MATERIAL`: materia prima.
+- `INTERMEDIATE`: producto intermedio.
+- `FINISHED_GOOD`: producto terminado.
+- `CONSUMABLE`: consumible, conservado del modelo existente.
+
+Unidades admitidas: `UNIT`, `GRAM`, `KILOGRAM`, `MILLILITER` y `LITER`.
+
+El producto se crea activo. `isActive`, `isLotTracked` y
+`requiresQualityInspection` no se aceptan en el cuerpo de creación ni en la
+edición general. Los dos últimos conservan sus valores predeterminados del
+modelo al crear.
+
+La edición permite enviar cualquiera de los cinco campos del alta, con las
+mismas validaciones. Debe incluir al menos un campo; `{}` y los valores `null`
+se rechazan. Los campos omitidos conservan su valor.
+
+Si el producto tiene al menos un movimiento de inventario, cambiar `unit` o
+`type` devuelve `409`, incluso si sus existencias actuales son cero. Enviar el
+mismo valor de unidad o tipo no se considera un cambio. Código, nombre y
+categoría siguen siendo editables. Si se intenta un cambio bloqueado junto con
+otros campos, se rechaza toda la edición y no se registra un evento `UPDATE`.
+
+El formulario de productos construye el PATCH con `dirtyFields` y envía solo
+los campos modificados. Guardar queda deshabilitado si no hay cambios, también
+cuando se restauran todos los valores originales.
+
+Ejemplo de edición parcial:
+
+```json
+{
+  "name": "Aceite usado recolectado para proceso",
+  "category": "Aceites recuperados"
+}
+```
+
+`ProductResponse` incluye `id`, `code`, `name`, `category`, `type`, `unit`,
+`isLotTracked`, `requiresQualityInspection`, `isActive`, `createdAt` y
+`updatedAt`. El identificador es UUID y las fechas se serializan como texto
+ISO 8601.
+
+### 9.3. Endpoints de almacenes
+
+- `GET /api/warehouses?page=1&limit=20`: listado paginado; responde `200`.
+- `POST /api/warehouses`: crea un almacén; responde `201`.
+- `GET /api/warehouses/:id`: consulta el detalle; responde `200`.
+- `PATCH /api/warehouses/:id`: actualiza los datos; responde `200`.
+- `PATCH /api/warehouses/:id/status`: activa o desactiva; responde `200`.
+
+Ejemplo de creación:
+
+```json
+{
+  "code": "ALM-CENTRAL",
+  "name": "Almacén Central",
+  "location": "Nave Norte, Pasillo A",
+  "isActive": true
+}
+```
+
+Validaciones del alta:
+
+- `code`: obligatorio, de 3 a 50 caracteres; se recorta y convierte a mayúsculas.
+- `name`: obligatorio, de 3 a 100 caracteres; se recorta.
+- `location`: obligatoria, de 1 a 255 caracteres; se recorta.
+- `isActive`: booleano opcional; si se omite, se usa `true`.
+
+El código es único. Intentar usar el código de otro almacén con distinta
+capitalización también produce un conflicto, porque se normaliza a mayúsculas.
+
+La edición acepta `code`, `name` y `location` de forma parcial, con las mismas
+validaciones. Debe incluir al menos un campo y no admite `null` ni `isActive`.
+Los campos omitidos conservan su valor. El estado se modifica mediante `/status`.
+
+El formulario de almacenes construye el PATCH con `dirtyFields` y envía solo
+los campos modificados. Confirmar queda deshabilitado si no hay cambios, también
+cuando se restauran todos los valores originales.
+
+Ejemplo de edición parcial:
+
+```json
+{
+  "location": "Nave Sur, Pasillo B"
+}
+```
+
+`WarehouseResponse` incluye `id`, `code`, `name`, `location`, `isActive`,
+`createdAt` y `updatedAt`. El identificador es UUID y las fechas se serializan
+como texto ISO 8601.
+
+### 9.4. Estados y conservación de datos
+
+Los dos endpoints `PATCH /:id/status` reciben exclusivamente:
+
+```json
+{
+  "isActive": false
+}
+```
+
+Para reactivar se envía `true`. Se exigen booleanos JSON reales: `"false"`,
+`0` y `null` se rechazan con `400`.
+
+Solicitar el estado que el recurso ya tiene devuelve `409`.
+
+La desactivación exige que no existan saldos distintos de cero:
+
+- Producto: se comprueban sus saldos en todos los almacenes. Si cualquiera
+  tiene `quantity != 0`, se devuelve `409`.
+- Almacén: se comprueban los saldos de todos sus productos. Si cualquiera
+  tiene `quantity != 0`, se devuelve `409`.
+
+La comprobación se realiza dentro de la transacción, después de bloquear
+la fila del producto o almacén y antes de actualizar su estado. Cuando se
+rechaza la operación, el recurso conserva sus valores y no se registra
+un evento `DISABLE`.
+
+Si todos los saldos son cero, se permite desactivar, aunque existan filas
+de `StockBalance` o movimientos históricos. También se permite cuando
+el recurso no tiene saldos registrados. La reactivación no exige saldo cero.
+
+La desactivación conserva el registro y sus relaciones. No se ofrecen
+endpoints `DELETE` para productos ni almacenes. Cambiar el estado no
+modifica saldos ni genera movimientos de inventario.
+
+### 9.5. Respuestas, paginación y filtros
+
+Los listados responden con:
+
+```json
+{
+  "data": [],
+  "meta": {
+    "page": 1,
+    "limit": 20,
+    "total": 0
+  }
+}
+```
+
+Parámetros de paginación de ambos catálogos:
+
+- `page`: entero desde 1; predeterminado 1.
+- `limit`: entero entre 1 y 100; predeterminado 20.
+- `meta.total`: cantidad total de registros que cumplen los filtros, antes de
+  aplicar la paginación. Sin filtros, incluye todos los registros activos e inactivos.
+- Productos: orden por nombre ascendente y, en caso de empate, por identificador.
+- Almacenes: orden por código ascendente.
+- Una página sin registros devuelve `data: []`, conservando el total filtrado.
+
+Filtros opcionales de `GET /api/products`:
+
+- `isActive`: admite únicamente `true` o `false` en la URL. Si se omite, se
+  incluyen ambos estados. `isActive=false` selecciona los productos inactivos.
+- `type`: admite `RAW_MATERIAL`, `INTERMEDIATE`, `FINISHED_GOOD` o `CONSUMABLE`.
+  Si se omite, se incluyen todos los tipos.
+- `search`: texto de 1 a 100 caracteres después de quitar espacios de los extremos.
+  Busca coincidencias parciales en el código o el nombre, sin distinguir mayúsculas
+  de minúsculas.
+
+Filtros opcionales de `GET /api/warehouses`:
+
+- `isActive`: mismas reglas que en productos.
+- `search`: mismas reglas de longitud y comparación; busca en código, nombre o
+  ubicación.
+- Almacenes no admite el filtro `type`.
+
+Los filtros se combinan: un registro debe cumplir todos los filtros enviados.
+Dentro de la búsqueda, basta con que coincida cualquiera de los campos indicados.
+La consulta de registros y el cálculo de `meta.total` usan los mismos filtros.
+
+Ejemplos:
+
+```text
+GET /api/products?page=1&limit=20&isActive=true&type=RAW_MATERIAL&search=aceite
+GET /api/products?page=1&limit=20&isActive=false
+GET /api/warehouses?page=1&limit=20&isActive=true&search=central
+GET /api/warehouses?page=2&limit=20&isActive=false
+```
+
+Valores como `isActive=yes`, `isActive=0`, `type=OTRO`, `search=` o una búsqueda
+compuesta solo por espacios devuelven `400`. Una búsqueda de más de 100 caracteres
+después de recortar los extremos también se rechaza.
+
+El frontend omite los filtros vacíos, recorta y codifica la búsqueda con
+`URLSearchParams`, y conserva explícitamente `isActive=false`. Los filtros forman
+parte de la clave de caché del listado. Al cambiar estado o tipo, o aplicar una
+búsqueda con el botón Buscar o Enter, se vuelve a la página 1. Al paginar se
+conservan los filtros; Limpiar filtros elimina todos los filtros y vuelve a la página 1.
+
+El detalle, la creación, la edición y el cambio de estado responden con
+`{ data: recurso, message: texto }`, siguiendo las convenciones generales.
+
+### 9.6. Errores
+
+- `400`: datos inválidos, campos adicionales, edición vacía, UUID incorrecto,
+  filtros inválidos o paginación fuera de los límites.
+- `401`: sesión ausente o inválida.
+- `403`: rol sin permiso, cambio obligatorio de contraseña pendiente u otra
+  restricción de los guards globales.
+- `404`: producto o almacén inexistente.
+- `409`: código duplicado, solicitud de un estado que el recurso ya tiene,
+  cambio de `unit` o `type` de un producto con movimientos de inventario,
+  o intento de desactivar un producto o almacén con existencias distintas de cero.
+- `500`: fallo interno, incluido un fallo al registrar la auditoría.
+
+### 9.7. Auditoría y transacciones
+
+Se utilizan las convenciones existentes: acciones `CREATE`, `UPDATE`, `ENABLE`
+y `DISABLE`, junto con la entidad `PRODUCT` o `WAREHOUSE`.
+
+Los eventos identifican al usuario mediante `actorType: USER` y `actorUserId`,
+y se correlacionan con la petición mediante `requestId`.
+
+- Creación: registra los valores iniciales del catálogo.
+- Edición: registra los valores anteriores y nuevos únicamente de los campos
+  que cambiaron.
+- Activación y desactivación: registran el cambio de `isActive`.
+- En almacenes, los cambios de `location` también quedan auditados.
+- Una edición que conserva todos los valores no genera un evento `UPDATE`.
+
+El cambio del recurso y su evento se guardan dentro de la misma transacción.
+Si falla la auditoría, ambos se revierten. Los cambios sobre un mismo recurso
+se serializan mediante un bloqueo de fila dentro de la transacción.
+
+## 10. Compras: proveedores
+
+Implementado en la rama `feature/suppliers`. Cubre `RF-COM-001` con el modelo `Supplier` de
+`database.md` §10. Valida con los decoradores compartidos de `common/catalog.dto.ts`.
+
+### 10.1. Acceso
+
+- Consulta: cualquier rol autenticado (`ADMIN`, `COMPRAS`, `INVENTARIO`, `PRODUCCION`, `VENTAS`).
+- Creación, edición y cambio de estado: únicamente `ADMIN` y `COMPRAS`.
+- Sin sesión válida: `401`. Sin permiso para modificar: `403`.
+
+### 10.2. Endpoints
+
+- `GET /api/suppliers?page=1&limit=20`: listado paginado por razón social; responde `200`.
+- `POST /api/suppliers`: crea un proveedor; responde `201`.
+- `GET /api/suppliers/:id`: consulta el detalle; responde `200`.
+- `PATCH /api/suppliers/:id`: actualiza los datos enviados; responde `200`.
+- `PATCH /api/suppliers/:id/status`: activa o desactiva con `{ "isActive": boolean }`; responde `200`.
+
+Ejemplo de creación:
+
+```json
+{
+  "code": "PROV-ACEITES",
+  "name": "Recicladora del Pacífico S.A.",
+  "taxId": "J0310000000001",
+  "email": "compras@recicladora.com.ni",
+  "phone": "+505 2222-0000",
+  "address": "Km 7 Carretera Norte, Managua"
+}
+```
+
+Validaciones:
+
+- `code`: obligatorio, de 3 a 50 caracteres; se recorta y convierte a mayúsculas; único, también
+  con distinta capitalización.
+- `name`: obligatorio, de 3 a 200 caracteres; se recorta.
+- `taxId` (hasta 50), `phone` (hasta 50) y `address` (hasta 255): opcionales; se recortan.
+- `email`: opcional, formato de correo, hasta 254 caracteres; se recorta y pasa a minúsculas.
+- Los campos de contacto aceptan `null` para quedar sin dato; un texto vacío se rechaza.
+- `isActive` no se acepta en el alta ni en la edición general; el proveedor se crea activo.
+
+La edición es parcial: debe incluir al menos un campo, y `code` y `name` no admiten `null`. El
+estado exige un booleano JSON real: `"false"`, `0` y `null` se rechazan con `400`.
+
+`SupplierResponse` incluye `id`, `code`, `name`, `taxId`, `email`, `phone`, `address`,
+`isActive`, `createdAt` y `updatedAt`. Los campos de contacto pueden ser `null`.
+
+### 10.3. Errores
+
+- `400`: datos inválidos, campos adicionales, edición vacía, UUID incorrecto o paginación fuera
+  de los límites.
+- `404`: proveedor inexistente.
+- `409`: código duplicado o solicitud de un estado que el proveedor ya tiene.
+
+### 10.4. Auditoría y transacciones
+
+Acciones `CREATE`, `UPDATE`, `ENABLE` y `DISABLE` sobre la entidad `SUPPLIER`, escritas mediante
+`AuditService` con `requestId`. Los snapshots usan una lista permitida (`code`, `name`, `taxId`,
+`email`, `phone`, `address`, `isActive`), y una edición registra solo los campos que cambiaron.
+El cambio y su evento comparten transacción; los cambios sobre un mismo proveedor se serializan
+con un bloqueo de fila. La desactivación es lógica: no hay `DELETE`.
+
+## 11. Ventas: clientes
+
+Implementado en la rama `feature/customers`. Cubre `RF-VEN-001` con el modelo `Customer` de
+`database.md` §10. Valida con los decoradores compartidos de `common/catalog.dto.ts`.
+
+### 11.1. Acceso
+
+- Consulta: cualquier rol autenticado (`ADMIN`, `COMPRAS`, `INVENTARIO`, `PRODUCCION`, `VENTAS`),
+  para que otros módulos puedan seleccionar o ver un cliente.
+- Creación, edición y cambio de estado: únicamente `ADMIN` y `VENTAS`.
+- Sin sesión válida: `401`. Sin permiso para modificar: `403`.
+
+### 11.2. Endpoints
+
+- `GET /api/customers?page=1&limit=20`: listado paginado por razón social; responde `200`.
+- `POST /api/customers`: crea un cliente; responde `201`.
+- `GET /api/customers/:id`: consulta el detalle; responde `200`.
+- `PATCH /api/customers/:id`: actualiza los datos enviados; responde `200`.
+- `PATCH /api/customers/:id/status`: activa o desactiva con `{ "isActive": boolean }`; responde `200`.
+
+Ejemplo de creación:
+
+```json
+{
+  "code": "CLI-SUPERNORTE",
+  "name": "Supermercados del Norte S.A.",
+  "taxId": "J0310000000001",
+  "email": "compras@supernorte.com.ni",
+  "phone": "+505 2222-0000",
+  "address": "Bello Horizonte, Managua"
+}
+```
+
+Validaciones:
+
+- `code`: obligatorio, de 3 a 50 caracteres; se recorta y convierte a mayúsculas; único, también
+  con distinta capitalización.
+- `name`: obligatorio, de 3 a 200 caracteres; se recorta.
+- `taxId` (hasta 50), `phone` (hasta 50) y `address` (hasta 255): opcionales; se recortan.
+- `email`: opcional, formato de correo, hasta 254 caracteres; se normaliza como `User.email`.
+- Los campos de contacto aceptan `null` para quedar sin dato; un texto vacío se rechaza.
+- `isActive` no se acepta en el alta ni en la edición general; el cliente se crea activo.
+
+La edición es parcial: debe incluir al menos un campo, y `code` y `name` no admiten `null`. El
+estado exige un booleano JSON real: `"false"`, `0` y `null` se rechazan con `400`.
+
+`CustomerResponse` incluye `id`, `code`, `name`, `taxId`, `email`, `phone`, `address`,
+`isActive`, `createdAt` y `updatedAt`. Los campos de contacto pueden ser `null`.
+
+### 11.3. Errores
+
+- `400`: datos inválidos, campos adicionales, edición vacía, UUID incorrecto o paginación fuera
+  de los límites.
+- `404`: cliente inexistente.
+- `409`: código duplicado o solicitud de un estado que el cliente ya tiene.
+
+### 11.4. Auditoría y transacciones
+
+Acciones `CREATE`, `UPDATE`, `ENABLE` y `DISABLE` sobre la entidad `CUSTOMER`, escritas mediante
+`AuditService` con `requestId`. Los snapshots usan una lista permitida (`code`, `name`, `taxId`,
+`email`, `phone`, `address`, `isActive`), y una edición registra solo los campos que cambiaron.
+El cambio y su evento comparten transacción; los cambios sobre un mismo cliente se serializan con
+un bloqueo de fila. La desactivación es lógica: no hay `DELETE`.
+
+## 12. Inventario A-2
+
+Implementación en `feature/inventory-movements`, posterior a A-1 integrado. Todos los
+listados y detalles requieren sesión. Los ajustes requieren `ADMIN` o `INVENTARIO`; la
+auditoría del ajuste y el movimiento se escriben en la misma transacción. No se crea ni
+se edita un lote desde esta etapa. Las recepciones de Compras crean lotes con su FK concreta
+`purchaseReceiptItemId`; las consultas A-2 exponen esa relación como `origin` con
+`type: PURCHASE_RECEIPT`, `purchaseReceiptItemId`, `purchaseReceipt { id, number, receivedAt }`,
+`purchaseOrder { id, number }` y `supplier { id, code, name }`. La lista y el detalle muestran REC,
+OC y proveedor. Un vínculo roto no se disimula como un origen nulo.
+
+| Método | Ruta                         | Operación                                                                                                            |
+| ------ | ---------------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| GET    | `/api/inventory/stock`       | Existencia física paginada por producto/almacén; filtros por tipo, búsqueda y `hasStock`.                            |
+| GET    | `/api/inventory/movements`   | Historial paginado filtrable por producto, almacén, lote, tipo y ventana UTC.                                        |
+| POST   | `/api/inventory/adjustments` | Ajuste de entrada/salida; solo ADMIN/INVENTARIO; requiere cantidad decimal string positiva y motivo.                 |
+| GET    | `/api/inventory/lots`        | Consulta paginada de lotes existentes con filtros por producto, almacén, estado y existencia calculada desde ledger. |
+| GET    | `/api/inventory/lots/:id`    | Detalle de lote con saldos por almacén e historial.                                                                  |
+
+El listado de existencias representa saldo físico e incluye lotes liberados, en cuarentena y
+rechazados. La disponibilidad consumible para producción es un contrato diferente y cuenta
+solo lotes `RELEASED`. No se deben insertar lotes operativos sin origen empresarial; la validación
+de ese vínculo está implementada por Compras y las restricciones físicas de PostgreSQL.
+
+Los movimientos devuelven `purchaseReceiptItemId` y `businessReference`:
+para recepciones, `{ type: PURCHASE_RECEIPT, id, number, purchaseOrder: { id, number } }`
+identifica la REC y la OC. Para ajustes ambos campos son `null`.
+El filtro `type` admite `PURCHASE_RECEIPT`, `ADJUSTMENT_IN` y `ADJUSTMENT_OUT`;
+`POST /inventory/adjustments` acepta exclusivamente los dos tipos de ajuste.
+El historial del detalle de lote también incluye la referencia empresarial.
+
+`expiresAt` se serializa como `YYYY-MM-DD` (PostgreSQL DATE) o `null`, y la UI conserva
+el día sin convertirlo a la zona horaria local. `originatedAt`, `occurredAt` y `receivedAt`
+siguen siendo instantes ISO. Solo una recepción exitosa invalida, además de las queries
+existentes de Compras, los prefijos `['inventory']` y `['lots']`; confirmar o cancelar
+no invalida esos prefijos.
+
+Errores de dominio estables incluyen `LOT_TRACKING_MISMATCH`, `LOT_TRACKING_LOCKED` y
+`QUALITY_REQUIRES_LOT_TRACKING`. Cambiar la trazabilidad luego del primer movimiento devuelve
+409; requerir inspección sin trazabilidad devuelve 422.
+
+## 13. Producción C-1
+
+Implementado en `feature/production-core`, sobre A-1 integrado (`develop` en `e7f12bc`).
+Todas las lecturas requieren autenticación; las escrituras requieren `ADMIN` o `PRODUCCION`.
+Se aplican la cookie de sesión, política de contraseña, validación estricta y respuestas del proyecto.
+
+### Fórmulas y versiones
+
+| Método | Ruta                                                     | Operación                                                                      |
+| ------ | -------------------------------------------------------- | ------------------------------------------------------------------------------ |
+| GET    | `/api/production/boms`                                   | Lista paginada, filtros `search` e `isActive`.                                 |
+| POST   | `/api/production/boms`                                   | Cabecera `{ productId, name }`.                                                |
+| GET    | `/api/production/boms/:id`                               | Cabecera, producto y versiones.                                                |
+| PATCH  | `/api/production/boms/:id`                               | Nombre; no cambia producto.                                                    |
+| PATCH  | `/api/production/boms/:id/status`                        | `{ isActive: boolean }`.                                                       |
+| POST   | `/api/production/boms/:id/versions`                      | `{ outputQuantity: string, items: [{ productId, quantity: string }] }`.        |
+| POST   | `/api/production/boms/:id/versions/:versionId/activate`  | Activa una versión, desactiva la anterior atómicamente.                        |
+| POST   | `/api/production/boms/:id/versions/:versionId/calculate` | `{ quantityPlanned: string }`; lectura/cálculo para cualquier rol autenticado. |
+
+La primera versión queda activa automáticamente. Las siguientes requieren activación.
+No hay edición/borrado de contenido de versiones; los componentes se guardan en la unidad
+base de su producto. La salida debe estar activa, ser intermedia o terminada y trazable.
+Los componentes deben estar activos y ser materia prima, consumible o intermedio, sin
+duplicados ni autorreferencia. Desde C4, crear una versión (aunque nazca inactiva), activarla o
+reactivar la fórmula también rechaza ciclos indirectos (`A → B → A`) con `422
+BOM_CYCLE_DETECTED` y `path` de códigos; ver
+[manufactura multinivel](multilevel-manufacturing.md). El cálculo retorna `requiredQuantity` por componente;
+resultados no representables exactamente en cuatro decimales se rechazan con `422`.
+
+### Órdenes y disponibilidad
+
+| Método | Ruta                                      | Operación                                                                           |
+| ------ | ----------------------------------------- | ----------------------------------------------------------------------------------- |
+| GET    | `/api/production/orders`                  | Lista paginada; `search` por número/producto, `status`, `productId`, `warehouseId`. |
+| POST   | `/api/production/orders`                  | Crea un borrador y asigna número OP mediante la secuencia real.                     |
+| GET    | `/api/production/orders/:id`              | Orden, producto, almacén y versión BOM persistida con componentes.                  |
+| PATCH  | `/api/production/orders/:id`              | Edición parcial exclusivamente en DRAFT.                                            |
+| POST   | `/api/production/orders/:id/cancel`       | DRAFT → CANCELLED, respuesta `200`.                                                 |
+| GET    | `/api/production/orders/:id/requirements` | Requerimientos y stock consumible reales; respuesta `200`.                          |
+
+Creación:
+
+```json
+{
+  "productId": "01900000-0000-7000-8000-000000000001",
+  "bomVersionId": "01900000-0000-7000-8000-000000000002",
+  "warehouseId": "01900000-0000-7000-8000-000000000003",
+  "quantityPlanned": "100.0000",
+  "plannedStartAt": "2026-10-10T14:00:00Z",
+  "plannedEndAt": null
+}
+```
+
+Las cantidades HTTP deben ser strings positivas con hasta 14 enteros y cuatro decimales;
+los números JSON, exponentes y campos adicionales se rechazan. Referencias son UUID.
+La versión elegida debe pertenecer al producto y estar activa al seleccionarla. La activación
+posterior de otra versión no altera la OP; editar cantidad/fechas conserva la versión histórica.
+Una selección nueva explícita de producto/versión vuelve a exigir versión activa.
+
+Las fechas son opcionales y admiten `null`. Deben incluir zona ISO 8601 (`Z` u offset).
+Si ambas están presentes, el fin no puede preceder al inicio. En PATCH, omitir conserva
+el valor y `null` lo borra. La UI usa Managua y el API retorna instantes UTC.
+No se admite `plannedDate`, estado, número, creador ni campos de ejecución desde el cliente.
+
+La consulta de requerimientos retorna `orderId`, `bomVersionId`, `version`, `quantityPlanned`,
+`warehouseId`, `updatedAt`, `canStart`, `eligibilityIssues` y `items` con producto,
+`required`, `available`, `shortage` como strings de cuatro decimales. Para trazables, la
+disponibilidad usa únicamente lotes `RELEASED` del almacén. `canStart` es informativo:
+exige borrador y catálogo vigente, pero no reserva ni garantiza stock para una ejecución futura.
+La UI descarta requerimientos de una revisión anterior de la orden.
+
+Listados: `{ data, meta: { page, limit, total } }`; operaciones individuales: `{ data, message }`.
+Errores: `400` validación/edición vacía, `404` referencia inexistente, `409` estado o selección
+de versión no permitidos, `422` incoherencia de producto/catálogo/ventana/cálculo.
+Auditoría transaccional: CREATE/UPDATE/CANCEL_PRODUCTION sobre PRODUCTION_ORDER,
+con diferencias permitidas, actor y requestId. C-1 no escribe stock, movimientos ni lotes.
+La ejecución C-2 amplía este contrato según el apartado siguiente.
+
+## Producción C-2: ejecución, calidad y trazabilidad
+
+Implementado en `feature/production-execution`, desde `develop` con A-1 + C-1 + Purchase +
+A-2 integrado (`f5fcc28`). Toda lectura exige sesión vigente; las mutaciones admiten únicamente
+`ADMIN`/`PRODUCCION`.
+
+| Método | Ruta                                    | Resultado                                                                   |
+| ------ | --------------------------------------- | --------------------------------------------------------------------------- |
+| POST   | `/api/production/orders/:id/start`      | 200, OP IN_PROGRESS; disponibilidad consistente, sin consumo ni reserva     |
+| POST   | `/api/production/orders/:id/complete`   | 200, OP COMPLETED con cantidad real y `lot: { id, code, status }`           |
+| GET    | `/api/production/lots/:id/inspection`   | 200, inspección del lote o `null` si no existe                              |
+| POST   | `/api/production/lots/:id/inspection`   | 201, inspección y transición del lote producido en cuarentena               |
+| GET    | `/api/production/lots/:id/traceability` | 200, grafo histórico de lotes, consumos y despachos hasta proveedor/cliente |
+
+Operaciones individuales conservan `{ data, message }`. La OP incorpora `lot` también en
+lista/detalle: `null` antes de producir. START recibe `{}` y registra `startedAt`. Usa una
+transacción REPEATABLE READ y la consulta canónica de Inventario con ese cliente; un conflicto
+de serialización se comunica como 409. La disponibilidad permanece libre después del commit.
+
+COMPLETE recibe, por ejemplo:
+
+```json
+{
+  "quantityProduced": "95.0000",
+  "allocations": [
+    {
+      "productId": "UUID del componente trazable",
+      "lots": [{ "lotId": "UUID del lote liberado", "quantity": "200.0000" }]
+    }
+  ],
+  "expiresAt": "2027-10-14"
+}
+```
+
+Cantidades son strings positivas de hasta 14 enteros y 4 decimales; referencias son UUID.
+`quantityProduced` no supera `quantityPlanned`; el consumo usa el plan y la versión histórica
+de BOM. `allocations` es obligatorio, con una entrada por componente trazable y suma exacta
+del requerimiento. Componentes no trazables no se asignan: usan lote nulo internamente.
+Se rechazan componentes ajenos, duplicados de componente/lote, cantidades inválidas y lotes
+de producto/almacén incorrecto, insuficientes, QUARANTINED o REJECTED.
+
+`expiresAt` es opcional, fecha calendario DATE; omitir deja `null`. Inventario crea un único
+lote con origen OP, RELEASED sin inspección requerida o QUARANTINED si se requiere. Una sola
+llamada de movimientos recibe todos los consumos y output. Movimientos, saldos, lote, secuencia,
+OP y auditoría COMPLETE se confirman o revierten juntos. COMPLETE repetido/concurrente devuelve
+409 sin duplicar efectos. La cancelación sigue limitada a DRAFT.
+
+Selección visual usa exclusivamente `/api/inventory/lots` con `productId`, `warehouseId`,
+`status=RELEASED`, `hasStock=true` y paginación. Esta consulta no garantiza el resultado de COMPLETE.
+
+Inspección recibe `result: APPROVED | REJECTED`, `observations` no vacías (máximo 1000) y
+`nonConformities` opcional (máximo 1000), obligatorio y no vacío para rechazo. El servidor
+registra `inspectedAt`, `createdAt`, `inspectedByUserId` y el responsable resumido `inspectedBy`.
+Una inspección por lote; se inspeccionan únicamente lotes producidos QUARANTINED. Aprobar
+solicita RELEASED a Inventario; rechazar solicita REJECTED. No hay reinspección ni inspección
+de compras en este alcance. Inspección, estado y auditoría específica comparten transacción.
+
+La respuesta de trazabilidad es `{ rootLotId, lots }`. Cada nodo incluye `id`, `code`, `status`,
+producto, `origin` y `consumptions` con `id`, producto, cantidad positiva, almacén, OP consumidora
+y `lotId` o `null`. Los nodos Purchase conservan REC/OC/proveedor; Production incorpora OP y
+`bomVersion`. Los intermedios enlazan OP anteriores. El grafo evita duplicar antecesores
+compartidos, no impone una profundidad pequeña y detecta ciclos/corrupción explícitamente.
+Componentes no trazables no inventan proveedor.
+
+En `feature/sales-traceability`, cada nodo también incluye `outbound`: los movimientos
+`SALE_DISPATCH` del lote con DES, fecha de despacho, cantidad positiva como string decimal, orden
+de venta y cliente, almacén y responsable. Se deriva del ledger y sus referencias empresariales;
+una salida parcial no implica que se haya vendido el lote completo. Todas las salidas se consultan
+en una sola consulta para los lotes visitados dentro de la misma transacción `REPEATABLE READ`,
+evitando una consulta por lote. Esta extensión aún no está integrada en `develop`.
+
+Inventario A-2 conserva sus rutas, filtros, paginación y DATE. `business-origin.ts` sustituye el
+resolver Purchase-only: origen de lote es unión PURCHASE_RECEIPT/PRODUCTION_ORDER; movimientos
+incorporan `productionOrderId` y `businessReference` OP. Ajustes conservan referencia nula;
+REC/OC conservan exactamente su respuesta anterior. Relaciones ausentes con FK presente fallan.
+
+Errores: 400 para DTO inválido; 404 para OP/lote inexistente; 409 para transición, conflicto
+concurrente, stock insuficiente o lote no liberado; 422 para producción/asignación/catálogo
+incoherentes. Una falla interna revierte la transacción y comunica error sin revelar detalles.
+
+## Compras: órdenes y recepciones (RF-COM-002/003)
+
+Implementado en `feature/purchases`, sobre A-1 + C-1 de `develop`. Todas las rutas
+requieren sesión y contraseña vigente. Lecturas: cualquier rol autenticado.
+Mutaciones: exclusivamente `ADMIN` y `COMPRAS`; `INVENTARIO` no recibe ese permiso.
+
+| Método/ruta                             | Contrato                                                                                        | Resultado                                                |
+| --------------------------------------- | ----------------------------------------------------------------------------------------------- | -------------------------------------------------------- |
+| GET `/api/purchase-orders`              | `page=1`, `limit=20` (máx. 100), `status`, `supplierId`, `search` por número                    | `{ data: summaries[], meta: { page, limit, total } }`    |
+| POST `/api/purchase-orders`             | `{ supplierId, expectedDate?, items: [{ productId, quantity, unitPrice }] }`                    | 201, OC `DRAFT`                                          |
+| GET `/api/purchase-orders/:id`          | UUID                                                                                            | Detalle, cantidades derivadas e historial completo       |
+| PATCH `/api/purchase-orders/:id`        | Campos de creación parciales; `items` reemplaza las líneas; `expectedDate: null` borra la fecha | 200; solo `DRAFT`                                        |
+| POST `/api/purchase-orders/:id/confirm` | `{}`                                                                                            | 200; `DRAFT → CONFIRMED`                                 |
+| POST `/api/purchase-orders/:id/cancel`  | `{}`                                                                                            | 200; `DRAFT` o `CONFIRMED` sin recepciones → `CANCELLED` |
+| POST `/api/purchase-orders/:id/receive` | `{ receivedAt?, notes?, items: [{ purchaseOrderItemId, warehouseId, quantity, expiresAt? }] }`  | 201; devuelve detalle actualizado de OC                  |
+| GET `/api/purchase-orders/:id/receipts` | UUID                                                                                            | `{ data: receipts[], message }`                          |
+
+Las respuestas individuales usan `{ data, message }`. Proveedor/productos deben existir,
+estar activos y ser comprables (`RAW_MATERIAL` o `CONSUMABLE`). Las cantidades son strings
+positivos `Decimal(18,4)`, los precios strings no negativos `Decimal(14,4)`. Las listas de
+líneas requieren al menos un elemento. `lineTotal = quantity × unitPrice`, redondeado a dos
+decimales con `ROUND_HALF_UP`; se rechaza un importe fuera de `Decimal(14,2)` con 422.
+El total suma importes por línea. `expectedDate` y `expiresAt` son fechas calendario
+`YYYY-MM-DD`; `receivedAt` es timestamp ISO con zona; omitirlo usa el instante actual.
+`expiresAt` solo se acepta para productos trazables. Notas: hasta 500 caracteres.
+
+Crear/editar/confirmar/cancelar no altera existencias ni lotes. Recibir solo se permite en
+`CONFIRMED` o `PARTIALLY_RECEIVED`. Las filas repetidas de una misma línea se suman antes de
+compararlas con el pendiente, incluso si se reparten en distintos almacenes. El bloqueo de
+la OC serializa las recepciones simultáneas. El estado se deriva por línea de la suma de
+`PurchaseReceiptItem`: todas completas → `RECEIVED`; queda pendiente → `PARTIALLY_RECEIVED`.
+Estas dos últimas etapas no admiten edición ni cancelación; no existe reversa de recepción.
+
+Numeración: `OC-YYYY-NNNNNN`, `REC-YYYY-NNNNNN`, `LOT-YYYY-NNNNNN`, con año de
+`America/Managua`. REC y todos los LOT se reservan juntos. Cada fila recibida tiene exactamente
+una entrada `PURCHASE_RECEIPT` positiva, `reason=null` y FK `purchaseReceiptItemId`.
+Inventario crea un lote por fila trazable: `originatedAt=receivedAt`, origen FK único,
+`QUARANTINED` si exige inspección, `RELEASED` en otro caso. No trazables: `lotId=null`.
+La cabecera REC, líneas, lotes, movimientos, saldos, estado y auditorías RECEIVE se confirman
+juntos o se revierten completamente. El historial muestra almacén, cantidad, lote, vencimiento,
+estado inicial, usuario, notas y fecha. No hay idempotencia HTTP para recepciones parciales:
+antes de repetir una solicitud cuyo resultado sea incierto, consultar el historial.
+
+Errores: 400 DTO/UUID/paginación; 401 sesión; 403 rol; 404 OC/referencia de compra;
+409 transición/catálogo inactivo/sobre-recepción (`RECEIPT_EXCEEDS_PENDING`);
+422 producto no comprable, almacén/origen de Inventario inválido o límite monetario.
+
+La UI de Compras usa los flags de trazabilidad/calidad del catálogo, configurables en
+Productos mediante A-2 antes del primer movimiento. No hay acción para liberar lotes en cuarentena.
+
+## Ventas: órdenes de venta (RF-VEN-002)
+
+Implementación en `feature/sales-orders`, sobre `develop` actualizado tras PR #18. Todas las rutas requieren sesión vigente. Lecturas: cualquier rol autenticado. Mutaciones: exclusivamente `ADMIN` y `VENTAS`.
+
+| Método/ruta                           | Contrato                                                                | Resultado                                                  |
+| ------------------------------------- | ----------------------------------------------------------------------- | ---------------------------------------------------------- |
+| GET `/api/sales/orders`               | `page`, `limit` (máx. 100), `status`, `customerId`, `search` por número | `{ data, meta }`                                           |
+| POST `/api/sales/orders`              | `{ customerId, items: [{ productId, quantity, unitPrice }] }`           | 201, OV `DRAFT`                                            |
+| GET `/api/sales/orders/:id`           | UUID                                                                    | Detalle con productos y disponibilidad informativa         |
+| PATCH `/api/sales/orders/:id`         | `customerId?`, `items?`; las líneas reemplazan las anteriores           | 200; solo `DRAFT`                                          |
+| POST `/api/sales/orders/:id/confirm`  | `{}`                                                                    | 200; `DRAFT → CONFIRMED`, valida stock actual sin reservar |
+| POST `/api/sales/orders/:id/cancel`   | `{}`                                                                    | 200; `DRAFT` o `CONFIRMED → CANCELLED`                     |
+| POST `/api/sales/orders/:id/dispatch` | `{ items: [{ saleOrderItemId, warehouseId, lotId?, quantity }] }`       | 200; despacho parcial/completo y salida de inventario      |
+
+Se aceptan clientes activos y productos activos `FINISHED_GOOD`. Cantidad es string positivo `Decimal(18,4)`; precio es string no negativo `Decimal(14,4)`. Subtotales se calculan con `Prisma.Decimal`, `ROUND_HALF_UP` a dos decimales, y total como suma de subtotales. La numeración usa `DocumentSequenceService`, prefijo `OV` y año de `America/Managua`.
+
+Al confirmar, las líneas repetidas del mismo producto se suman para comparar contra la disponibilidad consumible de todos los almacenes. En productos con lote solo cuenta el ledger de lotes `RELEASED`. Si no alcanza, responde 409 y mantiene `DRAFT`. La confirmación no reserva ni escribe `InventoryMovement`, `StockBalance` o `Lot`.
+
+El endpoint de despacho admite únicamente órdenes `CONFIRMED` o `PARTIALLY_DISPATCHED`. Las líneas repetidas se agregan antes de validar lo pendiente; cada línea requiere almacén y los productos trazables requieren un lote `RELEASED` con saldo disponible. El backend vuelve a validar el stock dentro de una transacción. La operación reserva el número `DES-YYYY-NNNNNN`, crea cabecera/líneas, llama una sola vez al writer de Inventario para registrar salidas `SALE_DISPATCH`, actualiza el estado derivado (`PARTIALLY_DISPATCHED` o `DISPATCHED`) y audita `DISPATCH`. Un error revierte todo, incluida la secuencia. Las lecturas permiten cualquier sesión; mutaciones solo `ADMIN` y `VENTAS`. No se crean reservas, picking ni asignación automática de lotes.
+
+Las operaciones de crear, editar, confirmar y cancelar registran `AuditLog` en la misma transacción. La auditoría usa `SALES_ORDER` y `CREATE`, `UPDATE`, `CONFIRM` o `CANCEL`; el despacho usa `SALE_DISPATCH` y `DISPATCH`. Un fallo de auditoría revierte la operación. Errores: 400 DTO/UUID/paginación; 401 sesión; 403 rol; 404 documento/referencia inexistente; 409 transición, pendiente excedido, lote no liberado o disponibilidad insuficiente; 422 cliente/producto inactivo, tipo no vendible o límite decimal.
+
+## Dashboard de producción D1
+
+`GET /api/production/dashboard` es una lectura autenticada disponible para todos los roles. Acepta filtros opcionales `from` y `to` como fechas calendario ISO `YYYY-MM-DD`; las fechas son inclusivas en `America/Managua`. `from > to`, una fecha inválida o un rango superior a 366 días devuelve 400. Sin filtros se consulta hoy y los 29 días anteriores en hora de Managua. `productId` es opcional: debe ser UUID (400 si no lo es) y debe existir (404 si no existe).
+
+Los conteos por estado y las cantidades planificadas usan la fecha de pertenencia `COALESCE(plannedStartAt, createdAt)`, de modo que un cambio de estado no mueve la orden a otro período. La cantidad producida y sus buckets se atribuyen a `completedAt` y solo incluyen órdenes `COMPLETED`. Si no se selecciona producto, los conteos siguen agregados, pero `quantity` es `null` y `productionByPeriod` es `[]`: no se suman cantidades con unidades incompatibles. Con producto seleccionado, `selectedProduct` indica su código, nombre y unidad; `quantity.planned` y `quantity.produced` son strings `Decimal(18,4)`, y `completionRate` es un string redondeado a 2 decimales o `null` cuando el total planificado es cero. Los buckets de `productionByPeriod` usan granularidad día (hasta 31 días), semana (hasta 180) o mes; los períodos vacíos se devuelven como `0.0000`. Como los buckets son calendarios, el primer rótulo puede anteceder a `from`, pero las sumas solo incluyen eventos dentro del rango solicitado. La respuesta incluye hasta cinco órdenes recientes ordenadas por actividad (`completedAt`, `startedAt`, `plannedStartAt`, `createdAt`) con datos breves para abrir el detalle. Los agregados se calculan en PostgreSQL, sin cargar todas las órdenes en la interfaz.
+
+## Sostenibilidad C3: huella parcial de carbono
+
+Contrato completo, fórmula y reglas en [`sustainability-carbon-footprint.md`](sustainability-carbon-footprint.md).
+
+- Lecturas (`GET /api/sustainability/*`): `@Authenticated()`. Ningún GET crea datos;
+  `GET /api/sustainability/production-orders/:id/footprint` devuelve `{ data: null }` si la OP no
+  tiene huella y 404 si la OP no existe.
+- Factores (`/emission-factors`) y materiales circulares (`/circular-materials`): mutaciones solo
+  `ADMIN`. Listados con `PaginationQueryDto`; factores filtran por `search`, `category`, `isActive`
+  y `productId`. Coeficientes y cantidades viajan como texto decimal (`Decimal(20, 8)`).
+- Huella (`/production-orders/:id/footprint`, `/sync`, `/activities`, `/activities/:activityId`,
+  `/finalize`): `ADMIN` y `PRODUCCION`. Crear: 201, 409 si ya existe, 422 si la OP no está
+  `COMPLETED` o no tiene lote/cantidad. Sync y finalize: 200. Huella `FINALIZED`: toda mutación 409.
+  Factores faltantes al finalizar: 422 con `code: MISSING_EMISSION_FACTORS` y `missingFactors`.
+  Editar o eliminar una actividad automática: 422. La unidad de una actividad manual la define el
+  factor; enviar `activityUnit` es 400.
+- `POST /api/production/orders/:id/complete` no cambió: no exige factores ni crea huellas.
+
+## Producción C4: estructura de manufactura multinivel
+
+| Método | Ruta                                                 | Acceso             | Operación                                                      |
+| ------ | ---------------------------------------------------- | ------------------ | -------------------------------------------------------------- |
+| GET    | `/api/production/manufacturing-structure/:productId` | `@Authenticated()` | Árbol vigente de fórmulas, rutas y preparación (solo lectura). |
+
+Respuesta `{ data, message }`. `data` es el nodo raíz con `product`, `bom` (`activeVersion` o
+`null`), `route` (operaciones ordenadas, `operationCount`, `totalStandardMinutes`) o `null`,
+`routeStatus`, `components[]` (`product`, `quantity`, `unit`, `type`, `isManufactured`, `child`),
+`issues[]` (`code`, `message`), `readiness` (`READY` | `INCOMPLETE`) y `maxDepth`. Decimales como
+string.
+
+Errores: `404` producto inexistente; `422 INVALID_MANUFACTURING_STRUCTURE_ROOT` si la raíz es
+materia prima o consumible; `409 BOM_GRAPH_CORRUPTED` con `path` si los datos almacenados contienen
+un ciclo. No audita, no toma locks y no bloquea producción. Detalle en
+[`multilevel-manufacturing.md`](multilevel-manufacturing.md).

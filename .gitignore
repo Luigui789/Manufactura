@@ -15,11 +15,13 @@ bun.lockb
 
 # Artefactos de compilacion
 dist/
+dist-ssr/
 build/
 *.tsbuildinfo
+*.local
 
-# Cliente generado por Prisma
-backend/generated/
+# Cliente generado por Prisma (se regenera con `pnpm --filter backend prisma:generate`)
+backend/src/generated/
 
 # Logs
 *.log
@@ -36,6 +38,8 @@ coverage/
 !.vscode/extensions.json
 !.vscode/settings.json
 .idea/
+# Configuración y caché local de Serena
+.serena/
 .DS_Store
 Thumbs.db
 desktop.ini

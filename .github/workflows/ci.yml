@@ -1,0 +1,156 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [develop, main]
+  push:
+    branches: [develop, main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  quality-and-tests:
+    name: Quality and tests
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      NODE_ENV: test
+      DATABASE_URL: postgresql://ecosoap@localhost:5432/ecosoap_ci_test?schema=public
+      FRONTEND_URL: http://localhost:5173
+      VITE_API_URL: http://localhost:3000/api
+    services:
+      postgres:
+        image: postgres:18-alpine
+        env:
+          POSTGRES_USER: ecosoap
+          POSTGRES_DB: ecosoap_ci_test
+          # Solo el servicio efímero de pruebas; no contiene credenciales reales.
+          POSTGRES_HOST_AUTH_METHOD: trust
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U ecosoap -d ecosoap_ci_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install pnpm from packageManager
+        uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+      - name: Set up Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: '22.16.0'
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+      - name: Generate temporary session secret
+        run: |
+          node <<'NODE'
+          const { randomBytes } = require('node:crypto');
+          const { appendFileSync } = require('node:fs');
+          const secret = randomBytes(48).toString('base64url');
+          console.log('::add-mask::' + secret);
+          appendFileSync(process.env.GITHUB_ENV, 'JWT_SECRET=' + secret + '\n');
+          NODE
+      - name: Install locked dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Generate Prisma client
+        run: pnpm --filter backend prisma:generate
+      - name: Apply migrations to test database
+        run: pnpm --filter backend exec prisma migrate deploy
+      - name: Check migration schema drift
+        run: pnpm --filter backend exec prisma migrate diff --from-config-datasource --to-schema prisma/schema.prisma --exit-code
+      - name: Lint
+        run: pnpm lint
+      - name: Check formatting
+        run: pnpm format:check
+      - name: Build workspaces
+        run: pnpm build
+      - name: Seed test database
+        run: pnpm --filter backend db:seed
+      - name: Backend unit tests
+        run: pnpm --filter backend test
+      - name: Simulator unit tests
+        run: pnpm --filter simulator test
+      - name: Frontend tests
+        run: pnpm --filter frontend test
+      - name: Purchase, production, sales and IIoT migration proofs
+        run: pnpm --filter backend test:migrations
+      - name: Backend end-to-end tests
+        run: pnpm --filter backend test:e2e
+
+  docker-development:
+    name: Docker development
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      POSTGRES_USER: ecosoap
+      POSTGRES_PASSWORD: docker_ci_password
+      POSTGRES_DB: ecosoap_docker_ci_test
+      POSTGRES_PORT: 5433
+      PORT: 3000
+      FRONTEND_PORT: 5173
+      FRONTEND_URL: http://localhost:5173
+      VITE_API_URL: http://localhost:3000/api
+      ADMIN_EMAIL: docker-ci@example.test
+      ADMIN_FULL_NAME: Docker CI
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Set up Docker Compose
+        uses: docker/setup-compose-action@2fe291b7677a45ee1269ec56a42604c143505e7e # v1
+        with:
+          version: v2.39.4
+      - name: Generate temporary secrets
+        run: |
+          for name in JWT_SECRET ADMIN_PASSWORD DEMO_USER_PASSWORD; do
+            value=$(openssl rand -hex 48)
+            echo "::add-mask::$value"
+            echo "$name=$value" >> "$GITHUB_ENV"
+          done
+      - name: Build and start development stack
+        run: docker compose up --build -d --wait --wait-timeout 180
+      - name: Seed and create temporary administrator
+        run: |
+          docker compose run --rm --no-deps backend pnpm db:seed
+          docker compose run --rm --no-deps -e ADMIN_EMAIL -e ADMIN_FULL_NAME -e ADMIN_PASSWORD backend pnpm admin:create
+      - name: Reject demo seed without DEMO_USER_PASSWORD
+        run: |
+          # El secreto no se pasa al contenedor: el preflight debe fallar antes de escribir.
+          if docker compose run --rm --no-deps backend pnpm demo:check; then
+            echo "demo:check aceptó una DEMO_USER_PASSWORD ausente" >&2
+            exit 1
+          fi
+      - name: Seed and verify EcoSoap demo dataset twice
+        run: |
+          for run in 1 2; do
+            docker compose run --rm --no-deps -e DEMO_USER_PASSWORD backend pnpm db:seed:demo
+            docker compose run --rm --no-deps backend pnpm demo:verify
+          done
+      - name: Verify Docker application
+        run: docker compose run --rm --no-deps -e ADMIN_EMAIL -e ADMIN_PASSWORD backend node /app/docker/verify.mjs
+      - name: Integrated defense E2E
+        run: |
+          # A separate, newly created database keeps the official dataset pristine.
+          docker compose exec -T postgres createdb -U ecosoap ecosoap_defense_ci_test
+          docker compose run --rm --no-deps -e POSTGRES_DB=ecosoap_defense_ci_test backend pnpm exec prisma migrate deploy
+          docker compose run --rm --no-deps -e POSTGRES_DB=ecosoap_defense_ci_test -e DEMO_USER_PASSWORD backend pnpm db:seed
+          docker compose run --rm --no-deps -e POSTGRES_DB=ecosoap_defense_ci_test -e DEMO_USER_PASSWORD backend pnpm db:seed:demo
+          docker compose run --rm --no-deps -e POSTGRES_DB=ecosoap_defense_ci_test backend pnpm demo:verify
+          docker compose run --rm --no-deps -e POSTGRES_DB=ecosoap_defense_ci_test -e DEMO_USER_PASSWORD backend pnpm test:defense
+      - name: Show service logs on failure
+        if: failure()
+        run: docker compose logs --no-color --tail 100
+      - name: Stop temporary stack
+        if: always()
+        run: docker compose down

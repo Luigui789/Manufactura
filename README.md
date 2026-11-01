@@ -4,21 +4,253 @@ ERP web para **EcoSoap Nicaragua S.A.**, empresa manufacturera de jabón ecológ
 partir de aceite de cocina usado. Proyecto de la asignatura Sistemas de Manufactura, carrera de
 Ingeniería de Sistemas.
 
-El sistema integra cuatro módulos —Compras, Inventario, Producción y Ventas— sobre un único
-flujo de negocio, desde la compra de materia prima hasta el despacho del producto terminado.
+## Objetivo
 
-> Repositorio recién inicializado. La configuración del monorepo llega en
-> `feature/project-setup`; este README se ampliará con las instrucciones de instalación y
-> ejecución al integrarse esa rama.
+Construir un ERP propio —no una personalización de Odoo ni de ningún ERP existente— que integre
+cuatro módulos sobre un único flujo de negocio:
 
-## Stack
+```text
+COMPRA → RECEPCIÓN DE MATERIA PRIMA → INVENTARIO → ORDEN DE PRODUCCIÓN
+      → CONSUMO DE MATERIA PRIMA → LOTE → PRODUCTO TERMINADO → INVENTARIO
+      → ORDEN DE VENTA → DESPACHO
+```
 
-| Capa            | Tecnologías                                                      |
-| --------------- | ---------------------------------------------------------------- |
-| Frontend        | React, TypeScript, Vite, Tailwind CSS, shadcn/ui                 |
-| Backend         | NestJS, TypeScript, REST, Swagger/OpenAPI                        |
-| Persistencia    | PostgreSQL, Prisma ORM                                           |
-| Infraestructura | Docker Compose, pnpm workspaces                                  |
+La prioridad del proyecto es la **integridad de los procesos empresariales antes que la cantidad
+de funcionalidades**: cuatro módulos correctamente integrados valen más que muchas pantallas sin
+coherencia entre sí.
+
+## Arquitectura
+
+Cliente-servidor con API REST sobre un monolito modular gestionado como monorepo con pnpm
+workspaces.
+
+```text
+React + Vite  ──REST/JSON──►  NestJS  ──Prisma──►  PostgreSQL
+```
+
+Detalle completo en [`docs/architecture.md`](docs/architecture.md).
+
+## Tecnologías
+
+| Capa            | Tecnologías                                                                               |
+| --------------- | ----------------------------------------------------------------------------------------- |
+| Monorepo        | pnpm workspaces                                                                           |
+| Frontend        | React, TypeScript, Vite, Tailwind CSS, shadcn/ui, TanStack Query, React Router, RHF y Zod |
+| Backend         | NestJS, REST, Swagger/OpenAPI, JWT en cookie, Argon2id y RBAC                             |
+| Persistencia    | PostgreSQL, Prisma ORM                                                                    |
+| Infraestructura | Docker Compose                                                                            |
+| Calidad         | ESLint, Prettier, Vitest                                                                  |
+
+## Requisitos
+
+| Herramienta    | Versión                                |
+| -------------- | -------------------------------------- |
+| Git            | Versión reciente                       |
+| Docker Desktop | Contenedores Linux y Compose >= 2.32.2 |
+
+Node 22.16.0 y pnpm 10.30.3 se ejecutan dentro de Docker. Si eliges el flujo
+alternativo en el host, necesitas Node >= 22.12 y pnpm 10.30.3.
+
+**pnpm es el gestor oficial del proyecto.** No uses `npm install`, `yarn` ni `bun`; el único
+lockfile versionado es `pnpm-lock.yaml`. Docker prepara la versión fijada en
+`packageManager`; en el flujo del host se habilita con `corepack enable`.
+
+> **No clones el repositorio dentro de OneDrive** ni en ninguna carpeta con sincronización
+> automática: `node_modules` de pnpm usa enlaces simbólicos que esa sincronización corrompe.
+
+## Instalación
+
+```bash
+git clone https://github.com/Luigui789/Manufactura.git
+cd Manufactura
+git switch develop
+```
+
+## Variables de entorno
+
+```bash
+cp .env.example .env
+```
+
+Un único `.env` en la raíz alimenta a las tres piezas: Docker Compose, el backend y Vite. Solo las
+variables con prefijo `VITE_` llegan al navegador, de modo que `DATABASE_URL` y la contraseña de
+la base de datos nunca se exponen en el cliente.
+
+`.env` está en `.gitignore` y no debe versionarse: **el repositorio es público**.
+
+Genera `JWT_SECRET` aleatorio de al menos 32 caracteres y reemplaza el marcador `change-me`
+(que falla la validación a propósito):
+
+```bash
+docker run --rm node:22.16.0-bookworm-slim node -e "console.log(require('node:crypto').randomBytes(48).toString('base64url'))"
+```
+
+No lo compartas ni lo prefijes con `VITE_`. Los pasos completos están en
+[`docs/docker.md`](docs/docker.md), incluidos PowerShell y el primer administrador.
+
+## Docker
+
+```bash
+docker compose up --build --watch  # PostgreSQL, Mosquitto, API y frontend con recarga de código
+```
+
+En otra terminal, aplica el seed una sola vez por base nueva y crea el primer
+administrador siguiendo la [guía de Docker](docs/docker.md):
+
+```bash
+docker compose run --rm --no-deps backend pnpm db:seed
+```
+
+PostgreSQL publica el puerto **5433** para no chocar con instalaciones nativas.
+`docker compose down` detiene y elimina los contenedores conservando los datos.
+
+## Ejecución alternativa con pnpm en el host
+
+Sigue [`docs/setup.md`](docs/setup.md) para instalar Node/pnpm, generar Prisma y
+aplicar las migraciones. `pnpm db:up` levanta solamente PostgreSQL; no combines
+este modo con la API/frontend de Docker en los mismos puertos.
+
+```bash
+pnpm dev                          # backend y frontend en paralelo
+pnpm --filter backend start:dev   # solo backend
+pnpm --filter frontend dev        # solo frontend
+```
+
+| Servicio     | URL                              |
+| ------------ | -------------------------------- |
+| Frontend     | http://localhost:5173            |
+| API          | http://localhost:3000/api        |
+| Swagger      | http://localhost:3000/api/docs   |
+| Health check | http://localhost:3000/api/health |
+
+## Migraciones
+
+```bash
+pnpm --filter backend prisma:generate    # regenera el cliente
+```
+
+La primera migración implementa solo Foundation. Compras, Producción y Ventas se añaden en
+migraciones posteriores. Para aplicar las migraciones pendientes en desarrollo:
+
+```bash
+pnpm --filter backend exec prisma migrate dev --name descripcion_del_cambio
+```
+
+La migración Foundation contiene SQL adicional para `CHECK` y disparadores append-only. Los
+cambios de `schema.prisma` se coordinan con el equipo, y una migración ya compartida no se edita.
+El seed idempotente se ejecuta con `pnpm --filter backend db:seed`.
+
+Para un checkout nuevo, aplica las migraciones existentes antes del seed:
+
+```bash
+pnpm --filter backend exec prisma migrate deploy
+pnpm --filter backend db:seed
+```
+
+### Primer administrador e ingreso
+
+El seed no crea usuarios. `pnpm --filter backend admin:create` crea solo el primer ADMIN, leyendo
+`ADMIN_EMAIL`, `ADMIN_FULL_NAME` y `ADMIN_PASSWORD` del entorno del proceso. Falla si hay un ADMIN
+activo o el correo existe y nunca modifica cuentas. La contraseña debe tener 15–128 caracteres;
+el bootstrap no exige cambio inicial. El procedimiento por shell está en `docs/setup.md`.
+Elimina la variable de contraseña después de usarla. Los demás usuarios se crean desde `/users`
+por un ADMIN autenticado, con contraseña temporal y cambio obligatorio.
+
+En `develop` están integrados login, sesión en cookie `HttpOnly`, cambio de contraseña,
+menú por rol y administración de usuarios mediante el [PR #3](https://github.com/Luigui789/Manufactura/pull/3).
+La etapa pasó las 115 pruebas y los checks de calidad en GitHub Actions; véase `docs/progress.md`.
+
+## Calidad
+
+```bash
+pnpm lint            # ESLint en ambos proyectos
+pnpm format          # Prettier sobre todo el repositorio
+pnpm format:check    # comprueba sin modificar
+pnpm build           # compila ambos proyectos
+
+pnpm --filter backend test       # pruebas unitarias
+pnpm --filter backend test:e2e   # pruebas e2e (requieren PostgreSQL arriba)
+pnpm --filter frontend test      # Vitest + React Testing Library (F1–F6)
+```
+
+Las e2e requieren una `DATABASE_URL` de una base dedicada con nombre terminado en `_test`, con
+migraciones y seed aplicados. Nunca se ejecutan sobre `ecosoap_erp`; ejemplos en `docs/setup.md`.
+
+## Demo y operación final
+
+El [runbook de defensa](docs/defense-runbook.md) describe Docker limpio, migraciones,
+recuperación manual y diagnóstico por requestId. `demo:seed` es solo para desarrollo/demo;
+no se ejecuta en el arranque de producción. Con el entorno local configurado:
+
+```powershell
+$env:DEMO_USER_PASSWORD = Read-Host 'Frase temporal local de demo (15–128 caracteres)'
+pnpm demo:seed
+pnpm demo:verify
+```
+
+```bash
+read -rs -p 'Frase temporal local de demo (15–128 caracteres): ' DEMO_USER_PASSWORD
+export DEMO_USER_PASSWORD
+pnpm demo:seed
+pnpm demo:verify
+```
+
+Los usuarios demo son `admin.demo`, `compras.demo`, `inventario.demo`, `produccion.demo`
+y `ventas.demo`, todos con dominio `@ecosoap.test`. Usan la contraseña local del seed.
+Rutas principales: `/` (Home D6), `/purchases/orders`, `/inventory/stock`, `/production/orders`,
+`/production/routes`, `/production/structure`, `/sustainability`,
+`/sales/orders`, `/production/dashboard`, `/inventory/dashboard`, `/purchases/dashboard`, `/sales/dashboard` y `/quality/dashboard`; IIoT se abre desde cada OP.
+
+`pnpm demo:e2e` (`pnpm --filter backend test:defense`) requiere otra base limpia `_test`,
+MQTT y el simulador compilado. Comprueba el flujo real y consume inventario: READY antes,
+NOT READY después. No usar la base preparada para UI ni ejecutar builds simultáneos en el
+mismo checkout. Ver [smoke de 10–15 min](docs/final-smoke-checklist.md),
+[guion integrado](docs/defense-demo-checklist.md), [reporte C7](docs/final-hardening-report.md)
+y [alcance vigente: cierre D1–D6](docs/feature-freeze.md).
+El [Dashboard General/Home D6](docs/general-dashboard.md) compone los cinco dashboards
+con un período común de Managua, errores parciales y acceso al contexto de sostenibilidad.
+El [pulido final UX1](docs/ux-ui-polish.md) agrupa el menú por módulo (cada uno con su
+**Resumen**) y unifica filtros, KPIs y estados de los dashboards, sin cambio funcional.
+El [Dashboard de Inventario D2](docs/inventory-dashboard.md) distingue existencia
+actual de actividad histórica, con cantidades físicas solo por producto seleccionado.
+El [Dashboard de Compras D3](docs/purchases-dashboard.md) distingue pipeline actual
+de órdenes y recepciones del período, con importes Decimal sin moneda definida.
+El [Dashboard de Calidad D5](docs/quality-dashboard.md) separa colas actuales,
+inspecciones por `inspectedAt` y disposiciones por `decidedAt`, sin alterar resultados históricos.
+El [Dashboard de Ventas D4](docs/sales-dashboard.md) distingue pipeline actual
+de órdenes y despachos del período; muestra valor confirmado de pedidos sin
+representarlo como ingresos contables ni inventario reservado.
+
+## Integración continua
+
+GitHub Actions ejecuta `.github/workflows/ci.yml` en PR hacia `develop`/`main` y en pushes a esas
+ramas. El check `Quality and tests` instala el lockfile sin cambios, genera Prisma, aplica
+migraciones y seed a PostgreSQL 18 y ejecuta lint, formato, builds y las tres suites de pruebas.
+Usa la base efímera `ecosoap_ci_test` y un `JWT_SECRET` aleatorio por ejecución; no necesita
+secretos del repositorio ni accede a la base de trabajo. La CI comprueba calidad; no despliega ni
+fusiona PR automáticamente.
+
+## Estructura
+
+```text
+Manufactura/
+├── package.json            privado; scripts del monorepo
+├── pnpm-workspace.yaml
+├── docker-compose.yml      PostgreSQL, Mosquitto, backend y frontend
+├── .env.example
+├── CLAUDE.md               identidad del proyecto y reglas de trabajo
+│
+├── docs/
+│   ├── architecture.md     estilo arquitectónico y estructura futura
+│   ├── database.md         modelo de datos y reglas de modelado
+│   ├── api.md              convenciones y catálogo de endpoints
+│   ├── requirements.md     catálogo de requisitos funcionales
+│   ├── setup.md            puesta en marcha y problemas frecuentes
+│   └── specs/              decisiones de diseño por etapa
+│
+├── backend/                NestJS + Prisma + Swagger
+└── frontend/               React + Vite + Tailwind + shadcn/ui
+```
 
 ## Flujo de ramas
 
@@ -28,5 +260,60 @@ main        versiones estables
         └── feature/*      trabajo en curso
 ```
 
-Todo desarrollo parte de `develop`. Ninguna persona modifica `main` directamente y ningún pull
-request se fusiona sin la revisión de otro integrante.
+Todo desarrollo parte de `develop`; nadie trabaja directamente sobre `develop` ni `main`.
+Las ramas nombran unidades de trabajo, no personas (`feature/inventory`, `fix/negative-stock`).
+Los cambios se integran por PR hacia `develop`. Luigui789, líder del proyecto, puede fusionar sus
+propios PR tras verificar diff y checks. Los otros dos integrantes necesitan al menos una
+aprobación de otro miembro antes del merge. `main` se reserva para bloques estables.
+
+## Documentación
+
+- [Arquitectura](docs/architecture.md) — estilo arquitectónico, capas de trazabilidad, estructura futura
+- [Base de datos](docs/database.md) — modelo conceptual, ERD, constraints e índices
+- [Auditoría](docs/audit.md) — qué se audita, qué nunca se guarda, correlación y transacciones
+- [API](docs/api.md) — convenciones y catálogo de endpoints
+- [Requisitos](docs/requirements.md) — catálogo y matriz de trazabilidad
+- [Puesta en marcha](docs/setup.md) — instalación y problemas frecuentes
+- [Avance](docs/progress.md) — estado real de cada etapa
+- [Decisiones (ADR)](docs/decisions/) — decisiones arquitectónicas registradas
+
+## Simulador IIoT
+
+En una OP **en curso**, ADMIN y PRODUCCION pueden usar **Iniciar prueba IIoT** para
+preparar un dispositivo y ejecutar el simulador desde el ERP, sin terminal. El
+[control de demostración](docs/iiot-simulator.md#desde-el-erp-iniciar-prueba-iiot)
+muestra progreso y recepción real; completar producción e inspeccionar Calidad siguen siendo manuales.
+
+El [dashboard de telemetría IIoT (Fase 7)](docs/iiot-dashboard.md) se abre desde una
+orden de producción en curso o completada: `/production/orders/:id/iiot`.
+Muestra métricas, histórico y alertas mediante REST, con polling solo durante producción.
+
+La [API de monitoreo IIoT (Fase 6)](docs/iiot-monitoring-api.md) expone overview,
+lecturas y alertas paginadas para cualquier usuario autenticado, incluyendo OP
+completadas. Es de solo lectura, sin frontend, streaming ni acknowledgement.
+
+La [guía del simulador industrial TypeScript](docs/iiot-simulator.md) explica los
+cuatro escenarios barra/líquido, CLI/environment, seed determinista y ejecución
+opcional con Docker. Publica MQTT con el contrato de Fase 3 hasta `IiotReading`.
+
+La [Fase 5](docs/iiot-alert-rules.md) añade evaluación determinista de las lecturas
+persistidas y alertas transaccionales con umbrales sintéticos de demostración.
+Las descripciones de Fases 2–4 corresponden a su alcance original. La aceptación
+Docker ahora verifica también ambos perfiles deviation y sus alertas.
+
+La [integración IIoT en Calidad (Fase 8)](docs/iiot-quality-integration.md) presenta evidencia
+antes de inspeccionar el lote: CRITICAL no implica rechazo automático. La decisión sigue
+siendo explícita del inspector, con pruebas PostgreSQL y aceptación Docker.
+
+Producción: BOM → [Rutas estándar](docs/production-routes.md) → Órdenes → Calidad → Dashboard.
+
+[Disposición de calidad C2](docs/quality-disposition.md): liberación excepcional, reproceso pendiente y descarte por ledger.
+
+[Dataset de demostración C5](docs/demo-dataset.md): `pnpm demo:seed` crea de forma reproducible el
+caso EcoSoap con jabón en barra y jabón líquido embotellado; `pnpm demo:verify` verifica que la base
+esté lista para iniciar la demostración.
+
+[Sostenibilidad C3](docs/sustainability-carbon-footprint.md): estimación académica de huella parcial
+de carbono por OP (kg CO₂e total y por unidad) desde el ledger de consumo, con factores documentados,
+snapshots, finalización inmutable y circularidad del aceite usado presentada por separado. No
+constituye certificación, verificación independiente ni ACV completo.

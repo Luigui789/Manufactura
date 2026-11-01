@@ -1,0 +1,193 @@
+# Infraestructura local de EcoSoap ERP.
+#
+# Docker Compose >= 2.32.2. Desarrollo: docker compose up --build --watch.
+# Las credenciales provienen del .env; nunca se copian a las imagenes.
+
+services:
+  backend:
+    build:
+      context: .
+      target: backend-dev
+    init: true
+    environment:
+      NODE_ENV: development
+      PORT: 3000
+      POSTGRES_USER: ${POSTGRES_USER:?Configura POSTGRES_USER en .env}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Configura POSTGRES_PASSWORD en .env}
+      POSTGRES_DB: ${POSTGRES_DB:?Configura POSTGRES_DB en .env}
+      FRONTEND_URL: ${FRONTEND_URL:-http://localhost:5173}
+      JWT_SECRET: ${JWT_SECRET:?Configura JWT_SECRET en .env}
+      MQTT_URL: mqtt://mosquitto:1883
+    ports:
+      - '127.0.0.1:${PORT:-3000}:3000'
+    depends_on:
+      postgres:
+        condition: service_healthy
+      mosquitto:
+        condition: service_healthy
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - --input-type=module
+        - -e
+        - >-
+          const r = await fetch('http://localhost:3000/api/health');
+          const body = await r.json();
+          process.exit(r.ok && body.data?.database === 'up' ? 0 : 1);
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 60s
+    develop:
+      watch:
+        - action: sync
+          path: ./backend/src
+          target: /app/backend/src
+          initial_sync: true
+          ignore: [generated/]
+        - action: sync
+          path: ./backend/test
+          target: /app/backend/test
+          initial_sync: true
+        - action: rebuild
+          path: ./backend/prisma
+        - action: rebuild
+          path: ./backend/prisma.config.ts
+        - action: rebuild
+          path: ./backend/tsconfig.json
+        - action: rebuild
+          path: ./backend/tsconfig.build.json
+        - action: rebuild
+          path: ./backend/nest-cli.json
+        - action: rebuild
+          path: ./backend/package.json
+        - action: rebuild
+          path: ./package.json
+        - action: rebuild
+          path: ./pnpm-lock.yaml
+        - action: rebuild
+          path: ./pnpm-workspace.yaml
+        - action: rebuild
+          path: ./Dockerfile
+        - action: rebuild
+          path: ./docker/backend-entrypoint.sh
+
+  frontend:
+    build:
+      context: .
+      target: frontend-dev
+    init: true
+    # Solo variables publicas: el frontend no recibe credenciales ni JWT_SECRET.
+    environment:
+      FRONTEND_URL: ${FRONTEND_URL:-http://localhost:5173}
+      VITE_API_URL: ${VITE_API_URL:-http://localhost:3000/api}
+    ports:
+      - '127.0.0.1:${FRONTEND_PORT:-5173}:5173'
+    depends_on:
+      backend:
+        condition: service_healthy
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - "fetch('http://localhost:5173').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    develop:
+      watch:
+        - action: sync
+          path: ./frontend
+          target: /app/frontend
+          initial_sync: true
+          ignore: [node_modules/, dist/, package.json, '*.tsbuildinfo', '.env', '.env.*']
+        - action: rebuild
+          path: ./frontend/package.json
+        - action: rebuild
+          path: ./package.json
+        - action: rebuild
+          path: ./pnpm-lock.yaml
+        - action: rebuild
+          path: ./pnpm-workspace.yaml
+        - action: rebuild
+          path: ./Dockerfile
+
+  postgres:
+    image: postgres:18-alpine
+    container_name: ecosoap-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    ports:
+      - '127.0.0.1:${POSTGRES_PORT:-5433}:5432'
+    volumes:
+      # PostgreSQL 18 cambio la convencion: el volumen se monta en
+      # /var/lib/postgresql (no en .../data) para que la imagen cree un
+      # subdirectorio por version mayor y permita pg_upgrade --link sin cruzar
+      # el limite del punto de montaje. Con la ruta antigua el contenedor
+      # arranca en bucle y termina en "unhealthy".
+      - postgres_data:/var/lib/postgresql
+    healthcheck:
+      # Hace observable el estado de la base: "healthy" deja de ser una suposicion.
+      test: ['CMD-SHELL', 'pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  mosquitto:
+    image: eclipse-mosquitto:2.0.22
+    restart: unless-stopped
+    ports:
+      - '127.0.0.1:${MQTT_PORT:-1883}:1883'
+    volumes:
+      - ./docker/mosquitto/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
+      - mosquitto_data:/mosquitto/data
+    healthcheck:
+      # Recibir un mensaje del broker comprueba la conexion y la suscripcion MQTT.
+      # Compose convierte $$ en un $ literal; CMD evita expandirlo en una shell.
+      test:
+        - CMD
+        - mosquitto_sub
+        - -h
+        - 127.0.0.1
+        - -t
+        - $$SYS/broker/version
+        - -C
+        - '1'
+        - -W
+        - '3'
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  simulator:
+    profiles: [simulation]
+    build:
+      context: .
+      target: simulator-dev
+    init: true
+    environment:
+      MQTT_URL: mqtt://mosquitto:1883
+      SIM_PRODUCTION_ORDER_ID: ${SIM_PRODUCTION_ORDER_ID:-}
+      SIM_DEVICE_CODE: ${SIM_DEVICE_CODE:-}
+      SIM_PROCESS: ${SIM_PROCESS:-bar}
+      SIM_SCENARIO: ${SIM_SCENARIO:-normal}
+      SIM_INTERVAL_MS: ${SIM_INTERVAL_MS:-1000}
+      SIM_SAMPLES: ${SIM_SAMPLES:-60}
+      SIM_SEED: ${SIM_SEED:-42}
+    depends_on:
+      mosquitto:
+        condition: service_healthy
+
+volumes:
+  postgres_data:
+    name: ecosoap-postgres-data
+  mosquitto_data:
+    name: ecosoap-mosquitto-data

@@ -1,0 +1,1144 @@
+# Avance del proyecto — EcoSoap ERP
+
+Este documento refleja el estado **real** del proyecto.
+
+Una casilla marcada significa que la comprobación se ejecutó y se vio el resultado. No se marca
+nada por parecer correcto, por estar escrito ni por estar a punto de terminarse.
+
+Última actualización: 2026-10-30.
+
+## Estados del trabajo
+
+La auditoría de diseño señaló con razón que «redactado» no es «aprobado» y que ninguno de los dos
+es «verificado». Se distinguen cinco estados y no se saltan:
+
+| Estado         | Significado                                                 |
+| -------------- | ----------------------------------------------------------- |
+| `Redactado`    | El artefacto existe. No implica que nadie lo haya revisado. |
+| `Aprobado`     | Revisado y aceptado. Puede implementarse.                   |
+| `Implementado` | El código existe y compila.                                 |
+| `Verificado`   | Se ejecutó la comprobación y se vio el resultado.           |
+| `Integrado`    | Fusionado en `develop` mediante pull request revisado.      |
+
+---
+
+## Etapa 1 — Configuración inicial
+
+**Integrada en `develop`** mediante el pull request #1, sin aprobación formal registrada de otro
+integrante: véase [Desviaciones de proceso](#desviaciones-de-proceso).
+
+- [x] pnpm workspace
+- [x] NestJS
+- [x] React + Vite
+- [x] Tailwind CSS
+- [x] shadcn/ui
+- [x] PostgreSQL
+- [x] Docker Compose
+- [x] Prisma
+- [x] Swagger
+- [x] Health check
+- [x] ESLint
+- [x] Prettier
+- [x] Build frontend
+- [x] Build backend
+- [x] Test e2e del health check
+- [x] Integrado en `develop`
+
+### Evidencia
+
+Comprobaciones ejecutadas el 2026-09-22 durante la implementación de la etapa:
+
+| Comprobación                       | Resultado observado                                             |
+| ---------------------------------- | --------------------------------------------------------------- |
+| `pnpm -v`                          | 10.30.3, coincide con `packageManager`                          |
+| Lockfiles                          | Solo `pnpm-lock.yaml`                                           |
+| `docker compose ps`                | `ecosoap-postgres` en estado `healthy`, puerto 5433             |
+| `prisma generate`                  | Cliente 7.10.0 generado                                         |
+| `GET /api/health`                  | `200` con `"database": "up"`                                    |
+| `GET /api/docs` y `/api/docs-json` | `200`, OpenAPI documenta el endpoint                            |
+| Frontend en el navegador           | Tailwind y shadcn renderizan; PostgreSQL «Conectada»            |
+| `pnpm lint`                        | Limpio en ambos proyectos, sin avisos                           |
+| `pnpm format:check`                | Limpio                                                          |
+| `pnpm build`                       | Ambos proyectos compilan                                        |
+| `pnpm --filter backend test:e2e`   | 1 prueba, pasa                                                  |
+| Higiene de Git                     | `.env`, `node_modules`, `dist/` y el cliente generado ignorados |
+
+Estas casillas registran una verificación **histórica**, no una reejecución de hoy. La integración
+en `develop` sí es comprobable en cualquier momento en el historial de Git.
+
+### Desviaciones registradas
+
+En [`specs/2026-09-22-setup-inicial-design.md`](specs/2026-09-22-setup-inicial-design.md), sección
+10: NestJS 12 y Vite 8 ya no generan con ESLint sino con oxlint; Prisma 7 eliminó `url` del bloque
+`datasource`; PostgreSQL 18 cambió el punto de montaje del volumen; el puerto 5432 estaba ocupado
+por una instalación nativa; y TypeScript 6 deprecó `baseUrl`.
+
+### Deuda pendiente
+
+- Cerrada en Etapa 3: la pantalla temporal de verificación y su `fetch` dentro de `useEffect`
+  se eliminaron; los datos del servidor se consultan con TanStack Query.
+- `CLAUDE.md` describía la Etapa 1 como en curso en `feature/project-setup`. Corregido el
+  2026-09-23.
+
+---
+
+## Etapa 2 — Database foundation
+
+**Integrada en `develop`** mediante el pull request #2, fusionado el 2026-09-24 (commit de merge
+`dbda607`), sin aprobación formal registrada de otro integrante: véase
+[Desviaciones de proceso](#desviaciones-de-proceso).
+
+| Estado              | Evidencia                                                                                          |
+| ------------------- | -------------------------------------------------------------------------------------------------- |
+| Diseñada y aprobada | ADR 004 a 007 aceptados; `database.md` y `audit.md` aprobados tras la auditoría de diseño          |
+| Implementada        | `schema.prisma`, migración `20260924041058_database_foundation`, seed y protocolo de ajustes       |
+| Verificada          | PostgreSQL 18.6 desde base vacía, suite e2e 12/12 y calidad limpia; detalle en las tablas de abajo |
+| Integrada           | Pull request #2 fusionado en `develop`; merge `dbda607`                                            |
+
+- [x] Modelo conceptual completo
+- [x] Estrategia de identificadores
+- [x] Modelo de inventario
+- [x] Estrategia de lotes
+- [x] Estrategia de auditoría
+- [x] ERD aprobado para Foundation
+- [x] `schema.prisma` de la fundación
+- [x] Primera migración aplicada desde base limpia en PostgreSQL 16 temporal
+- [x] Índices y constraints de Foundation creados y comprobados
+- [x] Tests de integridad de Foundation ejecutados
+- [x] Documentación actualizada para Foundation
+- [x] Repetir las pruebas de migración en PostgreSQL 18 del proyecto
+- [x] Cotejar `requirements.md` con la Entrega 1 oficial
+- [ ] PR revisado — sin aprobación formal registrada; no se completa de forma retroactiva
+- [x] Integrado en `develop` (pull request #2, merge `dbda607`)
+
+### Estado de los artefactos
+
+| Artefacto                                             | Archivo     | Decisión                                               |
+| ----------------------------------------------------- | ----------- | ------------------------------------------------------ |
+| `docs/decisions/004-inventario-ledger-y-balance.md`   | `Integrado` | `Aceptado`                                             |
+| `docs/decisions/005-estrategia-de-auditoria.md`       | `Integrado` | `Aceptado`                                             |
+| `docs/decisions/006-estrategia-de-identificadores.md` | `Integrado` | `Aceptado`                                             |
+| `docs/decisions/007-trazabilidad-de-lotes.md`         | `Integrado` | `Aceptado`                                             |
+| `docs/database.md` con ERD y modelo completo          | `Integrado` | `Aprobado`                                             |
+| `docs/audit.md`                                       | `Integrado` | `Aprobado`                                             |
+| `schema.prisma` Foundation                            | `Integrado` | Versión actual verificada en PostgreSQL 18.6           |
+| Primera migración + SQL personalizado                 | `Integrado` | Versión actual verificada en PostgreSQL 18.6           |
+| Seed de roles y almacén                               | `Integrado` | Versión actual verificada dos veces en PostgreSQL 18.6 |
+
+Son dos ejes distintos y no se contradicen. La columna **Decisión** refleja el estado del ADR
+según [`decisions/README.md`](decisions/README.md), que es la fuente de verdad sobre decisiones
+aceptadas. La columna **Archivo** refleja su estado en el repositorio: todos están integrados en
+`develop` desde el pull request #2.
+
+La auditoría señaló correctamente que la versión anterior presentaba los ADR como aceptados y
+pendientes a la vez. Queda resuelto.
+
+### Correcciones aplicadas tras la auditoría de diseño
+
+| #   | Corrección                                                                  |
+| --- | --------------------------------------------------------------------------- |
+| 1   | Matriz tipo → origen de `InventoryMovement` definida por migración          |
+| 2   | `AuditLog` admite `ANONYMOUS` y entidad nula solo en `LOGIN_FAILED`         |
+| 3   | `ProductionOrder.plannedDate` añadida como fecha de calendario              |
+| 4   | Datos maestros: productos, almacenes, proveedores y clientes                | En curso: PR #6 y #8 integrados; clientes en actualización (PR #9) |
+| 5   | Igualdad lote–producto garantizada con clave foránea compuesta              |
+| 6   | Origen único y obligatorio de cada lote                                     |
+| 7   | Política de calidad; bloqueo de consumo además de despacho                  |
+| 8   | Confirmar una venta no reserva inventario                                   |
+| 9   | Protocolo de concurrencia con orden estable de bloqueo                      |
+| 10  | Consulta de reconciliación balance contra ledger                            |
+| 11  | `AdjustmentReason` obligatorio en los ajustes                               |
+| 12  | Semántica de `DocumentSequence`: huecos válidos, sin reciclaje              |
+| 13  | Instantes frente a fechas de calendario; zona empresarial `America/Managua` |
+| 14  | Sanitización de auditoría por lista permitida, no por lista prohibida       |
+| 15  | Estado único de los ADR; `CLAUDE.md` actualizado                            |
+| 16  | Cantidades recibidas y despachadas derivadas, no almacenadas                |
+| 17  | Afirmaciones sobre UUIDv7 y `requestId` matizadas                           |
+
+### Evidencia ejecutada de Foundation
+
+El 2026-09-23 se verificó una revisión anterior de Foundation en **PostgreSQL 16** temporal. Tras
+el cotejo académico, la migración inicial se corrigió antes de integrarse en `develop`. La versión
+actual se verificó el 2026-09-24 en **PostgreSQL 18.6** del `docker-compose.yml`, usando una nueva
+base vacía terminada en `_test`, sin modificar la base de trabajo `ecosoap_erp`.
+
+| Comprobación                                          | Resultado observado                                                                                                     |
+| ----------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| `prisma validate` y `prisma generate`                 | Esquema válido; cliente 7.10.0 generado                                                                                 |
+| `migrate dev --create-only`                           | Migración Foundation generada antes de editar su SQL                                                                    |
+| `migrate dev` desde base limpia                       | Migración completa, incluidos `CHECK` y disparadores, aplicada                                                          |
+| Segundo `migrate dev`                                 | `Already in sync`; sin drift reportado; historial reproducido en base sombra                                            |
+| Seed ejecutado dos veces y luego con `prisma db seed` | 5 roles, 1 almacén, 0 usuarios; comando configurado comprobado                                                          |
+| `foundation.e2e-spec.ts`                              | 10 pruebas pasan: signos, cero, motivo, FK lote–producto, actor, unicidad, inmutabilidad, concurrencia y reconciliación |
+| Suite e2e completa                                    | 2 archivos, 11 pruebas pasan, incluido health check                                                                     |
+| Calidad                                               | ESLint backend/frontend, Prettier, builds backend/frontend pasan                                                        |
+
+En PostgreSQL 18.6, **después** de añadir `Product.category` y `Warehouse.location`, se observaron
+estos resultados:
+
+| Comprobación                                        | Resultado observado                                                                                                                              |
+| --------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `docker compose ps` y `SHOW server_version`         | Contenedor `healthy`; PostgreSQL 18.6 en puerto 5433                                                                                             |
+| `prisma validate` y `prisma generate`               | Esquema válido; cliente 7.10.0 generado                                                                                                          |
+| Primer `prisma migrate dev` en base dedicada vacía  | Migración inicial corregida `20260924041058_database_foundation` aplicada; esquema sincronizado                                                  |
+| Segundo `prisma migrate dev`                        | `Already in sync`; sin cambios pendientes ni drift reportado                                                                                     |
+| `pnpm --filter backend db:seed` ejecutado dos veces | 5 roles, 1 almacén con `location = Planta principal - Managua`, 0 usuarios, comprobados con SQL                                                  |
+| Suite e2e completa                                  | 2 archivos y 12/12 pruebas pasan; incluye límites de `category`/`location`, `CHECK`, FK, append-only y reconciliación                            |
+| Carrera de creación del primer saldo                | Falló inicialmente con `P2002` en `upsert`; corregido con `createMany(skipDuplicates)` más `FOR UPDATE`; pasó en suite y 3 repeticiones aisladas |
+| UUID de saldos                                      | SQL confirmó versión 7 tras la corrección de concurrencia                                                                                        |
+| Calidad final                                       | `pnpm lint`, `pnpm format:check` y `pnpm build` pasan en backend y frontend                                                                      |
+
+Para reproducirlo, crear una base PostgreSQL 18 vacía con nombre terminado en `_test`, apuntar
+`DATABASE_URL` a ella y ejecutar desde `backend/` `prisma migrate dev` dos veces y
+`prisma generate`. Desde la raíz, ejecutar `pnpm --filter backend db:seed` dos veces y
+`pnpm --filter backend test:e2e`. La suite exige el sufijo `_test` para proteger la base de
+trabajo. Quien haya aplicado la versión previa de esta migración en una base local debe respaldar
+los datos que necesite antes de recrear esa base; no se resetea ninguna base automáticamente.
+
+**Pendiente de prueba técnica:** ampliación de enums en migraciones posteriores.
+
+### Cuestiones abiertas
+
+1. **Cotejo académico.** Completado contra la Entrega 1 oficial. La matriz de
+   requisitos `OFICIAL`/`DERIVADO`/`PROPUESTO`, las correcciones de IDs y el estado real de cada
+   flujo están en [`requirements.md`](requirements.md). No se marcó como verificado ningún flujo
+   empresarial por tener únicamente entidades Foundation.
+2. **Brechas de Foundation cerradas.** `Product.category` se añadió como texto obligatorio de hasta
+   100 caracteres, separado de `ProductType`; `Warehouse.location` se añadió como texto obligatorio
+   de hasta 255 caracteres. Se actualizaron migración, seed y pruebas, y se verificó en PostgreSQL
+   18.6 desde base vacía. Los CRUD empresariales seguían pendientes al cerrar Foundation; el
+   avance posterior de productos y almacenes se registra en la Etapa 4.
+3. **Requisitos propuestos por el equipo.** La política de lotes, `requestId`, snapshots de
+   auditoría, JWT, versionado de BOM y otras extensiones quedan explícitamente como
+   `PROPUESTO`; véase [`requirements.md`](requirements.md).
+
+---
+
+## Etapa 3 — Autenticación y RBAC
+
+**Integrada en `develop`** mediante el [pull request #3](https://github.com/Luigui789/Manufactura/pull/3),
+fusionado el 2026-10-01 (America/Managua), merge `24bd515`, tras revisar diff y checks según
+la política vigente del equipo. Diseño aprobado el 2026-10-01:
+[`specs/2026-09-24-autenticacion-rbac-design.md`](specs/2026-09-24-autenticacion-rbac-design.md);
+decisiones: ADR 008, 009 y 010, aceptados.
+
+- [x] Diseño de autenticación (aprobado; ADR 008 y 010)
+- [x] Estrategia de passwords (aprobada; ADR 009)
+- [x] Estrategia JWT (aprobada; ADR 008)
+- [x] Argon2id comprobado en Windows con Node 22 y pnpm 10
+- [x] Migración `auth_rbac`: base limpia, actualización Foundation → Auth y sin drift
+- [x] Primer administrador (`admin:create`, solo bootstrap)
+- [x] Login backend
+- [x] JWT guard
+- [x] Protección de origen
+- [x] RBAC con políticas `Public`, `Authenticated` y `Roles`
+- [x] Bloqueo por `mustChangePassword`
+- [x] Gestión básica de usuarios
+- [x] Protección del último ADMIN
+- [x] Auditoría auth
+- [x] Login frontend
+- [x] Protected routes
+- [x] TanStack Query
+- [x] Tests auth
+- [x] Tests RBAC
+- [x] Tests auditoría
+- [x] Tests frontend mínimos
+- [x] Swagger
+- [x] Documentación
+- [x] Review (diff inspeccionado y `Quality and tests` aprobado; PR propio de Luigui789)
+- [x] Integrated into develop (PR #3, merge `24bd515`)
+
+### Evidencia ejecutada de la Etapa 3
+
+Comprobaciones del 2026-10-01 en Windows 11, Node 22.16.0, pnpm 10.30.3 y PostgreSQL 18.6 del
+`docker-compose.yml`, siempre en bases nuevas terminadas en `_test`; la base de trabajo
+`ecosoap_erp` no se tocó.
+
+| Comprobación                                  | Resultado observado                                                                                                      |
+| --------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
+| `argon2` 0.45.1 con su script bloqueado       | Carga el binario `win32-x64`; `hash` y `verify` correctos; prefijo `$argon2id$v=19$m=19456,p=1,t=2`; unos 46 ms por hash |
+| NFC frente a NFD sin normalizar               | `verify` devuelve `false`: la normalización NFC del servicio es necesaria                                                |
+| Dependencias del backend                      | Versiones aprobadas instaladas; `@nestjs/core` sigue en 12.0.4; `pnpm --filter backend build` limpio                     |
+| SQL generado de `auth_rbac`                   | Coincide con el diseño; se añadieron los dos `CHECK` antes de aplicarla                                                  |
+| Actualización Foundation → Auth               | Base con Foundation, seed y suite Foundation (11/11); tras `migrate deploy`, recuentos de 7 tablas idénticos             |
+| Valores y restricciones tras la actualización | `must_change_password = true`, `token_version = 0`; `CHECK` de versión y de correo rechazan datos inválidos              |
+| Base limpia                                   | Primer `migrate dev` aplica ambas; el segundo: `Already in sync`; `prisma validate` correcto                             |
+| Suite e2e en base limpia                      | Health y Foundation 12/12; `auth-migration.e2e-spec.ts` (M1–M3) 3/3                                                      |
+
+---
+
+### Cierre de implementación y comprobaciones finales
+
+La implementación local de Etapa 3 se verificó el 2026-10-01. En ese cierre previo al versionado,
+el HEAD era `1b29dfd`; backend, frontend y documentación todavía estaban sin commit ni push.
+Esta referencia identifica el punto de partida de la evidencia, no el estado actual de Git.
+
+### Cierre de integración
+
+La rama `feature/auth` se publicó con commits separados para backend, frontend, CI y
+documentación. Se inspeccionó el diff y se comprobó que no incluía `.env`, secretos, fixtures
+locales, logs, bases temporales ni artefactos generados. Los checks locales post-commit
+(`pnpm lint`, `pnpm format:check`, `pnpm build`) pasaron con el árbol limpio.
+
+El check remoto `Quality and tests` pasó en el commit `6f41775`, antes del merge:
+[ejecución de GitHub Actions](https://github.com/Luigui789/Manufactura/actions/runs/36965936324).
+Ubuntu 24.04, Node 22.16.0, pnpm 10.30.3 y PostgreSQL 18 efímero ejecutaron instalación con
+lockfile congelado, generación de Prisma, migraciones, seed, lint, formato, builds y las tres
+suites: 35 unitarias backend, 51 e2e y 29 frontend (115 en total).
+
+El PR #3 fue fusionado por Luigui789 a las `2026-10-02T04:50:42Z`
+(2026-10-01 22:50:42 en America/Managua), con merge
+`24bd515b5e8400cb5dbe1b81501d924c78da02e1`. La revisión de diff y checks satisface la política
+vigente para sus PR propios; no se afirma una aprobación externa inexistente. Se actualizó
+`develop` local mediante fast-forward. La Etapa 4 permanecía pendiente al cerrar esta integración
+el 2026-10-01; su avance posterior se registra en la sección siguiente.
+
+| Comprobación final de Etapa 3 | Resultado observado                                                                                                                                                                                                   |
+| ----------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Backend unitario              | 4 archivos, 35/35 pruebas; guards, política/hash, snapshots y entrada del CLI                                                                                                                                         |
+| Backend e2e                   | 7 archivos, 51/51 en `ecosoap_auth_clean_test`; sesión/cookie, origen, RBAC, auditoría atómica, revocación, usuarios, concurrencia, secretos, throttle y migración                                                    |
+| Frontend automatizado         | 2 archivos, 29/29 con Vitest y RTL: F1–F6, carga sin contenido protegido, cuatro roles no ADMIN, login, cambio/confirmación, logout, 401/403, alta, acciones propias y paginación                                     |
+| Navegador contra API real     | Login ADMIN, tabla y acciones propias deshabilitadas, selector de roles, logout, VENTAS sin menú Usuarios y URL directa 403; cuenta temporal redirigida desde `/users` a contraseña sin menú; `ecosoap_auth_cli_test` |
+| CLI real en base nueva        | `ecosoap_auth_bootstrap_verify_test`: ambas migraciones, seed, primer ADMIN creado con contraseña aleatoria no mostrada; segundo intento rechazado sin modificar usuario                                              |
+| Swagger real                  | `/api/docs-json`: 12 operaciones, esquema `ecosoap_session` declarado como cookie                                                                                                                                     |
+| Calidad                       | `pnpm build`, `pnpm lint` y `pnpm format:check` pasan; compilación TypeScript incluida en los builds                                                                                                                  |
+
+**Desviación del bloqueo ADMIN.** U9 detectó un interbloqueo con `FOR UPDATE` cuando dos ADMIN
+actuaban sobre el otro: la comprobación de FK de auditoría necesita `FOR KEY SHARE` sobre el
+actor. Se corrigió a `FOR NO KEY UPDATE` en objetivo y rol, compatible con esa FK y con la
+serialización de escrituras. Se mantienen auditoría atómica, READ COMMITTED, orden objetivo → rol
+y candado ADMIN condicional. La suite e2e actual vuelve a pasar el escenario; el traspaso anterior
+registró además seis repeticiones sin fallos. Detalle en spec §22 y `database.md`, sin cambiar ADR
+ni migraciones compartidas.
+
+**Corrección frontend probada.** `QueryClient.clear()` eliminaba también el observador activo de
+sesión y podía mantener la vista anterior después del login o un 401. Se cancelan consultas y
+eliminan datos privados conservando `['auth', 'me']` para notificar el usuario nuevo o `null`.
+Las pruebas de login, logout y revocación cubren esta regresión.
+
+**Limitación de build.** Vite avisa que el bundle inicial mide aproximadamente 683 kB (211 kB
+gzip), por encima de su umbral de 500 kB. La página administrativa se carga aparte (115 kB,
+36 kB gzip). El build termina correctamente; la optimización restante queda como deuda de
+rendimiento, sin añadir dependencias ni cambiar el umbral para ocultar el aviso.
+
+Las bases de verificación terminan en `_test`. No se modificó `ecosoap_erp`. Las tres cuentas de
+navegador se desactivan al cerrar la comprobación, preservando las filas referenciadas por
+auditoría. Los archivos locales de fixtures y sus credenciales no se versionan.
+
+---
+
+## Etapa 4 — Datos maestros: Productos y Almacenes
+
+**Integrados en `develop` mediante el PR #6**, con las correcciones verificadas en la rama
+`feature/products-warehouses`, asociada al [PR #6](https://github.com/Luigui789/Manufactura/pull/6)
+hacia `develop`. El CRUD inicial se comprobó también en navegador el 2026-10-08. Las siete
+correcciones de revisión cuentan con pruebas automatizadas aprobadas el 2026-10-09. El
+responsable confirmó ese día la comprobación manual de filtros y PATCH parcial, y aportó
+capturas de los parámetros en Swagger. El cierre remoto se completó el 2026-10-09. Esta sección cubre solo
+Productos y Almacenes (`RF-INV-001`); Proveedores y Clientes se desarrollan en
+`feature/suppliers` y `feature/customers`.
+
+- [x] Backend de Productos: listar (paginado), crear, consultar, editar y cambiar estado
+- [x] Backend de Almacenes: listar (paginado), crear, consultar, editar y cambiar estado
+- [x] Tipos de producto: materia prima, intermedio y terminado, además de consumible del modelo
+- [x] Frontend de Productos y Almacenes: listado paginado, crear, editar, activar/desactivar
+- [x] Detalle de producto en pantalla
+- [x] Entradas de menú y rutas de Productos y Almacenes
+- [x] Consulta para roles autenticados; gestión solo para ADMIN e INVENTARIO
+- [x] Desactivación lógica, sin endpoints de borrado físico
+- [x] Auditoría dentro de la misma transacción que el cambio
+- [x] Pruebas e2e de Productos y Almacenes
+- [x] Pruebas de frontend de Productos y Almacenes
+- [x] `docs/api.md` y `docs/requirements.md` actualizados
+- [x] Verificación automatizada local: lint, formato, build y las tres suites (2026-10-09)
+- [x] Recorrido inicial en navegador y visualización de los diez endpoints en Swagger (2026-10-08)
+- [x] Correcciones del PR #6 implementadas y cubiertas por pruebas automatizadas
+- [x] Verificación manual de filtros y PATCH parcial contra la API real, confirmada por el responsable (2026-10-09)
+- [x] Checks del PR sobre el último commit publicado (`4d2c796`)
+- [x] Nueva aprobación de las correcciones del PR #6 por Luigui789
+- [x] Integrated into develop (PR #6, merge `332e499`)
+
+### Evidencia ejecutada de Productos y Almacenes
+
+Resultados finales reportados el 2026-10-08: lint, formato y compilación aprobados, junto con
+las tres suites completas. Las pruebas e2e se ejecutaron contra la base dedicada
+`ecosoap_inventory_test`. En total se aprobaron 239 pruebas: 72 unitarias del backend,
+105 e2e del backend y 62 del frontend.
+
+| Comprobación                      | Resultado observado                                                                                                                                                                                           |
+| --------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `pnpm --filter backend test`      | 5 archivos, 72/72, incluidas 37 pruebas de validación de Almacenes                                                                                                                                            |
+| `pnpm --filter backend test:e2e`  | 9 archivos, 105/105 (productos 25, almacenes 29)                                                                                                                                                              |
+| `pnpm --filter frontend test`     | 4 archivos, 62/62 (productos 16, almacenes 17)                                                                                                                                                                |
+| `pnpm lint` y `pnpm format:check` | Aprobados en la comprobación final del 2026-10-08.                                                                                                                                                            |
+| `pnpm build`                      | Backend y frontend compilan. Vite mantiene el aviso conocido por el tamaño del bundle inicial.                                                                                                                |
+| Cambios en `backend/prisma`       | Comparación de los cuatro archivos con la referencia local `origin/develop` (`b3f90a1`), el 2026-10-08: sin diferencias, incluida Foundation. No se actualizó la referencia remota durante esta comprobación. |
+
+Las pruebas del frontend simulan HTTP y ejercitan las páginas, formularios y hooks reales. Las
+pruebas e2e del backend comprueban persistencia, autenticación, permisos y auditoría. Estos
+resultados locales no acreditan por sí solos un pase de CI ni una integración.
+
+### Revisión de archivos del 2026-10-08
+
+Se revisaron los controladores, servicios, DTO, módulos, cliente HTTP, hooks, formularios,
+páginas, navegación, pruebas y documentación de productos y almacenes. Las rutas y los campos
+coinciden con la API documentada; las modificaciones requieren ADMIN o INVENTARIO, y el
+registro de auditoría comparte transacción con la operación.
+
+La comprobación de formato de `docs/api.md`, `docs/requirements.md` y `docs/progress.md` pasó.
+Esta revisión de archivos se complementó posteriormente con los resultados de ejecución y
+las comprobaciones manuales registrados a continuación. No se acredita todavía un pase de CI
+ni una integración remota.
+
+### Verificación final del 2026-10-08
+
+Después de la revisión de archivos se completaron las comprobaciones finales:
+
+- `pnpm lint`, `pnpm format:check` y `pnpm build`: aprobados.
+- Backend unitario: 72 pruebas aprobadas en 5 archivos.
+- Backend e2e: 105 pruebas aprobadas en 9 archivos, contra `ecosoap_inventory_test`.
+- Frontend: 62 pruebas aprobadas en 4 archivos.
+- Productos, recorrido manual confirmado por el responsable: login, entrada al listado,
+  creación de `PRUEBA-FINAL-01`, consulta del detalle, edición, cancelación de desactivación,
+  desactivación y reactivación. Se comprobó la persistencia de los cambios al recargar.
+- Almacenes, recorrido manual confirmado por el responsable: creación de `ALM-FINAL-01`,
+  consulta del listado, edición de ubicación, cancelación de desactivación, desactivación y
+  reactivación. Se comprobó la persistencia de los cambios al recargar.
+- Permisos en navegador: comprobación confirmada con un rol de consulta, que permite ver
+  productos y almacenes y consultar el detalle del producto, sin mostrar acciones de modificación.
+  Los rechazos de modificaciones para COMPRAS, PRODUCCION y VENTAS también están cubiertos por e2e.
+- Swagger: captura de `/api/docs` con los cinco endpoints de Products y los cinco de Warehouses,
+  sus descripciones e indicadores de autenticación. Esta comprobación acredita su visualización;
+  las operaciones de la API fueron ejercitadas por las pruebas e2e.
+
+El fallo previo de e2e por roles ausentes se resolvió configurando la conexión a la base de
+pruebas y ejecutando el seed antes de repetir la suite. La nueva ejecución terminó con las
+105 pruebas aprobadas. Los mensajes de fallos simulados de auditoría y de rutas sin política
+corresponden a escenarios negativos de las pruebas; no hubo pruebas fallidas en el cierre.
+
+Las variables de entorno de pruebas se establecen en una terminal dedicada. Al restaurar o
+abrir una terminal se debe comprobar de nuevo la conexión antes de ejecutar el seed o los e2e.
+
+Al cerrar la comprobación inicial del 2026-10-08 quedaron pendientes la apertura del PR,
+la revisión del diff, CI y la integración. Posteriormente se abrió el PR #6 y se recibieron
+correcciones; el avance y los pendientes actuales se detallan a continuación.
+
+### Correcciones del PR #6 — comprobaciones locales del 2026-10-09
+
+El [PR #6](https://github.com/Luigui789/Manufactura/pull/6) corresponde a
+`feature/products-warehouses` hacia `develop`. Las correcciones se acumulan en commits
+locales para publicarlas juntas después de completar el cierre. La versión de código
+comprobada tiene como último commit local `34e3eb2`; la actualización de esta documentación
+es posterior a las ejecuciones descritas.
+
+Las siete correcciones están implementadas:
+
+1. Cambiar `unit` o `type` devuelve `409` si el producto tiene movimientos, incluso si su
+   saldo actual volvió a cero. Los demás campos se pueden editar.
+2. Los códigos de producto se recortan y normalizan a mayúsculas al crear y editar;
+   un código normalizado duplicado devuelve `409`.
+3. Los formularios de edición de ambos catálogos envían únicamente los campos modificados.
+   Guardar queda deshabilitado si no hay cambios o si se revierten.
+4. Se corrigieron el título duplicado y el bloque de rutas de la API, y la descripción
+   de la arquitectura. La API también documenta las guardas de historial, existencias y filtros.
+5. Las pruebas de concurrencia cubren altas con el mismo código y activaciones/desactivaciones
+   simultáneas en ambos catálogos, con una sola operación efectiva y su auditoría.
+6. Desactivar un producto o almacén con cualquier saldo distinto de cero devuelve `409`,
+   sin cambiar el recurso ni registrar `DISABLE`. Con todos los saldos a cero se permite.
+7. Productos tiene filtros por estado, tipo y búsqueda por código/nombre; Almacenes, por
+   estado y búsqueda por código/nombre/ubicación. El total refleja los filtros. El frontend
+   conserva `false`, omite búsquedas vacías, incluye filtros en la caché, los conserva al
+   paginar y vuelve a la primera página al cambiarlos o limpiarlos.
+
+Resultados observados en las salidas de terminal del responsable, el 2026-10-09
+(America/Managua):
+
+- `pnpm lint`: aprobado en backend y frontend.
+- `pnpm format:check`: aprobado también después de copiar las actualizaciones de
+  `docs/api.md`, `docs/progress.md` y `docs/requirements.md`. Toda edición posterior de
+  documentación se comprueba de nuevo antes del commit.
+- `pnpm build`: backend y frontend aprobados. Continúa el aviso conocido de Vite por
+  el tamaño del bundle inicial; la compilación terminó correctamente.
+- `pnpm --filter backend test`: 72/72 pruebas en 5 archivos, ejecución de las 18:44:57.
+- `pnpm --filter backend test:e2e`: 165/165 pruebas en 14 archivos, ejecución de las 18:45:23,
+  contra `ecosoap_inventory_test`.
+- `pnpm --filter frontend test`: 86/86 pruebas en 5 archivos, ejecución de las 18:28:52.
+- Total de las tres suites: 323 pruebas aprobadas, sin sumar nuevamente sus subconjuntos.
+
+Dentro de esas suites se incluyen 25 e2e de productos, 29 de almacenes, 7 de historial,
+6 de reglas de existencias, 6 de concurrencia, 23 de filtros de productos y 18 de filtros
+de almacenes. En frontend se incluyen 18 pruebas de Productos, 19 de Almacenes y
+20 de filtros compartidos, además de las pruebas de rutas y cliente HTTP.
+
+Los mensajes de fallo simulado de auditoría y de ruta sin política corresponden a escenarios
+negativos esperados: no hubo pruebas fallidas. Las variables de conexión de pruebas se
+configuraron en una terminal dedicada; la aplicación de desarrollo debe iniciarse en otra.
+
+Después de `git fetch origin`, `git log --oneline HEAD..origin/develop` no mostró commits:
+el código local contiene los commits de la referencia de `develop` consultada ese día.
+Esto no acredita una integración de esta feature en `develop`.
+
+Comprobación manual final confirmada por el responsable el 2026-10-09:
+
+- Productos: filtros de activos/inactivos, tipo y búsqueda; combinación y limpieza de filtros.
+- Almacenes: filtros de activos/inactivos y búsqueda por código, nombre o ubicación; limpieza.
+- PATCH real desde el navegador: al cambiar solo el nombre del producto se envía únicamente
+  `name`; al cambiar solo la ubicación del almacén se envía únicamente `location`.
+- Swagger: las capturas muestran `page`, `limit`, `isActive`, `type` y `search` en Productos;
+  `page`, `limit`, `isActive` y `search` en Almacenes. Acreditan la visualización de los parámetros.
+
+Esta evidencia manual procede de la confirmación del responsable y de las capturas aportadas.
+La conservación de filtros al paginar y el retorno a la primera página están cubiertos además
+por las pruebas automatizadas de filtros.
+
+### Corrección de concurrencia con ajustes (2026-10-09)
+
+`applyAdjustment` toma `FOR SHARE` sobre producto y almacén, en ese orden y antes
+de validar, para coordinarse con las ediciones y desactivaciones del catálogo.
+Los ajustes siguen compartiendo esos bloqueos y serializan el saldo con
+`FOR UPDATE`; la escritura de movimiento, saldo y auditoría permanece atómica.
+
+La suite `catalog-adjustments-concurrency.e2e-spec.ts` añade ocho escenarios:
+desactivar producto, desactivar almacén y cambiar unidad o tipo, con cada
+operación confirmando primero. Comprueba bloqueos reales de PostgreSQL,
+validación después de la espera, saldo reconciliado con el ledger y auditoría.
+Las ocho pruebas fallaron antes del cambio y pasaron después.
+
+Comprobación local en una instancia temporal de PostgreSQL 16.9, con migraciones
+y seed aplicados desde cero a `ecosoap_catalog_fix_test`:
+
+| Comprobación                  | Resultado observado                                                      |
+| ----------------------------- | ------------------------------------------------------------------------ |
+| Regresiones y suites cercanas | 32/32: concurrencia con ajustes, reglas de stock, historial y Foundation |
+| Backend unitario              | 72/72                                                                    |
+| Backend e2e completo          | 173/173, incluidas las ocho regresiones nuevas                           |
+| Frontend                      | 86/86                                                                    |
+| Calidad                       | Lint, formato y build aprobados                                          |
+
+Son 331 pruebas en total. La base de trabajo no se utilizó. La publicación,
+la CI del nuevo commit y la integración se mantienen pendientes.
+
+Pendientes para cerrar las correcciones:
+
+- [ ] Comprobar formato de los documentos finales, revisar el diff y guardar los cambios
+      pendientes en commits locales.
+- [ ] Publicar los commits acumulados en un único push.
+- [ ] Verificar `Quality and tests` sobre el último commit publicado y solicitar nueva revisión
+      del PR; si está en borrador, marcarlo como listo para revisión.
+- [ ] Integrar en `develop` tras cumplir la política de revisión del equipo.
+
+Las comprobaciones manuales del 2026-10-08 corresponden al CRUD inicial; las de filtros,
+PATCH parcial y parámetros de Swagger se registran por separado el 2026-10-09. Estos
+resultados locales no sustituyen los checks remotos del PR.
+
+### Trabajo posterior acordado en la revisión
+
+Estos puntos quedan fuera del cierre de este PR:
+
+- Al inicio de la Etapa 5, convertir `applyAdjustment` en un `InventoryService` inyectable
+  para que los módulos posteriores reutilicen el protocolo de inventario.
+- El futuro servicio de movimientos debe conservar el `FOR SHARE` sobre producto y
+  almacén que ya toma `applyAdjustment` para coordinarse con las guardas de cambios
+  de unidad/tipo y desactivación.
+- Valorar una precondición de edición con `updatedAt` para rechazar con `409` cambios
+  concurrentes sobre el mismo campo.
+- Valorar un `CHECK` de código normalizado en la base mediante una migración nueva,
+  coordinada con el equipo. La migración Foundation compartida no se modifica.
+
+### Decisiones y cuestiones abiertas
+
+1. **Endpoint de estado.** Productos y almacenes usan `PATCH /:id/status`, conforme a la guía
+   del feature y a `docs/api.md`, sección 9. Usuarios conserva sus acciones
+   `POST /users/:id/enable` y `/disable`; esta feature no cambia ese contrato.
+2. **Nombres de auditoría.** Se usan las acciones `CREATE`, `UPDATE`, `ENABLE` y `DISABLE` y las
+   entidades `PRODUCT` y `WAREHOUSE`, según la convención existente. Los nombres de ejemplo de
+   la guía (`PRODUCT_CREATED`, etc.) no se crearon.
+3. **Aviso de tamaño del bundle.** Vite sigue avisando de un bundle inicial superior a 500 kB; es
+   deuda conocida y el build termina correctamente.
+
+### Límites de esta feature
+
+No se implementan movimientos de inventario, ajustes manuales de stock, recepciones, órdenes de
+producción, BOM, ventas ni despachos. La infraestructura de Foundation para esos flujos ya
+existía y no implica que sus módulos transaccionales estén terminados. La migración Foundation
+compartida permanece sin modificaciones.
+
+---
+
+### Cierre remoto del PR #6 (2026-10-09)
+
+El commit `4d2c796` recibió aprobación de Luigui789 después de pasar la
+[CI del PR](https://github.com/Luigui789/Manufactura/actions/runs/38015214216).
+El merge `332e499` pasó nuevamente la
+[CI de develop](https://github.com/Luigui789/Manufactura/actions/runs/38015405667):
+72 unitarias backend, 86 frontend y 173 e2e (331 en total), además de lint, formato,
+builds, migraciones y seed en PostgreSQL 18. La cobertura incluye los ocho casos de
+concurrencia entre cambios de catálogo y ajustes.
+
+## Etapa 4 — Datos maestros: Proveedores
+
+**Integrado en `develop` mediante el PR #8 (merge `ab8a5a8`)** en la rama `feature/suppliers` (PR #8, de Lure94). La
+revisión del 2026-10-08 pidió cambios y el responsable del proyecto los aplicó en la misma rama.
+La reconstrucción del 2026-10-08 eliminó los cuatro commits de inventario que arrastraba.
+El 2026-10-09 se actualiza con `develop` después del merge del PR #6, conservando proveedores,
+productos, almacenes y la corrección de concurrencia con ajustes. Los commits de Lure94
+conservan su autoría. El cierre remoto se completó el 2026-10-09, después de la aprobación
+de Luigui789 y la CI del commit `a503359`.
+
+- [x] Backend: listar (paginado), crear, consultar, editar y cambiar estado en `/api/suppliers`
+- [x] Modelo `Supplier` según `database.md` §10 y migración `suppliers`
+- [x] Consulta para roles autenticados; gestión solo para ADMIN y COMPRAS
+- [x] Auditoría mediante `AuditService`, con lista permitida y en la misma transacción
+- [x] Bloqueo de fila y `409` para código duplicado o estado repetido
+- [x] Frontend: listado paginado, alta, edición parcial, activar/desactivar con confirmación
+- [x] Pruebas e2e y de frontend de proveedores
+- [x] `docs/api.md` §10, `docs/requirements.md`, `docs/database.md` y `docs/architecture.md`
+- [x] Recorrido completo en el navegador
+- [x] Review (aprobación de Luigui789 sobre `a503359`)
+- [x] Integrated into develop (PR #8, merge `ab8a5a8`)
+
+### Evidencia ejecutada de Proveedores
+
+| Comprobación                       | Resultado observado                                                                                                                                                                                                                                                                                                 |
+| ---------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `pnpm --filter backend test:e2e`   | 8 archivos, 81/81 contra una base temporal `_test` con la migración `suppliers`; `suppliers.e2e-spec.ts` 30/30, tras la reconstrucción                                                                                                                                                                              |
+| `pnpm --filter backend test`       | 4 archivos, 35/35                                                                                                                                                                                                                                                                                                   |
+| `pnpm --filter frontend test`      | 4 archivos, 46/46; proveedores 17 (página con HTTP simulado y esquema)                                                                                                                                                                                                                                              |
+| `pnpm lint`, `format:check`, build | Aprobados; Vite mantiene el aviso conocido por el tamaño del bundle                                                                                                                                                                                                                                                 |
+| Migración en `ecosoap_erp`         | `prisma migrate deploy` aplicó `20261009025713_suppliers`; `migrate status` sin pendientes                                                                                                                                                                                                                          |
+| Swagger en ejecución               | `/api/docs-json`: cinco operaciones bajo `/api/suppliers` con el esquema de cookie `ecosoap_session`                                                                                                                                                                                                                |
+| Navegador, ADMIN                   | Confirmado por el responsable sobre la versión previa a la reconstrucción, con el mismo código de proveedores: alta con código en minúsculas guardado en mayúsculas y contacto vacío; código duplicado rechazado en el diálogo; edición solo del teléfono; desactivación con confirmación; persistencia al recargar |
+
+### Correcciones de la revisión del 2026-10-08
+
+1. La ruta era `/api/api/suppliers` por repetir el prefijo global; el frontend repetía el error.
+2. El modelo usaba el correo como identidad única y no tenía `code`; ahora sigue la especificación.
+   La migración se regeneró antes de integrarse; quien aplicó la anterior debe resetear su base
+   local.
+3. `{"isActive": "false"}` activaba el proveedor; ahora se exige un booleano JSON real.
+4. Correo duplicado, UUID inválido y `null` en la edición producían `500`.
+5. La auditoría se escribía sin `AuditService`: sin `requestId`, con la fila completa y sin
+   valores en los cambios de estado.
+6. `pnpm-workspace.yaml` aprobaba los scripts de `@scarf/scarf` y `argon2`; se restauró la
+   versión documentada de `develop`.
+
+Las pruebas unitarias con Prisma simulado se sustituyeron por `suppliers.e2e-spec.ts`, porque no
+detectaban ninguno de estos fallos.
+
+### Actualización con develop y verificación local (2026-10-09)
+
+Se incorporó `develop` (`332e499`) mediante merge, conservando el historial de ambos PR.
+Los siete conflictos se resolvieron manteniendo `InventoryModule` y `PurchasesModule`, las
+rutas y el menú de los tres catálogos, y la documentación de sus contratos y requisitos.
+La migración compartida de proveedores se conserva sin cambios.
+
+Los decoradores y el DTO de estado de productos, almacenes y proveedores se unificaron en
+`common/catalog.dto.ts`; se eliminó la copia de Inventario. Se comprobó que el código de los
+validadores es idéntico y que los cambios en Inventario solo sustituyen sus imports. La lógica
+de proveedores, las pantallas de Inventario y `apply-adjustment.ts` se conservaron.
+
+La base aislada `ecosoap_pr8_integration_test`, en PostgreSQL 16.9, recibió las tres migraciones
+desde cero y el seed. Las comprobaciones locales después de la consolidación aprobaron:
+
+- Backend unitario: 72/72 en cinco archivos, incluidos los 37 casos de DTO de almacenes.
+- Frontend: 108/108 en siete archivos, incluidos cinco casos nuevos de rutas y permisos.
+- Backend e2e: 203/203 en 16 archivos, incluidos 30 de proveedores y ocho de concurrencia
+  entre catálogo y ajustes.
+- Total: 383 pruebas. Los subconjuntos anteriores ya están incluidos en ese total.
+- `pnpm lint`, `pnpm format:check`, `pnpm build` y `git diff --check`: aprobados.
+
+Las pruebas de rutas usan el árbol real de `AppRoutes` y HTTP simulado: abren cada catálogo,
+comprueban la API correspondiente, el menú de ADMIN y la restricción de proveedores para
+INVENTARIO y VENTAS. Los e2e usan la aplicación y PostgreSQL reales, con sus guards,
+transacciones, auditoría y bloqueos. La instancia temporal se detuvo al finalizar la verificación.
+La comprobación remota del nuevo commit en PostgreSQL 18 se completó antes de aprobar
+e integrar el PR #8. Vite conserva el aviso de tamaño del bundle; el build termina correctamente.
+
+### Cuestiones abiertas
+
+- Filtros de listado (estado y búsqueda) cuando Compras los necesite al elegir proveedor.
+
+### Cierre remoto del PR #8 (2026-10-09)
+
+La [CI del PR](https://github.com/Luigui789/Manufactura/actions/runs/38016769320) y la
+[CI de develop](https://github.com/Luigui789/Manufactura/actions/runs/38016963705)
+aprobaron instalación congelada, Prisma, migraciones, seed, lint, formato, builds y las
+383 pruebas: 72 unitarias backend, 108 frontend y 203 e2e. Los registros de la ejecución
+posterior al merge confirman esos mismos totales en PostgreSQL 18.
+
+---
+
+## Etapa 4 — Datos maestros: Clientes
+
+**Implementado y verificado localmente** en la rama `feature/customers` (PR #9). El
+2026-10-09 se incorpora `develop` (`ab8a5a8`), después de integrar los PR #6 y #8. Se conservan
+productos, almacenes, proveedores y clientes, con sus migraciones, auditoría y permisos.
+Se reutilizan `common/catalog.dto.ts`, `AuditService`, bloqueo de fila y paginación.
+La nueva verificación remota y la integración del PR #9 quedan pendientes al preparar el commit.
+
+- [x] Backend: listar (paginado), crear, consultar, editar y cambiar estado en `/api/customers`
+- [x] Modelo `Customer` según `database.md` §10 y migración `customers`
+- [x] Consulta para roles autenticados; gestión solo para ADMIN y VENTAS
+- [x] Auditoría mediante `AuditService`, con lista permitida y en la misma transacción
+- [x] Bloqueo de fila y `409` para código duplicado o estado repetido
+- [x] Frontend: listado paginado, alta, edición parcial, activar/desactivar con confirmación
+- [x] Pruebas e2e y de frontend de clientes
+- [x] `docs/api.md` §11, `docs/requirements.md`, `docs/database.md` y `docs/architecture.md`
+- [x] Recorrido completo en el navegador
+- [ ] Review
+- [ ] Integrated into develop
+
+### Evidencia de Clientes del 2026-10-08
+
+| Comprobación                       | Resultado observado                                                                                                                                                                                                                                            |
+| ---------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `pnpm --filter backend test:e2e`   | 8 archivos, 81/81 contra una base temporal `_test` con la migración `customers`; `customers.e2e-spec.ts` 30/30                                                                                                                                                 |
+| `pnpm --filter backend test`       | 4 archivos, 35/35                                                                                                                                                                                                                                              |
+| `pnpm --filter frontend test`      | 4 archivos, 46/46; clientes 17 (página con HTTP simulado y esquema)                                                                                                                                                                                            |
+| `pnpm lint`, `format:check`, build | Aprobados; Vite mantiene el aviso conocido por el tamaño del bundle                                                                                                                                                                                            |
+| Migración en `ecosoap_erp`         | `prisma migrate deploy` aplicó `20261009034442_customers`                                                                                                                                                                                                      |
+| Navegador                          | Confirmado por el responsable con ADMIN: código en minúsculas guardado en mayúsculas, código duplicado rechazado en el diálogo, edición solo del teléfono, desactivación con confirmación y persistencia al recargar. Con COMPRAS, el menú no muestra Clientes |
+
+### Integración con las otras ramas de la Etapa 4
+
+La documentación conserva las secciones 9 (Inventario), 10 (Proveedores) y 11 (Clientes).
+Los diez conflictos se resuelven con los tres módulos de negocio registrados, las cuatro
+pantallas de catálogo, sus menús y guards, y ambos modelos `Supplier` y `Customer` con
+los valores `SUPPLIER` y `CUSTOMER` de `AuditEntityType`. Las migraciones compartidas
+se conservan sin modificaciones. El conflicto de `common/catalog.dto.ts` era solo su comentario;
+los decoradores y la validación del estado se mantienen idénticos.
+
+### Verificación local de la combinación (2026-10-09)
+
+La instalación limpia en `ecosoap_pr9_integration_test` aplicó las cuatro migraciones sin
+modificarlas y ejecutó el seed. PostgreSQL 16.9 se usó en una instancia temporal aislada.
+Después de resolver los conflictos aprobaron:
+
+- Backend unitario: 72/72 en cinco archivos.
+- Backend e2e: 233/233 en 17 archivos, incluidos 30 de clientes, 30 de proveedores y ocho
+  de concurrencia entre catálogo y ajustes.
+- Frontend: 128/128 en nueve archivos, con tres casos adicionales de rutas y permisos de clientes.
+- Total: 433 pruebas. Los subconjuntos anteriores ya están incluidos en ese total.
+- `pnpm lint`, `pnpm format:check`, `pnpm build` y `git diff --check`: aprobados.
+
+La primera ejecución del frontend, simultánea con otros checks, terminó con ocho timeouts de
+5 segundos en Inventario (120/128 aprobadas). Los archivos afectados son idénticos a los que
+pasaron la CI del PR #8. La suite completa se repitió con
+`pnpm --filter frontend test --no-file-parallelism`, sin otros checks, y pasó 128/128 con los
+mismos límites de tiempo. Esto apunta a contención de recursos local; no se modificaron la
+configuración de pruebas ni el código de Inventario. La CI debe pasar con el comando normal
+del workflow antes del merge.
+
+La actualización sobre datos existentes se probó por separado en `ecosoap_pr9_upgrade_test`:
+se aplicaron primero las migraciones de `develop` (`ab8a5a8`) y se cargaron roles, un usuario,
+producto, almacén, proveedor, saldo 5, su movimiento y auditoría. Tras aplicar `customers`,
+los snapshots completos de las ocho entidades fueron idénticos, incluidas fechas y valores.
+La nueva tabla permitió crear un cliente y un evento `CUSTOMER`; el saldo previo siguió en 5.
+Repetir `migrate deploy` no encontró migraciones pendientes. La instancia temporal se detuvo
+al finalizar. La base de trabajo no se modificó durante esta comprobación.
+
+La revisión comparó las implementaciones completas con sus ramas de origen: Inventario y
+Proveedores coinciden con `develop`; Clientes coincide con el PR #9 previo a esta actualización.
+El nuevo commit conserva el historial mediante merge. El cierre remoto queda pendiente al
+preparar esta evidencia; Vite mantiene su aviso conocido de tamaño de bundle.
+
+---
+
+## Cierre de datos maestros — 2026-10-09
+
+Los tres PR se integraron por merge en `develop`, preservando el historial de las
+ramas. La CI del commit resultante se verificó después de cada integración:
+
+| PR                                                    | Funcionalidad         | Merge     | CI posterior                                                                               |
+| ----------------------------------------------------- | --------------------- | --------- | ------------------------------------------------------------------------------------------ |
+| [#6](https://github.com/Luigui789/Manufactura/pull/6) | Productos y almacenes | `332e499` | [331 pruebas y calidad](https://github.com/Luigui789/Manufactura/actions/runs/38015405667) |
+| [#8](https://github.com/Luigui789/Manufactura/pull/8) | Proveedores           | `ab8a5a8` | [383 pruebas y calidad](https://github.com/Luigui789/Manufactura/actions/runs/38016963705) |
+| [#9](https://github.com/Luigui789/Manufactura/pull/9) | Clientes              | `90c74a0` | [433 pruebas y calidad](https://github.com/Luigui789/Manufactura/actions/runs/38018610225) |
+
+El último resultado incluye 72 unitarias backend, 128 frontend y 233 e2e con
+PostgreSQL 18. Los PR #6 y #8 recibieron aprobación de Luigui789; el #9 pertenece
+al líder y siguió la política vigente de revisar diff/checks antes del merge propio.
+Las ramas de feature se borraron después de comprobar que todos sus commits estaban
+contenidos en `develop`. Los registros previos describen las verificaciones durante
+la preparación de cada PR; esta sección documenta su cierre remoto.
+
+## Desarrollo completo con Docker — 2026-10-09
+
+Rama `codex/docker-dev`, creada desde `develop` (`90c74a0`). Integra los servicios de
+desarrollo del backend y frontend en el Compose existente, conserva el volumen de
+PostgreSQL y mantiene disponible el flujo con pnpm en el host. No modifica código de
+negocio, dependencias, esquema ni migraciones compartidas.
+
+La guía [docker.md](docker.md) describe el arranque, seed y primer administrador.
+Compose Watch sincroniza código y reconstruye ante cambios de dependencias o Prisma.
+El backend valida el entorno y ejecuta `migrate deploy` antes de Nest Watch; el seed
+es explícito. Las imágenes no reciben `.env`, y el frontend solo recibe variables
+públicas. Se añade el check `Docker development` para construir y verificar el stack,
+además del check existente `Quality and tests`.
+
+Verificación local completada en Docker Desktop con contenedores Linux, Node
+22.16.0, pnpm 10.30.3 y PostgreSQL 18:
+
+- Construcción de ambas imágenes con lockfile congelado, cuatro migraciones
+  compartidas aplicadas y los tres servicios saludables.
+- Lint y builds de backend/frontend correctos; 433 pruebas existentes aprobadas
+  dentro de Docker: 72 unitarias backend, 128 frontend y 233 e2e.
+- Seed y primer administrador mediante los CLI existentes, más comprobación HTTP
+  de frontend, salud, CORS, cookies, autenticación de los cuatro catálogos y logout.
+- Compose Watch comprobado con ediciones reales desde Windows en backend y
+  frontend. Los archivos originales se restauraron después de la prueba. El
+  backend incluye `procps`, necesario para que Nest Watch termine los procesos
+  hijos antes de recargar y evite dejar una API anterior ocupando el puerto.
+- Recreación de los tres contenedores con el mismo volumen de prueba: las doce
+  tablas conservaron todos sus valores, incluido un almacén personalizado. Los
+  snapshots antes/después tienen el mismo SHA-256:
+  `32709ae943fc7bd25ea63b468ae8e490699a3c5845befe0d848fd4ce9db7eb23`.
+- El `.env` local, código de aplicación, dependencias, esquema y migraciones
+  permanecen sin cambios; la verificación usó bases y volumen separados.
+
+Este registro corresponde a la verificación local previa al PR. El nuevo check
+`Docker development` está implementado y su comprobación se ejecutó localmente;
+su resultado remoto debe comprobarse en el PR antes de integrar.
+
+---
+
+## Desviaciones de proceso
+
+Los dos primeros pull requests se integraron sin la revisión que exigía el flujo de esas etapas. Esa
+revisión no se reconstruye ni se completa de forma retroactiva: queda registrada como desviación.
+
+| PR  | Rama                          | Integración                                      | Pruebas                              | Revisión                                            |
+| --- | ----------------------------- | ------------------------------------------------ | ------------------------------------ | --------------------------------------------------- |
+| #1  | `feature/project-setup`       | Fusionado en `develop` (merge `4060763`)         | Verificadas; evidencia de la Etapa 1 | Sin aprobación formal registrada de otro integrante |
+| #2  | `feature/database-foundation` | Fusionado en `develop` el 2026-09-24 (`dbda607`) | Verificadas; evidencia de la Etapa 2 | Sin aprobación formal registrada de otro integrante |
+
+### Política vigente desde 2026-10-01
+
+Se añade `.github/workflows/ci.yml`: `Quality and tests` ejecuta en Linux la misma cadena de
+lint, formato, builds y las suites contra PostgreSQL 18 efímero (`ecosoap_ci_test`). El cierre de
+la Etapa 3 registró 115 pruebas; los resultados de la rama actual se documentan por separado. Las
+Actions están fijadas por SHA; el secreto de sesión se genera por ejecución. El resultado remoto
+se verifica en el PR antes de integrar; la existencia del workflow por sí sola no acredita un pase.
+
+Por autorización del responsable del proyecto, los cambios siempre se integran mediante PR hacia
+`develop`. Luigui789 puede fusionar sus propios PR una vez verificados el diff y los checks
+requeridos. Los otros dos integrantes necesitan al menos una aprobación de otro miembro antes
+del merge. Nadie trabaja directamente sobre `develop` ni `main`; `main` conserva bloques estables.
+Esta excepción no reconstruye revisiones ni borra las desviaciones históricas de los PR #1 y #2.
+
+```text
+Luigui789: feature/* → PR hacia develop → diff y checks verificados → merge propio permitido
+Otros integrantes: feature/* → PR hacia develop → aprobación de otro miembro → merge
+```
+
+La protección de `develop`, si se configura, debe reflejar esta excepción para Luigui789 y exigir
+la aprobación para los demás. La configuración de GitHub se gestiona aparte; esta actualización
+solo documenta la política y no cambia permisos ni reglas remotas.
+
+---
+
+## Etapas siguientes
+
+### Ronda Inventario, Compras y Producción — planificada / pendiente
+
+El 2026-10-10 se redacta el PR0 de documentación en `docs/next-development-round`, desde
+`develop` (`53b7402`, con Docker integrado). La
+[especificación de la ronda](specs/2026-10-10-inventory-purchases-production-design.md)
+define reparto, contratos, transacciones, migraciones, pruebas y dependencias.
+En la revisión local del mismo día, los ADR 011–014 quedan `Aceptado` conceptualmente por
+aprobación del responsable. Se aclaran el bloqueo futuro de `isLotTracked` con cualquier
+movimiento (incluso con saldo cero), la cuarentena solo cuando se requiere inspección y las
+políticas de alcance todavía propuestas. Los ADR 001–010 no se modifican.
+Este registro no acredita implementación ni prueba de los RF de la ronda.
+
+Orden recomendado: PR0 → Inventario A-1 → Compras → Inventario A-2 → Producción C-1 →
+Producción C-2. Compras y A-2 pueden intercambiarse después de A-1, conservando las restricciones
+de lotes/origen. C-1 puede desarrollarse en paralelo. Antes de C-2 deben estar disponibles A-1,
+Compras y el contrato necesario de Inventario, además de C-1; A-2 completo no es obligatorio.
+Producción queda a cargo del responsable del proyecto; falta asignar nominalmente los otros
+dos responsables y coordinar Prisma.
+
+PR0 se integró mediante PR #11 en `develop` (`37e2548`). Inventory A-1 queda a cargo
+de smorsikda; el responsable del proyecto continúa Producción en `feature/production-core`,
+creada en un worktree separado desde esa base.
+
+Después del checkpoint BOM, `feature/production-core` se actualizó mediante rebase sin
+conflictos sobre `origin/develop` en `e7f12bc`, con A-1 integrado. Producción continúa
+en su worktree; el desarrollo local duplicado de Inventario permanece preservado aparte.
+
+[Producción C-1](production-c1-status.md) implementa fórmulas/versiones y órdenes DRAFT,
+edición/cancelación, números OP mediante `DocumentSequenceService`, y disponibilidad real
+mediante `StockQueryService`, con API, UI y pruebas. No modifica existencias ni inicia C-2.
+Se adoptan fechas de inicio/fin opcionales UTC, UI Managua; la especificación registra
+además las políticas de precisión, inmutabilidad completa y primera versión activa.
+El alcance implementado en la rama no acredita todavía integración de C-1 en `develop`.
+
+### Integración de A-1 y C-1 (2026-10-11)
+
+- **Inventory A-1** se integró en `develop` mediante el PR #12 (`feature/inventory-contract`,
+  autor smorsikda), con merge `e7f12bc`. Luigui789 pidió cambios dos veces y luego aprobó;
+  `Quality and tests` y `Docker development` pasaron. La punta de la rama (`43958e9`) es
+  ancestro de `develop`: no conserva commits sin integrar.
+- **Producción C-1** se integró en `develop` mediante el PR #13 (`feature/production-core`,
+  8 commits), con merge `642c0b5`, fusionado por Luigui789 conforme a la política vigente.
+  `Quality and tests` y `Docker development` pasaron en GitHub Actions.
+
+Con ello, A-1 y C-1 quedan disponibles en `develop`. Siguen pendientes Compras, Inventory A-2
+y Producción C-2; C-2 requiere además Compras.
+
+| Etapa | Contenido                                                    | Estado                                                                      |
+| ----- | ------------------------------------------------------------ | --------------------------------------------------------------------------- |
+| 3     | Autenticación JWT y RBAC                                     | Integrada en `develop` (PR #3)                                              |
+| 4     | Datos maestros: productos, almacenes, proveedores y clientes | Integrados en `develop` (PR #6, #8 y #9), CI con 433 pruebas                |
+| 5     | Compras y recepción                                          | Integrada en `develop` mediante PR #16 (`f73cf89`)                          |
+| 6     | Inventario y movimientos                                     | A-1 integrado (PR #12); A-2 integrada en `develop` mediante PR #15          |
+| 7     | BOM y producción                                             | C-1 (PR #13) y C-2 (PR #17) integrados en `develop`                         |
+| 8     | Lotes, trazabilidad y calidad                                | Trazabilidad de producción e inspección de lotes integradas mediante PR #17 |
+| 9     | Clientes, ventas y despacho                                  | Pendiente                                                                   |
+| 10    | Dashboard y reportes básicos                                 | Pendiente                                                                   |
+| 11    | Simulación ISA-95                                            | Pendiente                                                                   |
+
+`develop` se integra en `main` cuando haya un bloque funcional completo —configuración, modelo de
+datos, autenticación y datos maestros—, no al terminar cada etapa.
+
+La bóveda de Obsidian no estuvo disponible durante el diseño de la Etapa 3 (el servidor no
+respondió) y no fue fuente de ese diseño. Las fuentes fueron la Entrega 1 oficial, `docs/`, los
+ADR, el código, las migraciones, las pruebas y el historial de Git.
+
+### Compras — implementación en `feature/purchases` (2026-10-13)
+
+Se parte de `887d2a1` (dos commits sobre `origin/develop`, sin divergencia), conservando
+las entidades, migración inicial, DTOs/reglas/responses válidos. Se implementan OC DRAFT,
+edición, confirmación, cancelación permitida, consulta con filtros/paginación, recepción
+parcial/completa, reparto de líneas entre almacenes, lotes operativos por Inventario y
+entrada empresarial con auditoría atómica. API y UI solo permiten mutar a ADMIN/COMPRAS.
+
+La migración compartida se conserva; la correctiva `20261014010000_purchases_invariants`
+cierra signos/motivos/orígenes, unicidad y FKs compuestas y bloquea lotes previos sin origen.
+Se reutilizan `DocumentSequenceService`, `InventoryService` y `AuditService`, sin duplicar
+providers. Los fixtures de A-1/C-1 ahora incluyen origen explícito para cumplir el CHECK.
+Los detalles del contrato constan en `api.md`, `database.md` y la especificación.
+
+Orden de integración confirmado por el responsable: **A-1 → C-1 → Compras → A-2 → C-2**.
+No se incorpora PR #15 ni código de `feature/inventory-movements`. Después de integrar
+Compras, A-2 deberá actualizar su rama y añadir visualización/filtros de REC y origen de lotes.
+No hay ejecución de Producción, liberación de Calidad, reversas ni idempotencia HTTP parcial.
+
+Validación local completa verde: 183 unitarias backend, 406 frontend y 309 E2E en
+PostgreSQL 18 (898 pruebas). Instalación limpia, upgrade con datos, rechazo de lotes previos
+sin origen, drift sin diferencias y ledger append-only comprobados. Lint, formato y builds
+backend/frontend pasaron. Docker construyó imágenes y verificó frontend, salud, CORS,
+autenticación, OC/recepciones reales y reconciliación SQL. Las pruebas se ejecutaron
+secuencialmente y con más tiempo por prueba por la memoria disponible, sin cambiar
+aserciones ni límites de CI. [Informe y manifiesto de archivos](purchases-validation.md).
+
+Compras queda **Verified en feature/purchases y lista para PR contra develop**. No acredita
+merge ni checks remotos todavía. El PR se abre solo después de esta validación local.
+
+### Compras integrada y A-2 actualizada (2026-10-13)
+
+El PR #16 se integró en `develop` mediante `f73cf89094414e17faebfc36cdc081e1cfcd4968`.
+La rama `feature/inventory-movements` incorpora esa base con merge `89a0ce5`, conservando
+los tres commits originales de A-2 (`49d9104`, `c4efea3`, `0f27076`). Se resuelve el único
+conflicto en `AppRoutes.tsx` conservando todas las rutas de Compras e Inventario.
+
+A-2 consulta el origen físico PurchaseReceiptItem → REC → OC → proveedor, muestra
+referencias empresariales en movimientos y lotes, conserva fechas DATE sin cambio de día
+e invalida inventory/lots solo después de recibir. Las pruebas realizan recepciones reales
+sin trazabilidad, RELEASED y QUARANTINED, separan stock físico/consumible y comprueban
+bloqueos de configuración incluso tras agotar el saldo. No se añaden migraciones.
+
+[Informe de validación y manifiesto de archivos de PR #15](inventory-a2-validation.md).
+El PR #15 queda abierto para revisión del responsable; esta actualización no lo fusiona
+en `develop` ni incluye C-2, ventas, transferencias o liberación de calidad.
+
+Regresión de A-1 + C-1 + Compras + A-2: **184 unitarias backend + 444 frontend + 355 E2E =
+983 pruebas aprobadas**. Las 8 migraciones aplican desde base vacía en PostgreSQL 18; las
+pruebas de upgrade, rechazo atómico de orígenes legados y drift sin diferencias también pasan.
+Lint, formato y builds completos están verdes. El informe enlazado registra Docker y la
+verificación final del HEAD remoto de PR #15.
+
+### A-2 integrada y ejecución C-2 — 2026-10-14
+
+PR #15 se integró en `develop` mediante `f5fcc28b0bc2c5f30a4a7b839301d6eb921257ba`.
+El estado contiene A-1, C-1, Compras y A-2; sus dependencias dejan de bloquear C-2.
+`feature/production-execution` se creó desde esa base con worktree limpio.
+
+C-2 implementa START consistente sin reserva, COMPLETE atómico con consumo planificado y
+output real, asignación explícita, lote único por OP, inspección de lotes producidos y
+trazabilidad histórica protegida contra ciclos. Inventario conserva la escritura exclusiva,
+se generaliza el origen empresarial de A-2 y se reutilizan sus consultas/UI de lotes/movimientos.
+
+Validación final del 2026-10-18: **197 unitarias backend, 453 frontend y 384 E2E completas**
+aprobadas (**1.034 pruebas**), incluidos 29 casos E2E C-2. Instalación vacía, upgrade con datos y restricciones SQL
+probados en PostgreSQL 18.6; drift sin diferencias. Lint, formato y builds pasan. Docker valida
+Compra → Inventario → Producción → Calidad → proveedor en un proyecto y volumen aislados.
+[Informe C-2](production-c2-validation.md).
+
+### Integración de C-2 y rediseño UI/UX (2026-10-20)
+
+C-2 se integró en `develop` mediante el PR #17, con merge `7a956e9`. El CI de GitHub Actions
+pasó en ambos jobs: `Quality and tests` y `Docker development`.
+
+El rediseño UI/UX se integró mediante el PR #18, con merge `3242e56`. El CI posterior al merge
+también pasó en `Quality and tests` y `Docker development`, incluidos lint, formato, builds,
+pruebas backend/frontend/E2E y verificación del stack Docker.
+
+### Ventas RF-VEN-002 — órdenes sin despacho (2026-10-26)
+
+Se crea `feature/sales-orders` desde `develop` actualizado en `32a38dee`; el merge del PR #18 (`3242e56`) es ancestro de la base. La rama implementa `SaleOrder`/`SaleOrderItem`, migración aditiva, numeración OV, API paginada, validación de catálogo, estados DRAFT/CONFIRMED/CANCELLED, auditoría transaccional y pantallas de listado, alta y detalle. La confirmación valida disponibilidad consumible (en productos trazables, solo lotes RELEASED), sin reservar ni modificar inventario. No incluye despacho, que pertenece a RF-VEN-003.
+
+Las correcciones locales agregan búsqueda paginada de clientes, selectores de catálogo compartidos con Compras y sincronización del orden de bloqueos: cliente, secuencia OV y productos en orden estable. La vista de detalle solo permite confirmar borradores y explica que una orden confirmada queda pendiente de despacho. Se amplían pruebas de concurrencia, rollback de auditoría, precisión decimal, validación del catálogo e interfaz. También se añade una prueba de actualización de migración que compara filas históricas antes/después.
+
+Verificación y alcance: backend unitario 197 pruebas; E2E backend PostgreSQL 18, 391 pruebas en 29 archivos; frontend, 479 pruebas en 22 archivos. El CI del PR en el [run 48](https://github.com/Luigui789/Manufactura/actions/runs/40443272313) terminó con `Quality and tests` y `Docker development` en success para el HEAD de código `15fc312bf6632d35605ef8068f18adbb80bc5d5c`. Ese run incluye suite frontend completa, migración limpia y upgrade con datos, idempotencia/drift, lint, formato y builds. Las pruebas cubren concurrencia de confirmación y numeración OV, rollback de auditoría, pickers buscables/paginados, lock ordering de ADR 012 y que confirmar no altere inventario. El PR #19 se integró posteriormente en `develop` mediante el merge `d410d397728d81cd72058693d334df044570b10e`.
+
+### RF-VEN-002 integrado y RF-VEN-003 en implementación (2026-10-27)
+
+RF-VEN-002 quedó integrado en `develop` mediante PR #19, merge `d410d397728d81cd72058693d334df044570b10e`. La rama existente `feature/sales-dispatch` parte de ese merge; no se creó una rama adicional.
+
+En `feature/sales-dispatch` se está implementando RF-VEN-003: `SaleDispatch` y `SaleDispatchItem`, secuencia `DES`, endpoint `POST /api/sales/orders/:id/dispatch`, historial y cantidades despachadas/pendientes derivadas. La operación bloquea primero la orden, reserva secuencia y delega cada salida al único writer `InventoryService`; productos con lote requieren lotes `RELEASED`. Estado, movimientos, balance, despacho, auditoría y secuencia comparten la transacción. No se implementan reservas ni despacho automático.
+
+La migración `20261027120000_sales_dispatch` y E2E están escritos. Se detectó y corrigió una precondición de integridad: la FK compuesta desde una línea de despacho requiere un índice único compuesto en `sale_order_items`, agregado de forma aditiva en esta migración. Prisma generate/validate, Nest build, Vite build, TypeScript, ESLint backend/frontend, Prettier y pruebas locales (198 unitarias backend, 502 frontend) pasan. En esta sesión Docker Desktop deniega acceso a `dockerDesktopLinuxEngine`; las migraciones PostgreSQL y E2E RF-VEN-003 ampliadas siguen pendientes de ejecución. Tampoco se afirma CI verde. Ver `sales-dispatch-validation.md` para el estado detallado.
+
+### Estado RF-VEN-003 actualizado (2026-10-28)
+
+Registro histórico de la rama `feature/sales-dispatch` antes del merge: se validaron la API, migración aditiva, writer central, historial y formulario. Las suites E2E, de migraciones, unitarias, frontend, lint, formato y builds pasaron; estos resultados corresponden al HEAD previo al merge. PR #20 quedó integrado después en `develop` como `e79e6f7` y los dos checks de CI se reportaron exitosos, por lo que RF-VEN-003 está `Integrated`. Consultar [`sales-dispatch-validation.md`](sales-dispatch-validation.md).
+
+### Correcciones solicitadas para PR #20 (2026-10-28)
+
+En la misma rama `feature/sales-dispatch` se corrigió la identidad de las filas de `SaleDispatchForm`: cada asignación tiene clave estable y contiene sus selecciones de almacén/lote, evitando que al eliminar una fila el resumen difiera del payload. Se añadieron pruebas para borrar la primera y la intermedia, y para mostrar `Liberado` en vez de `RELEASED`.
+
+El protocolo compartido de `InventoryService` ahora asegura y bloquea balances antes de lotes, también cuando el balance aún no existe; Sales Dispatch prepara esas referencias antes de insertar sus líneas y conserva errores controlados para catálogos inexistentes. Se agregaron E2E para saldo ausente, concurrencia sin balance inicial, lote RELEASED sin balance y almacén inexistente. El CI nombra explícitamente las pruebas de migración de Dispatch.
+
+Validación local completada antes del merge: backend unitario 198/198; E2E PostgreSQL 18 421/421 en 30 archivos; Sales Dispatch 21/21; pruebas frontend focales 32/32 y suite frontend completa aprobada según la salida reportada (sin total consignado). `pnpm test:migrations`, lint, formato y builds pasaron. `docker compose up --build -d --wait --wait-timeout 180` terminó correctamente y PostgreSQL, backend y frontend quedaron `healthy`. Después, PR #20 fue integrado en `develop` como `e79e6f7`; los dos checks de CI se reportaron exitosos. Ver [`sales-dispatch-validation.md`](sales-dispatch-validation.md).
+
+### RF-VEN-003 integrado y Fase 3 — trazabilidad de venta (2026-10-28)
+
+PR #20 quedó integrado en `develop` con merge `e79e6f7f5cb3a5d6d13a07282c1d2bf473ada0bb`; su HEAD corregido fue `13286aab514d01af5f409aac79081f1999fa2757`. La persona responsable reportó los dos checks del PR (`CI / Quality and tests` y `CI / Docker development`) exitosos. El informe [`sales-dispatch-validation.md`](sales-dispatch-validation.md) describe el alcance integrado; este resultado no acredita todavía el nuevo trabajo de trazabilidad.
+
+La rama `feature/sales-traceability` parte directamente de ese `develop`. La extensión local de `GET /api/production/lots/:id/traceability` agrega despachos por lote con DES, fecha, cantidad, OV, cliente, almacén y responsable. Las salidas se consultan en un lote por todos los nodos visitados dentro de la transacción `REPEATABLE READ`; no se modifica el esquema ni el writer de Inventario. El movimiento de inventario también presenta el cliente en su referencia de negocio. Se agregó una prueba E2E para compra → producción → inspección → despachos parciales a dos clientes, cancelación y despacho fallido, y pruebas de detalle para cantidades derivadas de órdenes parcialmente/completamente despachadas.
+
+PR #21 está abierto para revisión, desde `feature/sales-traceability` hacia `develop`. Fase 3 está `Verified`, no `Integrated`; RF-VEN-003 sigue `Integrated` por el PR #20. Para el HEAD revisado `b6f15e59ca2208e40d55642d572cceae61c5083d`, GitHub Actions CI #55 reportó `Quality and tests` y `Docker development` en `SUCCESS`. La validación reportada incluye 199 pruebas unitarias backend (14 archivos), 423 E2E PostgreSQL (30 archivos), 507 frontend (25 archivos), 52 E2E focales Producción + Sales Dispatch, migration proofs/drift, lint, formato y builds aprobados. La prueba focal incluye una misma OV despachada desde dos lotes con cantidades 1 y 2. El merge queda pendiente de aprobación formal y de que los checks requeridos estén verdes para el HEAD final, incluido cualquier commit documental posterior. Ver [`sales-traceability-validation.md`](sales-traceability-validation.md).
+
+### D1 — Dashboard de Producción (2026-10-30)
+
+La rama `feature/production-dashboard` se actualizó con `origin/develop` en `7ae5126` (merge local `7834ba5`). D1 agrega la lectura autenticada `GET /api/production/dashboard`, fechas inclusivas de Managua, agregaciones en PostgreSQL, serie temporal acotada, cinco órdenes recientes y la pantalla `/production/dashboard`; no requiere migración ni cambios al esquema.
+
+La respuesta separa conteos por estado, cantidades planificadas y producción completada: estados/plan se agrupan por `COALESCE(plannedStartAt, createdAt)` y producción solo por `completedAt` para órdenes completadas. La interfaz permite escoger producto terminado activo mediante el picker paginado compartido. Sin producto, oculta cantidades y serie para no sumar unidades incompatibles; con producto, muestra la unidad asociada.
+
+Validación local de esta revisión: backend build, frontend TypeScript/Vite build, Prettier del repositorio y pruebas focales de `ProductionDashboardPage` (4/4) aprobados. Se amplió el E2E para validar el filtro de producto, unidades incompatibles, fechas de planificación/completado, pertenencia estable por fecha planificada, UUID inválido/inexistente y respuesta de producto sin órdenes. **Esos E2E aún no se ejecutaron**: Docker Desktop rechazó la conexión a su engine en este entorno. La suite completa, lint final, CI del PR y Docker verification también quedan pendientes de ejecución sobre el HEAD publicado. No afirmar D1 verificado ni listo para merge hasta completar esas comprobaciones y confirmar que los checks de GitHub están verdes.
+
+### C3 — Sostenibilidad: huella parcial de carbono (2026-10-31)
+
+Rama `feature/carbon-footprint` desde `develop` en `1260ba9` (sin cambios nuevos en
+`origin/develop` al validar). Agrega `SustainabilityModule`, las migraciones
+`20261031020000_sustainability_enums` y `20261031021000_sustainability`, la pantalla
+`/sustainability` y la documentación [`sustainability-carbon-footprint.md`](sustainability-carbon-footprint.md).
+Es una **estimación académica de huella parcial**; no constituye certificación, verificación
+independiente ni ACV completo. No se agregó ningún factor ambiental real: las pruebas usan factores
+`TEST*` con fuente `TEST_FIXTURE`.
+
+Validación local ejecutada contra PostgreSQL 18.6 (contenedor `postgres:18-alpine`, como la CI):
+`pnpm install --frozen-lockfile`, `prisma generate`, `prisma validate`, `migrate deploy`,
+`migrate diff` (No difference detected), `pnpm lint`, `pnpm format:check`, `pnpm build`, seed,
+backend unitarias, simulador (51), frontend (619 en 34 archivos), build y lint de frontend,
+`test:migrations` (todas las pruebas, incluida la nueva de C3) y E2E backend (556 en 39 archivos),
+todo aprobado. Tras ese gate se corrigieron dos detalles de C3 y se repitieron lint, builds, formato
+y las suites de sostenibilidad (unitarias, E2E y frontend), también aprobadas.
+
+**Pendiente:** el stack `docker compose up --build` no pudo construirse en el entorno de desarrollo
+(los contenedores no resolvían `deb.debian.org` durante `apt-get`). `docker compose config` sí
+pasó, y la lógica de `docker/verify-sustainability.mjs` se ejecutó contra el backend real en local.
+La aceptación Docker completa queda a cargo del job `Docker development` de la CI; no marcar C3 como
+verificada en Docker ni integrada hasta ver la CI verde y completar la revisión del PR.
+
+### C4 — BOM multinivel e integración de estructura de manufactura (2026-10-31)
+
+Rama `feature/multilevel-bom-integration` desde `develop` en `72959af` (sin commits nuevos en
+`origin/develop` al validar). **Sin migración ni cambios de schema.** Agrega detección de ciclos
+indirectos con advisory lock del grafo, `GET /api/production/manufacturing-structure/:productId`,
+las pantallas `/production/structure` y `/production/structure/:productId`, enlaces desde el detalle
+de fórmula y de ruta, y la documentación [`multilevel-manufacturing.md`](multilevel-manufacturing.md).
+El ejemplo EcoSoap vive solo en fixtures de prueba; el seed oficial queda para C5.
+
+Validación local contra PostgreSQL 18 (base dedicada `ecosoap_c4_test`):
+`pnpm install --frozen-lockfile`, `prisma generate`, `prisma validate`, `migrate deploy`,
+`migrate diff` (No difference detected), backend unitarias (386 en 24 archivos), E2E backend
+(574 en 41 archivos), `test:migrations` (C1, C2 y C3 preservadas), simulador (51), frontend
+(632 en 35 archivos), build y lint de frontend, `pnpm lint`, `pnpm format:check` y `pnpm build`,
+todo aprobado. En la primera corrida E2E, una prueba existente de C-2
+(`validates per-lot stock, product and warehouse after START`) superó el timeout de 5 s bajo carga;
+aislada tarda ~2,6 s, pasó tres veces seguidas y la suite completa repetida pasó 574/574.
+
+La prueba de concurrencia se verificó también en negativo: con el advisory lock deshabilitado
+ambas activaciones concurrentes entran (`[200, 200]`) y queda un ciclo activo; con el lock, siempre
+`[200, 422]` y grafo acíclico.
+
+Docker: `docker compose config`, `docker compose up --build -d --wait` y `docker/verify.mjs`
+completo (incluido el nuevo bloque C4 de `docker/verify-multilevel.mjs`) aprobados sobre una base
+`_test` separada. **Pendiente:** CI del PR y revisión; no marcar C4 como integrada hasta el merge.
+
+### C5 — Dataset oficial de demostración EcoSoap (2026-10-31)
+
+Rama `feature/ecosoap-demo-dataset` desde `develop` en `ad4a828`. Agrega `backend/src/demo/`,
+`pnpm demo:seed` y `pnpm demo:verify`, con jabón en barra `PT-JABON-500` y jabón líquido embotellado
+`PT-JABON-LIQ` sobre el intermedio compartido `INT-ACU-FIL`. El seed Foundation no cambió y no hay
+cambios de esquema ni migraciones. La formulación, la presentación y los tiempos del jabón líquido
+son supuestos académicos declarados en [`demo-dataset.md`](demo-dataset.md). Los factores `DEMO-*`
+son valores ilustrativos sin fuente externa.
+
+Validación local ejecutada contra PostgreSQL 18.6 (contenedor `postgres:18-alpine`): instalación
+congelada, `prisma generate`/`validate`/`migrate deploy`, drift (No difference detected), lint,
+formato, build, seed, backend unitarias (394), simulador (51), frontend (632), build y lint de
+frontend, `test:migrations` y E2E backend (582 en 42 archivos), todo aprobado. Sobre una base nueva:
+`pnpm demo:seed` creó el dataset; `pnpm demo:verify` dio 21/21 (PASS o READY). La segunda
+ejecución de ambos no modificó nada y volvió a dar 21/21.
+
+Corrección previa al merge: `pnpm demo:seed` ejecuta primero el preflight `demo:check`. Sin
+`DEMO_USER_PASSWORD`, sobre una base vacía, terminó con error y dejó 0 roles, almacenes, usuarios,
+productos, movimientos y auditorías: Foundation no llegó a ejecutarse. `demo:verify` separa
+`Initial stock ledger` de `Current inventory readiness` (saldo actual de `StockBalance`) y ahora
+tiene 22 checks. Las cuentas demo existentes validan nombre y `mustChangePassword = false`.
+Comprobado sobre una base nueva: seed y verify listos dos veces. Tras un ajuste real de
+−100 g de `MP-NAOH`, readiness dio FAIL con el ledger en PASS, el seed no repuso stock y el verify
+no cambió movimientos, auditoría, usuarios ni saldos. Tras restaurar, readiness dio PASS; una
+recepción real de 10000 mL de `MP-ACU` volvió a dar FAIL identificando `MP-ACU`.
+
+**Pendiente:** el stack Docker no se pudo construir en el entorno de desarrollo (sin DNS para
+`apt-get` dentro de los contenedores). La CI ejecuta el dataset dos veces en el job
+`Docker development`; no marcar C5 como verificada en Docker hasta ver esa CI verde.
+
+### D5 — Dashboard de Calidad (2026-11-01)
+
+Base `develop`: `82dfb1f1757441814fe83ffac71f063ae38e83c9`, merge del PR #41 (D4).
+Rama `feature/quality-dashboard`, con D1–D4 integrados. D5 autoriza exclusivamente
+lectura agregada y UI; D6 General/Home sigue excluido y se conserva evidencia C7.
+
+Se incorpora `GET /api/production/quality/dashboard` para usuarios autenticados,
+con producto histórico y fechas de Managua. Distingue colas actuales de inspecciones
+por inspectedAt y disposiciones por decidedAt, preservando REJECTED incluso tras
+RELEASE. Lectura RepeatableRead, SQL agregado, series con buckets cero, cola e
+inspecciones recientes acotadas; sin migraciones, writers ni seed nuevos.
+
+Pantalla `/quality/dashboard` con TanStack Query/Recharts, picker compartido que
+permite inactivos y todos los tipos, tablas accesibles y enlaces al lote/OP.
+Contrato y semántica: [D5](quality-dashboard.md). Evidencias de esta entrega:
+[validación D5](quality-dashboard-validation.md).
+
+### D6 — Dashboard General / Home (2026-11-01)
+
+Base `develop`: `4fe72b6f686e9006a8c02afdd550b4649cc38741`, merge del PR #42 (D5),
+confirmado antes de crear `feature/general-dashboard`, con C1–C7 y D1–D5.
+Home `/` conserva bienvenida, rol y accesos. Composición paralela de los cinco hooks
+existentes con un único período calendario de America/Managua, validación previa,
+estados/reintentos independientes, atención sin suma y dos gráficos accesibles.
+Sostenibilidad conserva su contexto metodológico y enlace, sin KPI corporativo.
+
+Sin API General, SQL duplicado, cambios a contratos D1–D5, código productivo backend,
+esquema, migraciones, writers ni seed. Los valores Decimal no se suman ni reciben
+moneda; no se agregan cantidades multi-UOM, scores o severidades compartidas.
+Smoke y defensa verifican compatibilidad de las cinco fuentes después del flujo real.
+
+Contrato visual y límites: [D6](general-dashboard.md). Evidencias:
+[validación D6](general-dashboard-validation.md). Tras el merge de D6 se completa
+D1–D6 y vuelve FEATURE FROZEN; no existe D7. Se preserva evidencia histórica C7.
