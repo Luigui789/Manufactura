@@ -74,6 +74,7 @@ for (const route of [
   '/inventory/lots',
   '/inventory/dashboard',
   '/purchases/dashboard',
+  '/sales/dashboard',
 ]) {
   const authenticated = await fetch(`${api}${route}`, { headers: { Cookie, Origin: origin } });
   assert.equal(authenticated.status, 200, route);
@@ -609,6 +610,59 @@ console.log(
 
 await verifySustainability(api, Cookie, origin, request, suffix, warehouse);
 await verifyMultilevel(request, suffix, warehouse, Client);
+
+// D4: use the already manufactured, human-released control lot; no seed changes.
+const salesCustomer = await request('/customers', 'POST', {
+  code: 'D4-' + suffix,
+  name: 'Docker sales dashboard customer',
+});
+const salesOrder = await request('/sales/orders', 'POST', {
+  customerId: salesCustomer.id,
+  items: [{ productId: outputProduct.id, quantity: '2', unitPrice: '1.005' }],
+});
+await request(`/sales/orders/${salesOrder.id}/confirm`, 'POST', {});
+const salesLine = {
+  saleOrderItemId: salesOrder.items[0].id,
+  warehouseId: warehouse.id,
+  lotId: completed.lot.id,
+  quantity: '1',
+};
+await request(`/sales/orders/${salesOrder.id}/dispatch`, 'POST', { items: [salesLine] });
+const partialSales = await request(`/sales/dashboard?customerId=${salesCustomer.id}`);
+assert.equal(partialSales.pipeline.awaitingDispatch, 1);
+assert.equal(partialSales.orders.partiallyDispatched, 1);
+assert.equal(partialSales.amounts.confirmed, '2.01');
+await request(`/sales/orders/${salesOrder.id}/dispatch`, 'POST', { items: [salesLine] });
+const salesDashboard = await request(`/sales/dashboard?customerId=${salesCustomer.id}`);
+assert.equal(salesDashboard.period.timeZone, 'America/Managua');
+assert.equal(salesDashboard.pipeline.awaitingDispatch, 0);
+assert.equal(salesDashboard.orders.dispatched, 1);
+assert.equal(
+  salesDashboard.orders.total,
+  ['draft', 'confirmed', 'partiallyDispatched', 'dispatched', 'cancelled'].reduce(
+    (sum, key) => sum + salesDashboard.orders[key],
+    0,
+  ),
+);
+assert.match(salesDashboard.amounts.confirmed, /^\d+\.\d{2}$/);
+assert.deepEqual(salesDashboard.dispatches, { total: 2, lines: 2 });
+assert.equal(
+  salesDashboard.activityByPeriod.reduce((sum, p) => sum + p.orders, 0),
+  salesDashboard.orders.total,
+);
+assert.equal(
+  salesDashboard.activityByPeriod.reduce((sum, p) => sum + p.dispatches, 0),
+  salesDashboard.dispatches.total,
+);
+assert.ok(salesDashboard.topCustomers.length <= 5);
+assert.ok(salesDashboard.recentOrders.length <= 5);
+assert.equal(salesDashboard.recentOrders[0].id, salesOrder.id);
+assert.equal(salesDashboard.recentOrders[0].dispatchesCount, 2);
+for (const row of salesDashboard.topCustomers) assert.match(row.confirmedAmount, /^\d+\.\d{2}$/);
+for (const row of salesDashboard.recentOrders) assert.match(row.total, /^\d+\.\d{2}$/);
+console.log(
+  'Docker D4: real partial/full dispatch from a RELEASED lot, pipeline, Decimal strings and reconciled activity verified.',
+);
 
 const logout = await fetch(`${api}/auth/logout`, {
   method: 'POST',

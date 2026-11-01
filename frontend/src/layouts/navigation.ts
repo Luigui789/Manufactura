@@ -40,6 +40,13 @@ export const navigation: {
     icon: ShoppingCart,
   },
   {
+    to: '/sales/dashboard',
+    label: 'Ventas · Dashboard',
+    roles: ROLE_CODES,
+    group: 'Operaciones',
+    icon: ChartNoAxesCombined,
+  },
+  {
     to: '/sales/orders',
     label: 'Ventas · Órdenes',
     roles: ROLE_CODES,
