@@ -228,6 +228,9 @@
   .detail-grid dd {
     @apply break-words text-sm font-medium;
   }
+  .table-link {
+    @apply font-medium underline decoration-foreground/30 underline-offset-4 hover:decoration-foreground;
+  }
   .numeric {
     @apply text-right whitespace-nowrap tabular-nums;
   }
