@@ -21,7 +21,6 @@ import {
   useEmissionFactors,
   useSetFactorStatus,
 } from '../api/sustainability';
-import { CarbonDisclaimer } from '../components/CarbonDisclaimer';
 import { FactorForm } from '../components/FactorForm';
 import { CATEGORY_LABELS, trimDecimal, UNIT_SYMBOLS } from '../labels';
 
@@ -71,7 +70,6 @@ export function EmissionFactorsPage() {
           )
         }
       />
-      <CarbonDisclaimer />
       {!isAdmin && (
         <p className="text-sm text-muted-foreground">
           Los factores son configuración gobernada: solo Administración puede crearlos o

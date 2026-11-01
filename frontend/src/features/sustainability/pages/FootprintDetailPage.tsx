@@ -31,7 +31,6 @@ import {
   useOrderSummary,
   useSyncFootprint,
 } from '../api/sustainability';
-import { CarbonDisclaimer } from '../components/CarbonDisclaimer';
 import { FinalizeFootprint } from '../components/FinalizeFootprint';
 import { ManualActivityForm } from '../components/ManualActivityForm';
 import {
@@ -429,8 +428,7 @@ export function FootprintDetailPage() {
               </Button>
             }
           />
-          <FormSection title="1. Aviso metodológico">
-            <CarbonDisclaimer />
+          <FormSection title="1. Datos de producción">
             <DetailGrid>
               <div>
                 <dt>Orden de producción</dt>

@@ -21,9 +21,6 @@ export function QualityIiotContext({ productionOrderId }: { productionOrderId: s
         requiere una decisión explícita del inspector. Una alerta CRITICAL no implica rechazo
         automático; la ausencia de alertas no sustituye la inspección.
       </p>
-      <p className="text-xs text-muted-foreground">
-        DEMO / SYNTHETIC · Reglas académicas; no representan límites industriales certificados.
-      </p>
       {overview.isPending && <LoadingState label="Cargando contexto IIoT…" />}
       <ErrorNotice error={overview.error} />
       {current && !overview.isError && (

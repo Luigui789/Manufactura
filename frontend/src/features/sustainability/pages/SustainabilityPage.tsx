@@ -15,7 +15,6 @@ import {
 } from '@/components/ui/table';
 import { PRODUCT_UNIT_LABELS } from '@/features/inventory/product-labels';
 import { useSustainabilityOrders } from '../api/sustainability';
-import { CarbonDisclaimer } from '../components/CarbonDisclaimer';
 import { FOOTPRINT_STATUS_LABELS, kg, trimDecimal } from '../labels';
 
 export function SustainabilityPage() {
@@ -41,7 +40,6 @@ export function SustainabilityPage() {
           </>
         }
       />
-      <CarbonDisclaimer />
       <form
         role="search"
         className="flex flex-wrap items-end gap-3 border-y py-4"

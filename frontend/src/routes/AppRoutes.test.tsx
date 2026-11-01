@@ -5,6 +5,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { createAppQueryClient, SESSION_KEY } from '@/app/query-client';
 import type { SessionUser } from '@/features/auth/types';
 import { AppRoutes } from './AppRoutes';
+import { dashboardResponse } from '@/features/home/test/fixtures';
 import {
   overview as iiotOverview,
   page as iiotPage,
@@ -33,6 +34,12 @@ const response = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });
 
 function mount(path = '/', user: SessionUser | null = account, loadSession = false) {
+  const existingFetch = globalThis.fetch;
+  vi.stubGlobal('fetch', (url: string, init?: RequestInit) => {
+    const params = new URL(url, 'http://localhost').searchParams;
+    const homeResponse = params.has('from') && params.has('to') ? dashboardResponse(url) : null;
+    return homeResponse ?? existingFetch(url, init);
+  });
   const client = createAppQueryClient();
   if (!loadSession) client.setQueryData(SESSION_KEY, user);
   render(

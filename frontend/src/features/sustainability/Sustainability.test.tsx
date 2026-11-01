@@ -11,13 +11,13 @@ import type {
   OrderSummary,
   SustainabilityOrder,
 } from './api/sustainability';
-import { CARBON_DISCLAIMER } from './components/CarbonDisclaimer';
 import { trimDecimal } from './labels';
 import { CircularMaterialsPage } from './pages/CircularMaterialsPage';
 import { EmissionFactorsPage } from './pages/EmissionFactorsPage';
 import { FootprintDetailPage } from './pages/FootprintDetailPage';
 import { SustainabilityPage } from './pages/SustainabilityPage';
 
+const CARBON_DISCLAIMER = 'Aviso recibido del servidor';
 const json = (data: unknown, status = 200) =>
   new Response(JSON.stringify(data), { status, headers: { 'Content-Type': 'application/json' } });
 const product = { id: 'pt', code: 'PT-JABON', name: 'Jabón ecológico', unit: 'UNIT' as const };
@@ -277,7 +277,7 @@ describe('Sustainability navigation and listing', () => {
     expect(within(rows[3]).getByText('Finalizado')).toBeTruthy();
     expect(within(rows[3]).getByText('22.50 kg CO₂e')).toBeTruthy();
     expect(within(rows[3]).getByText('0.1125 kg CO₂e / unidad')).toBeTruthy();
-    expect(screen.getByText(CARBON_DISCLAIMER)).toBeTruthy();
+    expect(screen.queryByLabelText('Aviso metodológico')).toBeNull();
   });
 
   it('shows loading, empty and error states', async () => {
@@ -368,9 +368,9 @@ describe('Emission factor catalog UI', () => {
 describe('Footprint detail UI', () => {
   it('without footprint offers creation to PRODUCCION and shows circularity', async () => {
     const fetch = detail('PRODUCCION', null);
-    expect(await screen.findByRole('heading', { name: '1. Aviso metodológico' })).toBeTruthy();
+    expect(await screen.findByRole('heading', { name: '1. Datos de producción' })).toBeTruthy();
     expect(screen.getAllByText('Sin calcular').length).toBeGreaterThan(0);
-    expect(screen.getByText(CARBON_DISCLAIMER)).toBeTruthy();
+    expect(screen.queryByLabelText('Aviso metodológico')).toBeNull();
     expect(screen.getByText('100 L')).toBeTruthy();
     fireEvent.click(screen.getByRole('button', { name: 'Calcular huella (borrador)' }));
     await waitFor(() => expect(posts(fetch)).toHaveLength(1));
@@ -404,7 +404,7 @@ describe('Footprint detail UI', () => {
         'Este indicador se presenta por separado y no se descuenta automáticamente de la huella de carbono.',
       ),
     ).toBeTruthy();
-    expect(screen.getAllByText(CARBON_DISCLAIMER)).toHaveLength(1);
+    expect(screen.queryByLabelText('Aviso metodológico')).toBeNull();
   });
 
   it('shows missing factors to everyone but the configure action only to ADMIN', async () => {
@@ -531,7 +531,7 @@ describe('Footprint detail UI', () => {
     expect(posts(fetch)).toHaveLength(1);
   });
 
-  it('FINALIZED is read-only and still shows the disclaimer', async () => {
+  it('FINALIZED is read-only without the academic notice', async () => {
     detail(
       'ADMIN',
       footprint({
@@ -544,7 +544,7 @@ describe('Footprint detail UI', () => {
       }),
     );
     expect(await screen.findByText('Huella finalizada e inmutable.')).toBeTruthy();
-    expect(screen.getByText(CARBON_DISCLAIMER)).toBeTruthy();
+    expect(screen.queryByLabelText('Aviso metodológico')).toBeNull();
     expect(screen.getByText('Responsable')).toBeTruthy();
     expect(screen.queryByRole('form')).toBeNull();
     expect(screen.queryByRole('button', { name: /Sincronizar/ })).toBeNull();

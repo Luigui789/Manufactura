@@ -721,6 +721,40 @@ console.log(
   'Docker D5: aggregated quality dashboard reconciles real APPROVED and REJECTED/SCRAP flows.',
 );
 
+// D6 composes existing contracts: all five sources must honor one explicit calendar window.
+const calendar = Object.fromEntries(
+  new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'America/Managua',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  })
+    .formatToParts(new Date())
+    .map(({ type, value }) => [type, value]),
+);
+const commonTo = `${calendar.year}-${calendar.month}-${calendar.day}`;
+const commonFrom = new Date(Date.parse(`${commonTo}T00:00:00Z`) - 29 * 86400000)
+  .toISOString()
+  .slice(0, 10);
+const commonQuery = new URLSearchParams({ from: commonFrom, to: commonTo });
+const commonPeriod = {
+  from: commonFrom,
+  to: commonTo,
+  timeZone: 'America/Managua',
+  granularity: 'day',
+};
+for (const route of [
+  '/production/dashboard',
+  '/inventory/dashboard',
+  '/purchases/dashboard',
+  '/sales/dashboard',
+  '/production/quality/dashboard',
+]) {
+  const source = await request(`${route}?${commonQuery}`);
+  assert.deepEqual(source.period, commonPeriod, `${route} debe conservar el período común`);
+}
+console.log('Docker D6: five existing dashboards accept one identical Managua calendar period.');
+
 const logout = await fetch(`${api}/auth/logout`, {
   method: 'POST',
   headers: { Cookie, Origin: origin },

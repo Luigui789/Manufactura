@@ -197,7 +197,7 @@ pnpm demo:verify
 
 Los usuarios demo son `admin.demo`, `compras.demo`, `inventario.demo`, `produccion.demo`
 y `ventas.demo`, todos con dominio `@ecosoap.test`. Usan la contraseña local del seed.
-Rutas principales: `/purchases/orders`, `/inventory/stock`, `/production/orders`,
+Rutas principales: `/` (Home D6), `/purchases/orders`, `/inventory/stock`, `/production/orders`,
 `/production/routes`, `/production/structure`, `/sustainability`,
 `/sales/orders`, `/production/dashboard`, `/inventory/dashboard`, `/purchases/dashboard`, `/sales/dashboard` y `/quality/dashboard`; IIoT se abre desde cada OP.
 
@@ -206,7 +206,9 @@ MQTT y el simulador compilado. Comprueba el flujo real y consume inventario: REA
 NOT READY después. No usar la base preparada para UI ni ejecutar builds simultáneos en el
 mismo checkout. Ver [smoke de 10–15 min](docs/final-smoke-checklist.md),
 [guion integrado](docs/defense-demo-checklist.md), [reporte C7](docs/final-hardening-report.md)
-y [alcance vigente: reapertura exclusiva D5](docs/feature-freeze.md).
+y [alcance vigente: cierre D1–D6](docs/feature-freeze.md).
+El [Dashboard General/Home D6](docs/general-dashboard.md) compone los cinco dashboards
+con un período común de Managua, errores parciales y acceso al contexto de sostenibilidad.
 El [Dashboard de Inventario D2](docs/inventory-dashboard.md) distingue existencia
 actual de actividad histórica, con cantidades físicas solo por producto seleccionado.
 El [Dashboard de Compras D3](docs/purchases-dashboard.md) distingue pipeline actual
