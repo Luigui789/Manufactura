@@ -19,6 +19,7 @@ import { spawnSync } from 'node:child_process';
 import { readFile, readdir } from 'node:fs/promises';
 import { createRequire } from 'node:module';
 import { randomUUID } from 'node:crypto';
+import { fileURLToPath } from 'node:url';
 import { createTestApp, login, randomPassword, type TestApp } from './support/auth-test-kit.js';
 
 let kit: TestApp;
@@ -26,7 +27,7 @@ let hash: string;
 const password = randomPassword();
 const productCodes = DEMO_PRODUCTS.map((p) => p.code);
 const data = <T>(r: { body: unknown }) => (r.body as { data: T }).data;
-const repoRoot = new URL('../../', import.meta.url).pathname;
+const repoRoot = fileURLToPath(new URL('../../', import.meta.url));
 const PgClient = (
   createRequire(createRequire(import.meta.url).resolve('@prisma/adapter-pg'))('pg') as {
     Client: new (options: { connectionString: string }) => {
@@ -340,10 +341,24 @@ describe('C5 EcoSoap demo dataset', () => {
       const migrations = new URL('../prisma/migrations/', import.meta.url);
       for (const dir of (await readdir(migrations)).filter((n) => /^\d/.test(n)).sort())
         await db.query(await readFile(new URL(dir + '/migration.sql', migrations), 'utf8'));
-      const env = { ...process.env, DATABASE_URL: target.toString() };
-      delete env.DEMO_USER_PASSWORD;
-      const result = spawnSync('pnpm', ['demo:seed'], { cwd: repoRoot, env, encoding: 'utf8' });
-      expect(result.status).not.toBe(0);
+      // Empty is the same missing-input error; an omitted key can be refilled by a
+      // developer's local .env. Never let that local secret turn this negative test into a seed.
+      const env: NodeJS.ProcessEnv = {
+        ...process.env,
+        DATABASE_URL: target.toString(),
+        DEMO_USER_PASSWORD: '',
+      };
+      const pnpmCli = process.env.npm_execpath;
+      if (!pnpmCli) throw new Error('Run this regression through pnpm test:e2e');
+      // Invoke the active pnpm CLI through Node: .cmd is not executable without a shell on Windows.
+      const result = spawnSync(process.execPath, [pnpmCli, 'demo:seed'], {
+        cwd: repoRoot,
+        env,
+        encoding: 'utf8',
+        windowsHide: true,
+      });
+      expect(result.error).toBeUndefined();
+      expect(result.status, result.stderr + result.stdout).not.toBe(0);
       expect(result.stderr + result.stdout).toContain('DEMO_USER_PASSWORD es obligatoria');
       expect(result.stdout).not.toContain('Seed Foundation aplicado');
       for (const table of [
