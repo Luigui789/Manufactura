@@ -1,6 +1,10 @@
 # Congelamiento funcional EcoSoap ERP
 
-**Estado: FEATURE FROZEN**
+**Estado: alcance reabierto exclusivamente para D2 — Dashboard de Inventario**
+
+La decisión D2 autoriza un dashboard de inventario de lectura agregada, con
+existencia actual y actividad del período. No autoriza D3–D6, migraciones ni
+cambios en las reglas de escritura. El reporte C7 conserva sus resultados históricos.
 
 C7 cierra la fase técnica de funcionalidades. El código se entrega a revisión;
 la aprobación de merge exige los checks nuevos de C7 en verde y revisión humana.
@@ -11,13 +15,13 @@ No se habilita auto-merge ni squash. Base: `develop` con C1–C6 y PR #37 mergea
 Authentication/RBAC; productos/UOM y almacenes; proveedores/clientes; compras y
 recepciones; inventario con ledger; BOM multinivel; Production Routes; órdenes
 de producción; lotes y trazabilidad; calidad y disposition; ventas/despachos;
-IIoT/MQTT y simulador de demostración; dashboard de Producción; sostenibilidad,
+IIoT/MQTT y simulador de demostración; dashboards de Producción e Inventario (D2); sostenibilidad,
 carbono y circularidad; dataset oficial y E2E integrado de defensa.
 
 ## Excluido
 
-Contabilidad, RRHH/nómina, tesorería y mantenimiento. No existen dashboards
-generales, de compras, inventario, ventas o calidad adicionales al de Producción.
+Contabilidad, RRHH/nómina, tesorería y mantenimiento. Continúan excluidos los
+dashboards generales, de compras, ventas y calidad (D3–D6).
 No se promete ejecución MES por operación, MRP recursivo automático, plataforma
 IIoT de alta disponibilidad, despliegue productivo endurecido ni certificación de carbono.
 
@@ -42,7 +46,7 @@ IIoT de alta disponibilidad, despliegue productivo endurecido ni certificación 
 
 ## Cambios posteriores permitidos
 
-Después del merge de C7 solo se aceptan bugs críticos con reproducción y regresión,
+Con la excepción explícita de D2, después del merge de C7 solo se aceptan bugs críticos con reproducción y regresión,
 correcciones documentales y ajustes de defensa sin cambio funcional. No módulos,
 dashboards, upgrades oportunistas ni ampliación de fórmulas/rutas/IIoT/calidad/carbono.
 No iniciar C8. La siguiente etapa es informe final, manual/evidencias, bitácora,
