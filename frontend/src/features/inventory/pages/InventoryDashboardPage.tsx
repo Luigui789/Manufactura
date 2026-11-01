@@ -254,11 +254,15 @@ export function InventoryDashboardPage() {
                             <XAxis dataKey="name" />
                             <YAxis />
                             <Tooltip />
-                            <Legend />
+                            <Legend
+                              formatter={(value) => (
+                                <span className="text-foreground">{value}</span>
+                              )}
+                            />
                             <Bar
                               dataKey="onHand"
                               name="Existencia física"
-                              fill="var(--color-chart-1)"
+                              fill="var(--color-primary)"
                             />
                             <Bar
                               dataKey="consumable"
