@@ -69,7 +69,7 @@ export class DashboardService {
           : null;
         if (query.productId && !selectedProduct)
           throw new NotFoundException('Producto no encontrado');
-        const [currentRows, inspectionCounts, dispositionCounts, series, attention, recent] =
+        const [currentRows, inspectionCounts, dispositionCounts, series, attention, recentIds] =
           await Promise.all([
             tx.$queryRaw<
               { pendingInspection: bigint; rejectedAwaitingDisposition: bigint; rework: bigint }[]
@@ -123,14 +123,15 @@ export class DashboardService {
           FROM queue q JOIN lots l ON l.id = q.id JOIN products p ON p.id = l.product_id
           JOIN production_orders o ON o.id = l.production_order_id
           ORDER BY q.priority, q.since, l.id LIMIT 5`),
-            tx.qualityInspection.findMany({
-              where: {
-                inspectedAt: {
-                  gte: new Date(`${from}T00:00:00-06:00`),
-                  lt: new Date(Date.parse(`${to}T00:00:00-06:00`) + DAY),
-                },
-                ...(query.productId ? { lot: { productId: query.productId } } : {}),
-              },
+            tx.$queryRaw<{ id: string }[]>(Prisma.sql`
+              SELECT i.id FROM quality_inspections i JOIN lots l ON l.id = i.lot_id
+              WHERE ${inspectionBounds} ${filter}
+              ORDER BY i.inspected_at DESC, i.created_at DESC, i.id DESC LIMIT 5`),
+          ]);
+        // Use the same PostgreSQL timezone bounds for every section, including historical offsets.
+        const recent = recentIds.length
+          ? await tx.qualityInspection.findMany({
+              where: { id: { in: recentIds.map((r) => r.id) } },
               orderBy: [{ inspectedAt: 'desc' }, { createdAt: 'desc' }, { id: 'desc' }],
               take: 5,
               select: {
@@ -149,8 +150,8 @@ export class DashboardService {
                   },
                 },
               },
-            }),
-          ]);
+            })
+          : [];
         const approved = Number(inspectionCounts.find((r) => r.result === 'APPROVED')?.count ?? 0);
         const rejectedCount = Number(
           inspectionCounts.find((r) => r.result === 'REJECTED')?.count ?? 0,
