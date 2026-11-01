@@ -29,7 +29,7 @@ afterAll(async () => {
   if (kit) await kit.close();
 });
 
-async function order(status: 'IN_PROGRESS' | 'DRAFT' | 'COMPLETED' = 'IN_PROGRESS') {
+async function order(status: 'IN_PROGRESS' | 'DRAFT' | 'COMPLETED' | 'CANCELLED' = 'IN_PROGRESS') {
   const product = await createInventoryProduct(kit.prisma);
   const warehouse = await createInventoryWarehouse(kit.prisma);
   const bom = await kit.prisma.billOfMaterial.create({
@@ -49,7 +49,7 @@ async function order(status: 'IN_PROGRESS' | 'DRAFT' | 'COMPLETED' = 'IN_PROGRES
       quantityPlanned: '1',
       createdByUserId: actorId,
       status,
-      ...(status !== 'DRAFT' ? { startedAt: new Date() } : {}),
+      ...(['IN_PROGRESS', 'COMPLETED'].includes(status) ? { startedAt: new Date() } : {}),
       ...(status === 'COMPLETED' ? { completedAt: new Date(), quantityProduced: '1' } : {}),
     },
   });
@@ -159,7 +159,7 @@ it('enforces authentication, roles, enum DTOs and UUIDs', async () => {
   expect(mock.start).not.toHaveBeenCalled();
 });
 
-it.each(['DRAFT', 'COMPLETED'] as const)(
+it.each(['DRAFT', 'COMPLETED', 'CANCELLED'] as const)(
   'rejects %s without creating a device or starting production',
   async (state) => {
     const mock = runner();
@@ -176,6 +176,25 @@ it.each(['DRAFT', 'COMPLETED'] as const)(
     expect(await kit.prisma.productionOrder.findUnique({ where: { id: op.id } })).toEqual(op);
   },
 );
+
+it('C7 reserves one concurrent simulation and provisions exactly one device/child', async () => {
+  const mock = runner();
+  const op = await order();
+  const before = await kit.prisma.iiotDevice.count();
+  const results = await Promise.all(
+    Array.from({ length: 2 }, () =>
+      kit
+        .http()
+        .post(url(op.id))
+        .set('Cookie', cookies.PRODUCCION!)
+        .send({ process: 'bar', scenario: 'normal' }),
+    ),
+  );
+  expect(results.map((result) => result.status).sort()).toEqual([202, 409]);
+  expect(mock.start).toHaveBeenCalledTimes(1);
+  expect(await kit.prisma.iiotDevice.count()).toBe(before + 1);
+  mock.reject(new Error('test cleanup'));
+});
 
 it('reports a failed child safely and permits an explicit retry', async () => {
   const mock = runner();

@@ -92,6 +92,40 @@ afterAll(async () => {
 });
 
 describe('C3 emission factor catalog', () => {
+  it('C7 allows exactly one concurrent activation for a product, with one ENABLE audit', async () => {
+    const product = await kit.prisma.product.create({
+      data: {
+        code: 'C7-' + tag(),
+        name: 'C7 material',
+        category: 'C7',
+        type: 'RAW_MATERIAL',
+        unit: 'GRAM',
+      },
+    });
+    const factors: Factor[] = [];
+    for (let index = 0; index < 2; index++) {
+      const created = await factor({
+        productId: product.id,
+        category: 'RAW_MATERIAL',
+        activityUnit: 'GRAM',
+        kgCo2ePerUnit: '1',
+      });
+      await admin().patch(`${FACTORS}/${created.id}/status`).send({ isActive: false }).expect(200);
+      factors.push(created);
+    }
+    const results = await Promise.all(
+      factors.map((item) => admin().patch(`${FACTORS}/${item.id}/status`).send({ isActive: true })),
+    );
+    expect(results.map((result) => result.status).sort()).toEqual([200, 409]);
+    expect(
+      await kit.prisma.emissionFactor.count({ where: { productId: product.id, isActive: true } }),
+    ).toBe(1);
+    expect(
+      await kit.prisma.auditLog.count({
+        where: { entityId: { in: factors.map((item) => item.id) }, action: 'ENABLE' },
+      }),
+    ).toBe(1);
+  });
   it('creates, reads, edits and toggles a documented factor with audit', async () => {
     const created = await factor({
       category: 'ENERGY',

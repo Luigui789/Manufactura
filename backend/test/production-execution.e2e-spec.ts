@@ -660,24 +660,39 @@ describe('C-2 production execution', () => {
       .expect(200);
     await reconcile(f);
   });
-  it('two started orders compete for free stock without overspending', async () => {
-    const f = await fixture({ stock: '200' });
-    const other = data<Order>(
-      await post(base)
-        .send({
-          productId: f.output.id,
-          bomVersionId: f.versionId,
-          warehouseId: f.warehouseId,
-          quantityPlanned: '100',
-        })
-        .expect(201),
-    );
-    await post(`${base}/${f.order.id}/start`).send({}).expect(200);
-    await post(`${base}/${other.id}/start`).send({}).expect(200);
-    const responses = await Promise.all([complete(f), complete({ ...f, order: other })]);
-    expect(responses.map((r) => r.status).sort()).toEqual([200, 409]);
-    await reconcile(f);
-  });
+  it.each([false, true])(
+    'two started orders compete without overspending (tracked=%s)',
+    async (tracked) => {
+      const f = await fixture({ stock: '200', tracked });
+      const other = data<Order>(
+        await post(base)
+          .send({
+            productId: f.output.id,
+            bomVersionId: f.versionId,
+            warehouseId: f.warehouseId,
+            quantityPlanned: '100',
+          })
+          .expect(201),
+      );
+      await post(`${base}/${f.order.id}/start`).send({}).expect(200);
+      await post(`${base}/${other.id}/start`).send({}).expect(200);
+      const responses = await Promise.all([complete(f), complete({ ...f, order: other })]);
+      expect(responses.map((r) => r.status).sort()).toEqual([200, 409]);
+      if (tracked) {
+        const ledger = await kit.prisma.inventoryMovement.aggregate({
+          where: { lotId: f.lotIds[0], warehouseId: f.warehouseId },
+          _sum: { quantity: true },
+        });
+        expect(ledger._sum.quantity?.toFixed(4)).toBe('0.0000');
+        expect(
+          await kit.prisma.inventoryMovement.count({
+            where: { lotId: f.lotIds[0], type: 'PRODUCTION_CONSUMPTION' },
+          }),
+        ).toBe(1);
+      }
+      await reconcile(f);
+    },
+  );
   it('rolls back output, stock, sequence and state when COMPLETE audit fails', async () => {
     const f = await fixture({ stock: '200' });
     await post(`${base}/${f.order.id}/start`).send({}).expect(200);

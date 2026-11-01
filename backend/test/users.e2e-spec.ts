@@ -2,7 +2,7 @@ import { RequestMethod } from '@nestjs/common';
 import { PATH_METADATA, METHOD_METADATA } from '@nestjs/common/constants.js';
 import { DiscoveryService, MetadataScanner, Reflector } from '@nestjs/core';
 
-import { ACCESS_POLICY } from '../src/auth/access-policy.js';
+import { ACCESS_POLICY, type AccessPolicy } from '../src/auth/access-policy.js';
 import { AuditService } from '../src/audit/audit.service.js';
 import {
   ActorType,
@@ -95,6 +95,7 @@ describe('RBAC', () => {
     const scanner = kit.app.get(MetadataScanner);
     const reflector = kit.app.get(Reflector);
     const missing: string[] = [];
+    const publicRoutes: string[] = [];
     let routes = 0;
 
     for (const wrapper of discovery.getControllers()) {
@@ -106,13 +107,26 @@ describe('RBAC', () => {
         if (Reflect.getMetadata(PATH_METADATA, handler) === undefined) continue;
         routes += 1;
         const method = RequestMethod[Reflect.getMetadata(METHOD_METADATA, handler) as number];
-        if (!reflector.getAllAndOverride(ACCESS_POLICY, [handler, controller])) {
+        const policy = reflector.getAllAndOverride<AccessPolicy | undefined>(ACCESS_POLICY, [
+          handler,
+          controller,
+        ]);
+        if (!policy) {
           missing.push(`${method} ${controller.name}.${name}`);
+        }
+        if (policy?.kind === 'public') publicRoutes.push(`${method} ${controller.name}.${name}`);
+        if (policy?.kind === 'roles') {
+          expect(policy.roles.length).toBeGreaterThan(0);
+          for (const role of policy.roles) expect(Object.values(RoleCode)).toContain(role);
         }
       }
     }
     expect(routes).toBeGreaterThan(10);
     expect(missing).toEqual([]);
+    expect(publicRoutes.sort()).toEqual([
+      'GET HealthController.check',
+      'POST AuthController.login',
+    ]);
   });
 });
 
