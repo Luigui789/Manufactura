@@ -32,6 +32,7 @@ export function CatalogPicker({
   productType,
   productTypeOptions = [],
   disabled = false,
+  allProductTypes = false,
 }: {
   kind: 'supplier' | 'product' | 'warehouse' | 'customer';
   value: string;
@@ -42,6 +43,7 @@ export function CatalogPicker({
   productType?: ProductType;
   productTypeOptions?: ProductType[];
   disabled?: boolean;
+  allProductTypes?: boolean;
 }) {
   const id = useId();
   const summaryRef = useRef<HTMLDivElement>(null);
@@ -68,6 +70,7 @@ export function CatalogPicker({
       search,
       productType ?? selectedProductType,
       allowInactive,
+      allProductTypes,
     ],
     queryFn: async ({ signal }) => {
       if (kind === 'supplier') return getSuppliers(page, 20, signal);
@@ -81,8 +84,8 @@ export function CatalogPicker({
           page,
           20,
           {
-            type: productType ?? selectedProductType,
-            isActive: true,
+            ...(allProductTypes ? {} : { type: productType ?? selectedProductType }),
+            ...(allowInactive ? {} : { isActive: true }),
             ...(search.trim() ? { search: search.trim() } : {}),
           },
           signal,

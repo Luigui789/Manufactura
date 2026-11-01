@@ -89,6 +89,13 @@ export const navigation: {
     icon: ListTree,
   },
   {
+    to: '/quality/dashboard',
+    label: 'Calidad · Dashboard',
+    roles: ROLE_CODES,
+    group: 'Operaciones',
+    icon: ChartNoAxesCombined,
+  },
+  {
     to: '/sustainability',
     label: 'Sostenibilidad',
     roles: ROLE_CODES,
