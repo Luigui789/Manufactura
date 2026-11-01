@@ -4,6 +4,7 @@ import {
   Bar,
   BarChart,
   CartesianGrid,
+  Legend,
   Line,
   LineChart,
   ResponsiveContainer,
@@ -15,7 +16,13 @@ import { ErrorNotice } from '@/components/ErrorNotice';
 import { EmptyState, LoadingState, PageHeader, StatusBadge } from '@/components/erp';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Label } from '@/components/ui/label';
+import {
+  DashboardFilterBar,
+  DashboardSection,
+  MetricCard,
+  MetricGrid,
+} from '@/components/dashboard';
+import { chartAxis, chartGrid, chartLegend, chartTooltip } from '@/lib/dashboard';
 import { InventoryEntityPicker } from '@/features/inventory/components/InventoryEntityPicker';
 import { unitLabel } from '@/lib/presentation';
 import { useProductionDashboard } from '../api/dashboard';
@@ -47,54 +54,50 @@ export function ProductionDashboardPage() {
     ? metricLabels.map(([key, label]) => ({ name: label, orders: data.orders[key] }))
     : [];
 
+  const filtered = !!(from || to || productId || applied.from || applied.to);
+
   return (
-    <section className="space-y-6">
+    <section className="space-y-8">
       <PageHeader
         title="Dashboard de producción"
-        description="Resumen de órdenes, cantidades por producto y actividad reciente. Las fechas se interpretan en hora de Managua."
-        breadcrumbs={[{ label: 'Producción', to: '/production/orders' }, { label: 'Dashboard' }]}
+        description="Órdenes, cantidades por producto y actividad reciente. Fechas en hora de Managua."
+        breadcrumbs={[{ label: 'Producción', to: '/production/orders' }, { label: 'Resumen' }]}
       />
-      <form
-        className="filter-bar flex flex-wrap items-end gap-3"
-        aria-label="Filtrar dashboard por fecha"
-        onSubmit={(event) => {
-          event.preventDefault();
-          setApplied({ ...(from ? { from } : {}), ...(to ? { to } : {}) });
-        }}
+      <DashboardFilterBar
+        idPrefix="dashboard"
+        from={from}
+        to={to}
+        onFromChange={setFrom}
+        onToChange={setTo}
+        busy={dashboard.isFetching}
+        onSubmit={() => setApplied({ ...(from ? { from } : {}), ...(to ? { to } : {}) })}
+        actions={
+          filtered && (
+            <Button
+              type="button"
+              variant="ghost"
+              className="h-10"
+              onClick={() => {
+                setFrom('');
+                setTo('');
+                setApplied({});
+                setProductId('');
+              }}
+            >
+              Limpiar filtros
+            </Button>
+          )
+        }
       >
-        <div className="space-y-2">
-          <Label htmlFor="dashboard-from">Desde</Label>
-          <input
-            id="dashboard-from"
-            type="date"
-            value={from}
-            onChange={(e) => setFrom(e.target.value)}
-            className="h-10 rounded-md border bg-background px-3 text-sm"
-          />
-        </div>
-        <div className="space-y-2">
-          <Label htmlFor="dashboard-to">Hasta</Label>
-          <input
-            id="dashboard-to"
-            type="date"
-            value={to}
-            onChange={(e) => setTo(e.target.value)}
-            className="h-10 rounded-md border bg-background px-3 text-sm"
-          />
-        </div>
-        <Button type="submit" variant="outline" disabled={dashboard.isFetching}>
-          Aplicar
-        </Button>
-      </form>
-
-      <InventoryEntityPicker
-        kind="product"
-        value={productId}
-        allowClear
-        activeOnly
-        productType="FINISHED_GOOD"
-        onChange={(id) => setProductId(id)}
-      />
+        <InventoryEntityPicker
+          kind="product"
+          value={productId}
+          allowClear
+          activeOnly
+          productType="FINISHED_GOOD"
+          onChange={(id) => setProductId(id)}
+        />
+      </DashboardFilterBar>
 
       {dashboard.isPending && <LoadingState label="Cargando dashboard de producción…" />}
       <ErrorNotice error={dashboard.error} />
@@ -109,51 +112,51 @@ export function ProductionDashboardPage() {
       )}
       {data && (
         <>
-          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-            {metricLabels.map(([key, label]) => (
-              <Card key={key}>
-                <CardHeader>
-                  <CardDescription>{label}</CardDescription>
-                  <CardTitle>{nf.format(data.orders[key])}</CardTitle>
-                </CardHeader>
-              </Card>
-            ))}
-            <Card>
-              <CardHeader>
-                <CardDescription>Cantidad planificada</CardDescription>
-                <CardTitle>
-                  {data.quantity
+          <DashboardSection
+            title="Órdenes del período"
+            description={`${data.period.from} — ${data.period.to} · Managua`}
+          >
+            <MetricGrid>
+              {metricLabels.map(([key, label]) => (
+                <MetricCard key={key} label={label} value={data.orders[key]} />
+              ))}
+            </MetricGrid>
+          </DashboardSection>
+          <DashboardSection
+            title="Cantidades"
+            description={
+              data.selectedProduct
+                ? `${data.selectedProduct.code} · ${data.selectedProduct.name}`
+                : 'Seleccioná un producto para comparar cantidades; no se suman unidades incompatibles.'
+            }
+          >
+            <MetricGrid columns={3}>
+              <MetricCard
+                label="Cantidad planificada"
+                value={
+                  data.quantity
                     ? `${formatQuantity(data.quantity.planned)} ${unitLabel(data.quantity.unit)}`
-                    : '—'}
-                </CardTitle>
-              </CardHeader>
-            </Card>
-            <Card>
-              <CardHeader>
-                <CardDescription>Cantidad producida</CardDescription>
-                <CardTitle>
-                  {data.quantity
+                    : '—'
+                }
+              />
+              <MetricCard
+                label="Cantidad producida"
+                value={
+                  data.quantity
                     ? `${formatQuantity(data.quantity.produced)} ${unitLabel(data.quantity.unit)}`
-                    : '—'}
-                </CardTitle>
-              </CardHeader>
-            </Card>
-            <Card>
-              <CardHeader>
-                <CardDescription>Avance</CardDescription>
-                <CardTitle>
-                  {!data.quantity || data.quantity.completionRate === null
+                    : '—'
+                }
+              />
+              <MetricCard
+                label="Avance"
+                value={
+                  !data.quantity || data.quantity.completionRate === null
                     ? '—'
-                    : `${nf.format(Number(data.quantity.completionRate))}%`}
-                </CardTitle>
-              </CardHeader>
-            </Card>
-          </div>
-          {!data.selectedProduct && (
-            <p className="text-sm text-muted-foreground">
-              Seleccioná un producto para comparar cantidades; no se suman unidades incompatibles.
-            </p>
-          )}
+                    : `${nf.format(Number(data.quantity.completionRate))}%`
+                }
+              />
+            </MetricGrid>
+          </DashboardSection>
 
           {data.orders.total === 0 ? (
             <EmptyState
@@ -174,10 +177,10 @@ export function ProductionDashboardPage() {
                         data={statusData}
                         margin={{ top: 8, right: 12, left: 0, bottom: 8 }}
                       >
-                        <CartesianGrid strokeDasharray="3 3" />
-                        <XAxis dataKey="name" />
-                        <YAxis allowDecimals={false} />
-                        <Tooltip />
+                        <CartesianGrid {...chartGrid} />
+                        <XAxis dataKey="name" {...chartAxis} />
+                        <YAxis allowDecimals={false} {...chartAxis} />
+                        <Tooltip {...chartTooltip} />
                         <Bar
                           dataKey="orders"
                           name="Órdenes"
@@ -217,21 +220,27 @@ export function ProductionDashboardPage() {
                           }))}
                           margin={{ top: 8, right: 16, left: 0, bottom: 8 }}
                         >
-                          <CartesianGrid strokeDasharray="3 3" />
-                          <XAxis dataKey="period" />
-                          <YAxis />
-                          <Tooltip />
+                          <CartesianGrid {...chartGrid} />
+                          <XAxis dataKey="period" {...chartAxis} />
+                          <YAxis {...chartAxis} />
+                          <Tooltip {...chartTooltip} />
+                          <Legend {...chartLegend} />
                           <Line
                             type="monotone"
                             dataKey="planned"
                             name="Planificado"
-                            stroke="var(--color-chart-1)"
+                            stroke="var(--color-chart-3)"
+                            strokeWidth={2}
+                            strokeDasharray="5 3"
+                            dot={false}
                           />
                           <Line
                             type="monotone"
                             dataKey="produced"
                             name="Producido"
-                            stroke="var(--color-chart-2)"
+                            stroke="var(--color-primary)"
+                            strokeWidth={2}
+                            dot={false}
                           />
                         </LineChart>
                       </ResponsiveContainer>
@@ -251,7 +260,9 @@ export function ProductionDashboardPage() {
             </CardHeader>
             <CardContent>
               {data.recentOrders.length === 0 ? (
-                <p className="text-sm text-muted-foreground">No hay órdenes recientes.</p>
+                <p className="text-sm text-muted-foreground">
+                  No hubo órdenes de producción en este período.
+                </p>
               ) : (
                 <div className="overflow-x-auto">
                   <table>
@@ -261,8 +272,8 @@ export function ProductionDashboardPage() {
                         <th>Número</th>
                         <th>Producto</th>
                         <th>Estado</th>
-                        <th>Planificado</th>
-                        <th>Producido</th>
+                        <th className="text-right">Planificado</th>
+                        <th className="text-right">Producido</th>
                         <th>Actividad · Managua</th>
                       </tr>
                     </thead>
@@ -270,10 +281,7 @@ export function ProductionDashboardPage() {
                       {data.recentOrders.map((order) => (
                         <tr key={order.id}>
                           <td>
-                            <Link
-                              className="font-medium underline underline-offset-4"
-                              to={`/production/orders/${order.id}`}
-                            >
+                            <Link className="table-link" to={`/production/orders/${order.id}`}>
                               {order.number}
                             </Link>
                           </td>
@@ -286,11 +294,11 @@ export function ProductionDashboardPage() {
                           <td>
                             <StatusBadge status={order.status} />
                           </td>
-                          <td>
-                            {order.quantityPlanned} {order.unit}
+                          <td className="numeric">
+                            {formatQuantity(order.quantityPlanned)} {unitLabel(order.unit)}
                           </td>
-                          <td>
-                            {order.quantityProduced} {order.unit}
+                          <td className="numeric">
+                            {formatQuantity(order.quantityProduced)} {unitLabel(order.unit)}
                           </td>
                           <td>{dateFormatter.format(new Date(order.activityAt))}</td>
                         </tr>

@@ -262,7 +262,7 @@ describe('QualityDashboardPage', () => {
         .filter(([url]) => url.includes('/products?'))
         .every(([url]) => !url.includes('isActive=') && !url.includes('type=')),
     ).toBe(true);
-    fireEvent.click(screen.getByRole('button', { name: 'Todos los productos' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Limpiar filtros' }));
     expect(await screen.findByText('Producto: Todos')).toBeTruthy();
   });
   it('preserves active-only and type defaults for existing product writer forms', async () => {
@@ -283,7 +283,11 @@ describe('QualityDashboardPage', () => {
   });
   it('places quality in operations after production for all authenticated roles', () => {
     const i = navigation.findIndex((row) => row.to === '/quality/dashboard');
-    expect(navigation[i]).toMatchObject({ label: 'Calidad · Dashboard', group: 'Operaciones' });
+    expect(navigation[i]).toMatchObject({
+      label: 'Resumen',
+      module: 'Calidad',
+      group: 'Operaciones',
+    });
     expect(navigation[i].roles).toEqual(
       navigation.find((row) => row.to === '/production/orders')?.roles,
     );
@@ -309,7 +313,7 @@ describe('QualityDashboardPage', () => {
       </QueryClientProvider>,
     );
     expect(await screen.findByRole('heading', { name: 'Dashboard de calidad' })).toBeTruthy();
-    expect(screen.getByRole('link', { name: 'Calidad · Dashboard' }).getAttribute('href')).toBe(
+    expect(screen.getByRole('link', { name: 'Calidad · Resumen' }).getAttribute('href')).toBe(
       '/quality/dashboard',
     );
     await screen.findByText('Pendientes de inspección');

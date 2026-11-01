@@ -80,7 +80,7 @@ describe('PurchasesDashboardPage', () => {
     resolve(response({ data: dashboard }));
     await screen.findByText('Proveedores activos');
     for (const label of [
-      'Estado actual',
+      'Pipeline actual',
       'Actividad del período',
       'Pendientes de recepción',
       'Vencidas',
@@ -144,7 +144,7 @@ describe('PurchasesDashboardPage', () => {
     expect(await screen.findByText('Sin actividad de compras en este período.')).toBeTruthy();
     expect(screen.getByText('0.00')).toBeTruthy();
     expect(screen.getByText('Pendientes de recepción')).toBeTruthy();
-    expect(screen.getByText('No hay órdenes recientes.')).toBeTruthy();
+    expect(screen.getByText('No hubo órdenes de compra en este período.')).toBeTruthy();
     expect(screen.queryByRole('img', { name: 'Gráfico de órdenes por estado' })).toBeNull();
   });
   it('keeps receipt-only activity visible', async () => {
@@ -201,13 +201,17 @@ describe('PurchasesDashboardPage', () => {
         .filter(([url]) => url.includes('/suppliers?'))
         .every(([url]) => !url.includes('isActive=true')),
     ).toBe(true);
-    fireEvent.click(screen.getByRole('button', { name: 'Todos los proveedores' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Limpiar filtros' }));
     expect(await screen.findByText('Proveedor: Todos')).toBeTruthy();
   });
   it('places dashboard before the unchanged Compras navigation entry for all roles', () => {
     const i = navigation.findIndex((row) => row.to === '/purchases/dashboard');
-    expect(navigation[i].label).toBe('Compras · Dashboard');
-    expect(navigation[i + 1]).toMatchObject({ to: '/purchases/orders', label: 'Compras' });
+    expect(navigation[i]).toMatchObject({ label: 'Resumen', module: 'Compras' });
+    expect(navigation[i + 1]).toMatchObject({
+      to: '/purchases/orders',
+      label: 'Órdenes',
+      module: 'Compras',
+    });
     expect(navigation[i].roles).toEqual(navigation[i + 1].roles);
   });
   it('opens the authenticated route for VENTAS and exposes navigation', async () => {
@@ -229,7 +233,7 @@ describe('PurchasesDashboardPage', () => {
       </QueryClientProvider>,
     );
     expect(await screen.findByRole('heading', { name: 'Dashboard de compras' })).toBeTruthy();
-    expect(screen.getByRole('link', { name: 'Compras · Dashboard' }).getAttribute('href')).toBe(
+    expect(screen.getByRole('link', { name: 'Compras · Resumen' }).getAttribute('href')).toBe(
       '/purchases/dashboard',
     );
     await screen.findByText('Proveedores activos');
